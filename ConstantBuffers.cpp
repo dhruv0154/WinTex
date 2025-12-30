@@ -1,5 +1,10 @@
 #include "ConstantBuffers.h"
+#include "Platform.h"
+#ifdef PLATFORM_WINDOWS
 #include <DirectXMath.h>
+#else
+#include "Win32Compat.h"
+#endif
 
 ID3D11Buffer* CConstantBuffers::_vop = NULL;
 ID3D11Buffer* CConstantBuffers::_world = NULL;

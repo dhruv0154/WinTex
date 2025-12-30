@@ -1,6 +1,11 @@
 #pragma once
+#include "Platform.h"
+#ifdef PLATFORM_WINDOWS
 #include <xaudio2.h>
 #include <atlbase.h>
+#else
+#include "Win32Compat.h"
+#endif
 
 class CDXSound : public IXAudio2VoiceCallback
 {

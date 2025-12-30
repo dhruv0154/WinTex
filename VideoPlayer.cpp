@@ -1,6 +1,8 @@
 #include "VideoPlayer.h"
 #include <string>
 
+#ifdef PLATFORM_WINDOWS
+
 #pragma comment(linker, \
     "\"/manifestdependency:type='Win32' "\
     "name='Microsoft.Windows.Common-Controls' "\
@@ -279,3 +281,29 @@ void CVideoPlayer::Skip()
 
 	//_done = TRUE;
 }
+
+#else
+
+CVideoPlayer::CVideoPlayer()
+{
+}
+
+CVideoPlayer::~CVideoPlayer()
+{
+}
+
+void CVideoPlayer::Init(HWND hWnd, LPCTSTR fileName)
+{
+    // Stub
+}
+
+BOOL CVideoPlayer::Update()
+{
+    return FALSE;
+}
+
+void CVideoPlayer::Skip()
+{
+}
+
+#endif

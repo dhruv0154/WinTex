@@ -2,8 +2,11 @@
 #include "Globals.h"
 #include "Utilities.h"
 #include "DXScreen.h"
-#include "resource.h"
 #include "GameController.h"
+
+#define IDB_BUTTON                      112
+#define IDB_BUTTON_MOUSEOVER            113
+#define IDR_WAVE_BUTTON_MOUSEOVER       123
 
 CTexture CDXButton::_texBackground;
 CTexture CDXButton::_texMouseOver;

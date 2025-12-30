@@ -1,5 +1,10 @@
 #include "DXShader.h"
+#include "Platform.h"
+#ifdef PLATFORM_WINDOWS
 #include <d3dcompiler.h>
+#else
+#include "Win32Compat.h"
+#endif
 
 CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR vsProfileName, LPCSTR psFunctionName, LPCSTR psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors)
 {

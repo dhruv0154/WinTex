@@ -1,7 +1,12 @@
 #pragma once
 
+#include "Platform.h"
+#ifdef PLATFORM_WINDOWS
 #include <Windows.h>
-#include <unordered_map>
+#else
+#include "Win32Compat.h"
+#endif
+#include <vector>
 #include <string>
 #include "Enums.h"
 
@@ -10,7 +15,7 @@ class CScriptState
 public:
 	CScriptState();
 
-	virtual void Init(LPBYTE script, int length, std::wstring file, int entry) = NULL;
+	virtual void Init(LPBYTE script, int length, std::wstring file, int entry) = 0;
 	void Clear();
 
 	int GetInt(int offset, int size);

@@ -1,0 +1,729 @@
+#pragma once
+#include "Platform.h"
+
+#ifdef PLATFORM_LINUX
+#include <stdint.h>
+#include <string>
+#include <vector>
+#include <map>
+#include <cstring>
+#include <cmath>
+#include <cwchar>
+
+// Windows Types
+typedef int BOOL;
+typedef uint8_t BYTE;
+typedef unsigned char byte;
+typedef BYTE* LPBYTE;
+typedef BYTE* PBYTE;
+typedef int* PINT;
+typedef int* LPINT;
+typedef uint16_t WORD;
+typedef WORD* LPWORD;
+typedef uint32_t DWORD;
+typedef int32_t LONG;
+typedef uint32_t ULONG;
+typedef long long LONG_PTR;
+typedef unsigned long long ULONG_PTR;
+typedef DWORD* PDWORD;
+typedef DWORD* LPDWORD;
+typedef void* LPVOID;
+typedef const void* LPCVOID;
+typedef LONG* PLONG;
+typedef void* HINSTANCE;
+typedef void* HWND;
+typedef void* HICON;
+typedef char CHAR;
+typedef char* LPSTR;
+typedef const char* LPCSTR;
+typedef wchar_t* LPWSTR;
+typedef const wchar_t* LPCWSTR;
+typedef const wchar_t* PCWSTR;
+typedef wchar_t WCHAR;
+typedef wchar_t* PWCHAR;
+typedef wchar_t* PWSTR;
+typedef const char* LPCTSTR;
+typedef uint64_t ULONGLONG;
+typedef long long WPARAM;
+typedef long long LPARAM;
+typedef unsigned int UINT;
+typedef uint32_t UINT32;
+typedef void* HANDLE;
+typedef long HRESULT;
+typedef int INT;
+
+#define TRUE 1
+#define FALSE 0
+#ifndef NULL
+#define NULL 0
+#endif
+#define MAX_PATH 260
+#define S_OK 0
+#define WINAPI
+#define CALLBACK
+#define INFINITE 0xFFFFFFFF
+#define RGB(r,g,b) ((DWORD)(((BYTE)(r)|((WORD)((BYTE)(g))<<8))|(((DWORD)(BYTE)(b))<<16)))
+
+struct POINT { LONG x; LONG y; };
+typedef POINT* LPPOINT;
+struct RECT { LONG left; LONG top; LONG right; LONG bottom; };
+typedef RECT* LPRECT;
+
+// Math Stubs
+struct XMFLOAT2 { float x, y; XMFLOAT2(float _x=0, float _y=0): x(_x), y(_y){} };
+struct XMFLOAT3 { float x, y, z; XMFLOAT3(float _x=0, float _y=0, float _z=0): x(_x), y(_y), z(_z){} };
+struct XMFLOAT4 { 
+    float x, y, z, w; 
+    XMFLOAT4(float _x=0, float _y=0, float _z=0, float _w=0): x(_x), y(_y), z(_z), w(_w){} 
+};
+
+struct XMVECTOR { 
+    union {
+        struct { float x, y, z, w; };
+        float m128_f32[4];
+    };
+    XMVECTOR(float _x=0, float _y=0, float _z=0, float _w=0): x(_x), y(_y), z(_z), w(_w) {
+        m128_f32[0] = x; m128_f32[1] = y; m128_f32[2] = z; m128_f32[3] = w;
+    } 
+};
+
+struct XMMATRIX { 
+    float m[4][4]; 
+    XMMATRIX() { memset(m, 0, sizeof(m)); m[0][0]=m[1][1]=m[2][2]=m[3][3]=1.0f; } // Identity by default
+};
+
+// Math Functions
+inline XMMATRIX XMMatrixIdentity() { return XMMATRIX(); }
+inline XMMATRIX XMMatrixTranslation(float x, float y, float z) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixScaling(float x, float y, float z) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixRotationZ(float angle) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixRotationX(float angle) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixRotationY(float angle) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixLookAtLH(XMVECTOR eye, XMVECTOR focus, XMVECTOR up) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixOrthographicLH(float w, float h, float zn, float zf) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixPerspectiveFovLH(float fov, float aspect, float zn, float zf) { return XMMATRIX(); }
+inline XMMATRIX XMMatrixTranspose(XMMATRIX m) { return m; }
+inline XMVECTOR XMVectorSet(float x, float y, float z, float w) { return XMVECTOR(x,y,z,w); }
+inline XMMATRIX operator*(const XMMATRIX& a, const XMMATRIX& b) { return XMMATRIX(); }
+
+// D3D11 Stubs
+#define SUCCEEDED(hr) (((HRESULT)(hr)) >= 0)
+#define FAILED(hr) (((HRESULT)(hr)) < 0)
+#ifndef min
+#define min(a,b) (((a)<(b))?(a):(b))
+#endif
+#ifndef max
+#define max(a,b) (((a)>(b))?(a):(b))
+#endif
+
+// Forward Declarations
+typedef struct ID3D11Device ID3D11Device;
+typedef struct ID3D11DeviceContext ID3D11DeviceContext;
+typedef struct ID3D11Resource ID3D11Resource;
+typedef struct ID3D11Buffer ID3D11Buffer;
+typedef struct ID3D11Texture2D ID3D11Texture2D;
+typedef struct ID3D11VertexShader ID3D11VertexShader;
+typedef struct ID3D11PixelShader ID3D11PixelShader;
+typedef struct ID3D11InputLayout ID3D11InputLayout;
+typedef struct ID3D11ClassLinkage ID3D11ClassLinkage;
+
+enum D3D11_INPUT_CLASSIFICATION {
+    D3D11_INPUT_PER_VERTEX_DATA,
+    D3D11_INPUT_PER_INSTANCE_DATA
+};
+
+enum DXGI_FORMAT { 
+    DXGI_FORMAT_UNKNOWN,
+    DXGI_FORMAT_B8G8R8A8_UNORM,
+    DXGI_FORMAT_R8G8B8A8_UNORM,
+    DXGI_FORMAT_R8G8B8A8_TYPELESS,
+    DXGI_FORMAT_R32G32B32_FLOAT,
+    DXGI_FORMAT_R32G32_FLOAT,
+    DXGI_FORMAT_R32G32B32A32_FLOAT
+};
+
+typedef struct D3D11_INPUT_ELEMENT_DESC {
+    LPCSTR                     SemanticName;
+    UINT                       SemanticIndex;
+    DXGI_FORMAT                Format;
+    UINT                       InputSlot;
+    UINT                       AlignedByteOffset;
+    D3D11_INPUT_CLASSIFICATION InputSlotClass;
+    UINT                       InstanceDataStepRate;
+} D3D11_INPUT_ELEMENT_DESC;
+
+enum D3D11_MAP { D3D11_MAP_READ, D3D11_MAP_WRITE, D3D11_MAP_READ_WRITE, D3D11_MAP_WRITE_DISCARD, D3D11_MAP_WRITE_NO_OVERWRITE };
+enum D3D11_USAGE { D3D11_USAGE_DEFAULT, D3D11_USAGE_IMMUTABLE, D3D11_USAGE_DYNAMIC, D3D11_USAGE_STAGING };
+
+#define D3D11_APPEND_ALIGNED_ELEMENT 0xffffffff
+enum D3D11_PRIMITIVE_TOPOLOGY { 
+    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
+    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP,
+    D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP
+};
+
+#define D3D11_CPU_ACCESS_READ 0x20000L
+#define D3D11_BIND_VERTEX_BUFFER 0x1L
+#define D3D11_BIND_SHADER_RESOURCE 0x8L
+#define D3D11_BIND_CONSTANT_BUFFER 0x4L
+#define D3D11_CPU_ACCESS_WRITE 0x10000L
+
+typedef struct DXGI_SAMPLE_DESC {
+    UINT Count;
+    UINT Quality;
+} DXGI_SAMPLE_DESC;
+
+typedef struct D3D11_TEXTURE2D_DESC {
+    UINT Width;
+    UINT Height;
+    UINT MipLevels;
+    UINT ArraySize;
+    DXGI_FORMAT Format;
+    DXGI_SAMPLE_DESC SampleDesc;
+    D3D11_USAGE Usage;
+    UINT BindFlags;
+    UINT CPUAccessFlags;
+    UINT MiscFlags;
+} D3D11_TEXTURE2D_DESC;
+
+typedef struct D3D11_BUFFER_DESC {
+    UINT ByteWidth;
+    UINT Usage;
+    UINT BindFlags;
+    UINT CPUAccessFlags;
+    UINT MiscFlags;
+    UINT StructureByteStride;
+} D3D11_BUFFER_DESC;
+
+typedef struct D3D11_SUBRESOURCE_DATA {
+    const void *pSysMem;
+    UINT SysMemPitch;
+    UINT SysMemSlicePitch;
+} D3D11_SUBRESOURCE_DATA;
+
+typedef struct D3D11_MAPPED_SUBRESOURCE {
+    void* pData;
+    UINT RowPitch;
+    UINT DepthPitch;
+} D3D11_MAPPED_SUBRESOURCE;
+
+typedef struct D3DX11_IMAGE_LOAD_INFO {
+    UINT Width;
+    UINT Height;
+    UINT Depth;
+    UINT FirstMipLevel;
+    UINT MipLevels;
+    D3D11_USAGE Usage;
+    UINT BindFlags;
+    UINT CpuAccessFlags;
+    UINT MiscFlags;
+    DXGI_FORMAT Format;
+    UINT Filter;
+    UINT MipFilter;
+    void *pSrcInfo;
+} D3DX11_IMAGE_LOAD_INFO;
+
+typedef struct ID3D11DeviceChild { virtual void Release() {} } ID3D11DeviceChild;
+struct ID3D11Resource : public ID3D11DeviceChild {};
+struct ID3D11Buffer : public ID3D11Resource { };
+struct ID3D11Texture2D : public ID3D11Resource { 
+    void GetDesc(D3D11_TEXTURE2D_DESC *pDesc) {}
+};
+struct ID3D11VertexShader : public ID3D11DeviceChild {};
+struct ID3D11PixelShader : public ID3D11DeviceChild {};
+struct ID3D11InputLayout : public ID3D11DeviceChild {};
+
+struct ID3D11ShaderResourceView : public ID3D11DeviceChild {};
+struct ID3D11RenderTargetView : public ID3D11DeviceChild {};
+struct ID3D11DepthStencilView : public ID3D11DeviceChild {};
+typedef struct IDXGISwapChain IDXGISwapChain;
+typedef struct ID3D11DepthStencilState ID3D11DepthStencilState;
+typedef struct ID3D11RasterizerState ID3D11RasterizerState;
+typedef struct ID3D11BlendState ID3D11BlendState;
+typedef struct ID3D11SamplerState ID3D11SamplerState;
+
+struct ID3D11Device : public ID3D11DeviceChild {
+    HRESULT CreateVertexShader(const void *pShaderBytecode, size_t BytecodeLength, ID3D11ClassLinkage *pClassLinkage, ID3D11VertexShader **ppVertexShader) { *ppVertexShader = new ID3D11VertexShader(); return S_OK; }
+    HRESULT CreatePixelShader(const void *pShaderBytecode, size_t BytecodeLength, ID3D11ClassLinkage *pClassLinkage, ID3D11PixelShader **ppPixelShader) { *ppPixelShader = new ID3D11PixelShader(); return S_OK; }
+    HRESULT CreateInputLayout(const D3D11_INPUT_ELEMENT_DESC *pInputElementDescs, UINT NumElements, const void *pShaderBytecodeWithInputSignature, size_t BytecodeLength, ID3D11InputLayout **ppInputLayout) { *ppInputLayout = new ID3D11InputLayout(); return S_OK; }
+    HRESULT CreateTexture2D(const D3D11_TEXTURE2D_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Texture2D **ppTexture2D) { *ppTexture2D = new ID3D11Texture2D(); return S_OK; }
+};
+
+struct ID3D11DeviceContext : public ID3D11DeviceChild {
+    HRESULT Map(ID3D11Resource *pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags, D3D11_MAPPED_SUBRESOURCE *pMappedResource) { return S_OK; }
+    void Unmap(ID3D11Resource *pResource, UINT Subresource) {}
+    void VSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppConstantBuffers) {}
+    void PSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppConstantBuffers) {}
+    void VSSetShader(ID3D11VertexShader *pVertexShader, ID3D11ClassLinkage *const *ppClassInstances, UINT NumClassInstances) {}
+    void PSSetShader(ID3D11PixelShader *pPixelShader, ID3D11ClassLinkage *const *ppClassInstances, UINT NumClassInstances) {}
+    void IASetInputLayout(ID3D11InputLayout *pInputLayout) {}
+};
+
+typedef void ID3DX11ThreadPump;
+inline HRESULT D3DX11CreateTextureFromMemory(ID3D11Device* pDevice, const void* pSrcData, size_t SrcDataSize, D3DX11_IMAGE_LOAD_INFO* pLoadInfo, ID3DX11ThreadPump* pPump, ID3D11Resource** ppTexture, HRESULT* pHResult) { 
+    *ppTexture = new ID3D11Texture2D();
+    return S_OK; 
+}
+
+inline HRESULT D3DX11CreateTextureFromFile(ID3D11Device* pDevice, LPCWSTR pSrcFile, D3DX11_IMAGE_LOAD_INFO* pLoadInfo, ID3DX11ThreadPump* pPump, ID3D11Resource** ppTexture, HRESULT* pHResult) { 
+    *ppTexture = new ID3D11Texture2D();
+    return S_OK; 
+}
+
+typedef struct D3D11_INPUT_ELEMENT_DESC D3D11_INPUT_ELEMENT_DESC;
+
+typedef struct _LUID {
+    DWORD LowPart;
+    LONG HighPart;
+} LUID, *PLUID;
+typedef struct _GUID {
+    unsigned long  Data1;
+    unsigned short Data2;
+    unsigned short Data3;
+    unsigned char  Data4[8];
+} GUID, IID;
+
+struct IUnknown {
+    virtual HRESULT QueryInterface(const IID &riid, void **ppvObject) { return S_OK; }
+    virtual ULONG AddRef() { return 1; }
+    virtual ULONG Release() { return 0; }
+};
+
+typedef struct D3D11_SHADER_RESOURCE_VIEW_DESC D3D11_SHADER_RESOURCE_VIEW_DESC;
+
+struct D3D11_VIEWPORT {
+    float TopLeftX;
+    float TopLeftY;
+    float Width;
+    float Height;
+    float MinDepth;
+    float MaxDepth;
+};
+
+struct D3D11_RECT {
+    LONG left;
+    LONG top;
+    LONG right;
+    LONG bottom;
+};
+
+// DXGI Stubs
+struct DXGI_ADAPTER_DESC {
+    WCHAR Description[128];
+    UINT VendorId;
+    UINT DeviceId;
+    UINT SubSysId;
+    UINT Revision;
+    size_t DedicatedVideoMemory;
+    size_t DedicatedSystemMemory;
+    size_t SharedSystemMemory;
+    LUID AdapterLuid;
+};
+
+struct DXGI_MODE_DESC {
+    UINT Width;
+    UINT Height;
+    // ... other fields if needed
+};
+
+struct IDXGIOutput : public IUnknown {
+    virtual HRESULT GetDisplayModeList(DXGI_FORMAT EnumFormat, UINT Flags, UINT *pNumModes, DXGI_MODE_DESC *pDesc) { *pNumModes = 0; return S_OK; }
+};
+
+struct IDXGIAdapter : public IUnknown {
+    virtual HRESULT GetDesc(DXGI_ADAPTER_DESC *pDesc) { return S_OK; }
+    virtual HRESULT EnumOutputs(UINT Output, IDXGIOutput **ppOutput) { *ppOutput = new IDXGIOutput(); return S_OK; }
+};
+
+// Memory Functions
+#define ZeroMemory(Destination,Length) memset((Destination),0,(Length))
+#define CopyMemory(Destination,Source,Length) memcpy((Destination),(Source),(Length))
+#define FillMemory(Destination,Length,Fill) memset((Destination),(Fill),(Length))
+
+// Other Windows Functions Stubs
+inline int GetSystemMetrics(int) { return 1920; } // Dummy
+#define SM_CXSCREEN 0
+#define SM_CYSCREEN 1
+
+inline void OutputDebugString(LPCWSTR) {}
+inline void MessageBox(HWND, LPCWSTR, LPCWSTR, UINT) {}
+#define MB_OK 0
+
+inline DWORD GetTickCount64() { return 0; } // Should implement with clock_gettime
+inline DWORD GetTickCount() { return (DWORD)GetTickCount64(); }
+inline void Sleep(DWORD) {}
+
+#define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
+inline HANDLE CreateThread(LPVOID lpThreadAttributes, size_t dwStackSize, DWORD (WINAPI *lpStartAddress)(LPVOID), LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId) { return INVALID_HANDLE_VALUE; }
+inline DWORD WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds) { return 0; }
+
+inline int MultiByteToWideChar(UINT, DWORD, const char*, int, LPWSTR, int) { return 0; }
+#define CP_UTF8 65001
+
+#define XM_PI 3.141592654f
+#define XM_2PI 6.283185307f
+#define XM_PIDIV2 1.570796327f
+#define XM_PIDIV4 0.785398163f
+
+// COM / XAudio2 Stubs
+#define STDMETHOD_(type, name) virtual type name
+#define WAVE_FORMAT_PCM 1
+
+#define XAUDIO2_DEFAULT_FREQ_RATIO 2.0f
+typedef struct tWAVEFORMATEX {
+  WORD  wFormatTag;
+  WORD  nChannels;
+  DWORD nSamplesPerSec;
+  DWORD nAvgBytesPerSec;
+  WORD  nBlockAlign;
+  WORD  wBitsPerSample;
+  WORD  cbSize;
+} WAVEFORMATEX, *PWAVEFORMATEX, *NPWAVEFORMATEX, *LPWAVEFORMATEX;
+
+struct IXAudio2VoiceCallback {
+    virtual void OnVoiceProcessingPassStart(UINT32) {}
+    virtual void OnVoiceProcessingPassEnd() {}
+    virtual void OnStreamEnd() {}
+    virtual void OnBufferStart(void*) {}
+    virtual void OnBufferEnd(void*) {}
+    virtual void OnLoopEnd(void*) {}
+    virtual void OnVoiceError(void*, HRESULT) {}
+};
+
+typedef struct XAUDIO2_BUFFER {
+  UINT32     Flags;
+  UINT32     AudioBytes;
+  const BYTE *pAudioData;
+  UINT32     PlayBegin;
+  UINT32     PlayLength;
+  UINT32     LoopBegin;
+  UINT32     LoopLength;
+  UINT32     LoopCount;
+  void       *pContext;
+} XAUDIO2_BUFFER;
+
+#define XAUDIO2_LOOP_INFINITE 255
+
+typedef struct IXAudio2Voice IXAudio2Voice;
+
+struct IXAudio2SourceVoice {
+    virtual HRESULT SubmitSourceBuffer(const XAUDIO2_BUFFER *pBuffer, const void *pBufferWMA = NULL) { return S_OK; }
+    virtual HRESULT Stop(UINT32 Flags = 0, UINT32 OperationSet = 0) { return S_OK; }
+    virtual HRESULT Start(UINT32 Flags = 0, UINT32 OperationSet = 0) { return S_OK; }
+    virtual void DestroyVoice() {}
+    virtual HRESULT SetVolume(float Volume, UINT32 OperationSet = 0) { return S_OK; }
+    virtual HRESULT SetOutputMatrix(IXAudio2Voice *pDestinationVoice, UINT32 SourceChannels, UINT32 DestinationChannels, const float *pLevelMatrix, UINT32 OperationSet = 0) { return S_OK; }
+    virtual HRESULT FlushSourceBuffers() { return S_OK; }
+};
+
+struct IXAudio2MasteringVoice {
+    virtual void SetVolume(float Volume, UINT32 OperationSet = 0) {}
+    virtual void DestroyVoice() {}
+};
+
+typedef struct IXAudio2 : public IUnknown {
+    virtual HRESULT CreateMasteringVoice(IXAudio2MasteringVoice **ppMasteringVoice, UINT32 InputChannels = 0, UINT32 InputSampleRate = 0, UINT32 Flags = 0, UINT32 DeviceIndex = 0, const void *pEffectChain = NULL) { 
+        *ppMasteringVoice = new IXAudio2MasteringVoice(); // Stub leak
+        return S_OK; 
+    }
+    virtual HRESULT CreateSourceVoice(IXAudio2SourceVoice **ppSourceVoice, const WAVEFORMATEX *pSourceFormat, UINT32 Flags = 0, float MaxFrequencyRatio = XAUDIO2_DEFAULT_FREQ_RATIO, IXAudio2VoiceCallback *pCallback = NULL, const void *pSendList = NULL, const void *pEffectChain = NULL) {
+        *ppSourceVoice = new IXAudio2SourceVoice(); // Stub leak
+        return S_OK;
+    }
+} IXAudio2;
+
+inline HRESULT XAudio2Create(IXAudio2 **ppXAudio2, UINT32 Flags = 0, UINT32 XAudio2Processor = 0) {
+    *ppXAudio2 = new IXAudio2();
+    return S_OK;
+}
+
+// MIDI Stubs
+typedef HANDLE HMIDIOUT;
+typedef HANDLE LPHMIDIOUT;
+typedef UINT MMVERSION;
+typedef UINT MMRESULT;
+typedef ULONG_PTR DWORD_PTR;
+
+#define MAXPNAMELEN 32
+#define MMSYSERR_NOERROR 0
+#define CALLBACK_NULL 0x00000000l
+
+typedef struct {
+    WORD      wMid;
+    WORD      wPid;
+    MMVERSION vDriverVersion;
+    CHAR      szPname[MAXPNAMELEN];
+    WORD      wTechnology;
+    WORD      wVoices;
+    WORD      wNotes;
+    WORD      wChannelMask;
+    DWORD     dwSupport;
+} MIDIOUTCAPSA;
+
+typedef struct midihdr_tag {
+    LPSTR       lpData;
+    DWORD       dwBufferLength;
+    DWORD       dwBytesRecorded;
+    DWORD_PTR   dwUser;
+    DWORD       dwFlags;
+    struct midihdr_tag *lpNext;
+    DWORD_PTR   reserved;
+    DWORD       dwOffset;
+    DWORD_PTR   dwReserved[8];
+} MIDIHDR, *PMIDIHDR, *NPMIDIHDR, *LPMIDIHDR;
+
+inline int midiOutGetNumDevs() { return 0; }
+inline int midiOutGetDevCapsA(int uDeviceID, MIDIOUTCAPSA* lpMidiOutCaps, UINT cbMidiOutCaps) { return 0; }
+inline MMRESULT midiOutClose(HMIDIOUT hmo) { return MMSYSERR_NOERROR; }
+inline MMRESULT midiOutOpen(LPHMIDIOUT phmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen) { return MMSYSERR_NOERROR; }
+inline MMRESULT midiOutShortMsg(HMIDIOUT hmo, DWORD dwMsg) { return MMSYSERR_NOERROR; }
+inline MMRESULT midiOutPrepareHeader(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh) { return MMSYSERR_NOERROR; }
+inline MMRESULT midiOutLongMsg(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh) { return MMSYSERR_NOERROR; }
+inline MMRESULT midiOutUnprepareHeader(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh) { return MMSYSERR_NOERROR; }
+
+// File Stubs
+#define GENERIC_READ                     (0x80000000L)
+#define GENERIC_WRITE                    (0x40000000L)
+#define FILE_SHARE_READ                 0x00000001  
+#define FILE_SHARE_WRITE                0x00000002  
+#define FILE_SHARE_DELETE               0x00000004  
+#define CREATE_NEW          1
+#define CREATE_ALWAYS       2
+#define OPEN_EXISTING       3
+#define OPEN_ALWAYS         4
+#define TRUNCATE_EXISTING   5
+#define FILE_ATTRIBUTE_NORMAL               0x00000080  
+#define FILE_BEGIN           0
+#define FILE_CURRENT         1
+#define FILE_END             2
+
+#define FILE_ATTRIBUTE_DIRECTORY 0x00000010
+
+typedef struct _FILETIME {
+    DWORD dwLowDateTime;
+    DWORD dwHighDateTime;
+} FILETIME, *PFILETIME, *LPFILETIME;
+
+typedef struct _WIN32_FIND_DATAW {
+    DWORD dwFileAttributes;
+    FILETIME ftCreationTime;
+    FILETIME ftLastAccessTime;
+    FILETIME ftLastWriteTime;
+    DWORD nFileSizeHigh;
+    DWORD nFileSizeLow;
+    DWORD dwReserved0;
+    DWORD dwReserved1;
+    WCHAR cFileName[260];
+    WCHAR cAlternateFileName[14];
+} WIN32_FIND_DATAW, WIN32_FIND_DATA, *PWIN32_FIND_DATAW, *LPWIN32_FIND_DATAW;
+
+inline HANDLE CreateFile(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, void* lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile) { return INVALID_HANDLE_VALUE; }
+inline BOOL CloseHandle(HANDLE hObject) { return TRUE; }
+inline BOOL ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, void* lpOverlapped) { if(lpNumberOfBytesRead)*lpNumberOfBytesRead=0; return FALSE; }
+inline BOOL WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, void* lpOverlapped) { if(lpNumberOfBytesWritten)*lpNumberOfBytesWritten=nNumberOfBytesToWrite; return TRUE; }
+inline DWORD SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod) { return 0; }
+inline BOOL FindClose(HANDLE hFindFile) { return TRUE; }
+inline HANDLE FindFirstFile(LPCWSTR lpFileName, WIN32_FIND_DATAW* lpFindFileData) { return INVALID_HANDLE_VALUE; }
+inline BOOL FindNextFile(HANDLE hFindFile, WIN32_FIND_DATAW* lpFindFileData) { return FALSE; }
+inline BOOL DeleteFile(LPCWSTR lpFileName) { return FALSE; }
+
+typedef union _LARGE_INTEGER {
+  struct {
+    DWORD LowPart;
+    LONG  HighPart;
+  } ;
+  struct {
+    DWORD LowPart;
+    LONG  HighPart;
+  } u;
+  long long QuadPart;
+} LARGE_INTEGER, *PLARGE_INTEGER;
+
+inline BOOL GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize) { return FALSE; }
+inline DWORD GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh) { return 0; }
+
+// Resource Stubs
+typedef void* HMODULE;
+typedef void* HRSRC;
+typedef void* HGLOBAL;
+#define MAKEINTRESOURCE(i) ((LPWSTR)((ULONG_PTR)((WORD)(i))))
+inline HRSRC FindResource(HMODULE hModule, LPCWSTR lpName, LPCWSTR lpType) { return NULL; }
+inline DWORD SizeofResource(HMODULE hModule, HRSRC hResInfo) { return 0; }
+inline HGLOBAL LoadResource(HMODULE hModule, HRSRC hResInfo) { return NULL; }
+inline void* LockResource(HGLOBAL hResData) { return NULL; }
+
+// D3DCompiler Stubs
+#define D3DCOMPILE_ENABLE_STRICTNESS 0
+#define D3DCOMPILE_DEBUG 0
+typedef struct ID3D10Blob : public ID3D11DeviceChild {
+    void* GetBufferPointer() { return NULL; }
+    size_t GetBufferSize() { return 0; }
+} ID3D10Blob;
+inline HRESULT D3DX11CompileFromMemory(const char* pSrcData, size_t SrcDataLen, const char* pFileName, const void* pDefines, void* pInclude, const char* pFunctionName, const char* pProfile, UINT Flags1, UINT Flags2, void* pPump, ID3D10Blob** ppShader, ID3D10Blob** ppErrorMsgs, HRESULT* pHResult) {
+    *ppShader = new ID3D10Blob();
+    return S_OK;
+}
+
+// Registry Stubs
+typedef void* HKEY;
+#define HKEY_CURRENT_USER ((HKEY)0x80000001)
+#define KEY_READ 0x20019
+#define KEY_WRITE 0x20006
+#define REG_DWORD 4
+inline LONG RegOpenKeyEx(HKEY hKey, LPCWSTR lpSubKey, DWORD ulOptions, DWORD samDesired, HKEY *phkResult) { return 1; } // Fail
+inline LONG RegCreateKeyEx(HKEY hKey, LPCWSTR lpSubKey, DWORD Reserved, LPWSTR lpClass, DWORD dwOptions, DWORD samDesired, void* lpSecurityAttributes, HKEY *phkResult, DWORD *lpdwDisposition) { return 1; } // Fail
+inline LONG RegSetValueEx(HKEY hKey, LPCWSTR lpValueName, DWORD Reserved, DWORD dwType, const BYTE *lpData, DWORD cbData) { return 1; }
+inline LONG RegCloseKey(HKEY hKey) { return 0; }
+
+#define RRF_RT_REG_BINARY 8
+#define ERROR_SUCCESS 0
+#define PVOID void*
+#define REG_BINARY 3
+#define RRF_RT_REG_DWORD 0x00000010
+#define RRF_RT_REG_SZ 0x00000002
+#define REG_SZ 1
+typedef DWORD* LPDWORD;
+inline LONG RegGetValue(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData) { return 1; }
+
+// DirectInput Stubs
+typedef struct IDirectInput8 IDirectInput8;
+typedef struct IDirectInputDevice8 IDirectInputDevice8;
+typedef struct DIDEVICEOBJECTINSTANCE DIDEVICEOBJECTINSTANCE;
+typedef struct DIDEVICEINSTANCE DIDEVICEINSTANCE;
+typedef struct DIJOYSTATE2 {
+    LONG lX;
+    LONG lY;
+    LONG lZ;
+    LONG lRx;
+    LONG lRy;
+    LONG lRz;
+    LONG rglSlider[2];
+    DWORD rgdwPOV[4];
+    BYTE rgbButtons[128];
+    LONG lVX;
+    LONG lVY;
+    LONG lVZ;
+    LONG lVRx;
+    LONG lVRy;
+    LONG lVRz;
+    LONG rglVSlider[2];
+    LONG lAX;
+    LONG lAY;
+    LONG lAZ;
+    LONG lARx;
+    LONG lARy;
+    LONG lARz;
+    LONG rglASlider[2];
+    LONG lFX;
+    LONG lFY;
+    LONG lFZ;
+    LONG lFRx;
+    LONG lFRy;
+    LONG lFRz;
+    LONG rglFSlider[2];
+} DIJOYSTATE2;
+
+#define WM_USER 0x0400
+#define WM_CLOSE 0x0010
+#define WS_CAPTION 0x00C00000L
+
+#define VK_BACK 0x08
+#define VK_TAB 0x09
+#define VK_RETURN 0x0D
+#define VK_ESCAPE 0x1B
+#define VK_SPACE 0x20
+#define VK_PRIOR 0x21
+#define VK_NEXT 0x22
+#define VK_END 0x23
+#define VK_HOME 0x24
+#define VK_LEFT 0x25
+#define VK_UP 0x26
+#define VK_RIGHT 0x27
+#define VK_DOWN 0x28
+
+#define VK_NUMPAD0 0x60
+#define VK_NUMPAD1 0x61
+#define VK_NUMPAD2 0x62
+#define VK_NUMPAD3 0x63
+#define VK_NUMPAD4 0x64
+#define VK_NUMPAD5 0x65
+#define VK_NUMPAD6 0x66
+#define VK_NUMPAD7 0x67
+#define VK_NUMPAD8 0x68
+#define VK_NUMPAD9 0x69
+#define VK_MULTIPLY 0x6A
+#define VK_ADD 0x6B
+#define VK_SUBTRACT 0x6D
+#define VK_DECIMAL 0x6E
+#define VK_DIVIDE 0x6F
+
+inline BOOL PostThreadMessage(DWORD idThread, UINT Msg, WPARAM wParam, LPARAM lParam) { return TRUE; }
+inline BOOL AdjustWindowRect(RECT* lpRect, DWORD dwStyle, BOOL bMenu) { return TRUE; }
+inline BOOL MoveWindow(HWND hWnd, int X, int Y, int nWidth, int nHeight, BOOL bRepaint) { return TRUE; }
+inline BOOL ClientToScreen(HWND hWnd, POINT* lpPoint) { return TRUE; }
+inline BOOL SetCursorPos(int X, int Y) { return TRUE; }
+inline int _wtoi(const wchar_t *str) { return wcstol(str, NULL, 10); }
+inline BOOL GetKeyboardState(PBYTE lpKeyState) { return FALSE; }
+inline int ToAscii(UINT uVirtKey, UINT uScanCode, const BYTE* lpKeyState, LPWORD lpChar, UINT uFlags) { return 0; }
+
+inline BOOL GetClientRect(HWND hWnd, LPRECT lpRect) { return TRUE; }
+inline BOOL GetClipCursor(LPRECT lpRect) { return TRUE; }
+inline BOOL ClipCursor(const RECT* lpRect) { return TRUE; }
+inline HWND GetForegroundWindow() { return NULL; }
+inline int ShowCursor(BOOL bShow) { return 0; }
+inline void PostQuitMessage(int nExitCode) {}
+
+inline int GetKeyNameTextA(LONG lParam, LPSTR lpString, int nSize) { return 0; }
+
+inline BOOL GetCursorPos(LPPOINT lpPoint) { return TRUE; }
+inline BOOL ScreenToClient(HWND hWnd, LPPOINT lpPoint) { return TRUE; }
+
+typedef struct _SYSTEMTIME {
+    WORD wYear;
+    WORD wMonth;
+    WORD wDayOfWeek;
+    WORD wDay;
+    WORD wHour;
+    WORD wMinute;
+    WORD wSecond;
+    WORD wMilliseconds;
+} SYSTEMTIME, *PSYSTEMTIME, *LPSYSTEMTIME;
+
+inline void GetLocalTime(LPSYSTEMTIME lpSystemTime) {}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+inline void _itoa_s(int value, char *buffer, size_t sizeInCharacters, int radix) {
+    if (radix == 10) snprintf(buffer, sizeInCharacters, "%d", value);
+    else if (radix == 16) snprintf(buffer, sizeInCharacters, "%x", value);
+}
+template <size_t size>
+inline void _itoa_s(int value, char (&buffer)[size], int radix) {
+    _itoa_s(value, buffer, size, radix);
+}
+inline void _gcvt_s(char *buffer, size_t sizeInBytes, double value, int digits) {
+    snprintf(buffer, sizeInBytes, "%.*g", digits, value);
+}
+
+inline int sprintf_s(char *buffer, size_t sizeOfBuffer, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = vsnprintf(buffer, sizeOfBuffer, format, args);
+    va_end(args);
+    return ret;
+}
+
+namespace DirectX {
+    using ::XMVECTOR;
+    using ::XMMATRIX;
+    using ::XMFLOAT2;
+    using ::XMFLOAT3;
+    using ::XMFLOAT4;
+    // Add TriangleTests stub if needed, Location.cpp uses DirectX::TriangleTests::Intersects
+    namespace TriangleTests {
+        inline bool Intersects(XMVECTOR origin, XMVECTOR direction, XMVECTOR v0, XMVECTOR v1, XMVECTOR v2, float& dist) { return false; }
+    }
+}
+
+#endif

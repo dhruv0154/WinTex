@@ -41,13 +41,13 @@ public:
 protected:
 	virtual void Initialize();
 
-	virtual void SetupScreen() = NULL;
+	virtual void SetupScreen() = 0;
 	virtual void SetupConfigFrame();
 	virtual void SetupLoadFrame();
 	virtual void SetupSaveFrame();
 
-	virtual void SetupSave() = NULL;
-	virtual void SetupLoad() = NULL;
+	virtual void SetupSave() = 0;
+	virtual void SetupLoad() = 0;
 
 	static void NewGame(LPVOID data);
 	static void Resume(LPVOID data);

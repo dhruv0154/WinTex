@@ -125,6 +125,7 @@ void CGameBase::ReadGameXMLInfo(int resource)
 {
 	DWORD xmlSize = 0;
 	PBYTE xml = GetResource(resource, L"XML", &xmlSize);
+#ifdef PLATFORM_WINDOWS
 	PWCHAR wcxml = new WCHAR[xmlSize + 1];
 	if (wcxml != NULL)
 	{
@@ -300,6 +301,7 @@ void CGameBase::ReadGameXMLInfo(int resource)
 
 		delete[] wcxml;
 	}
+#endif
 }
 
 void CGameBase::Start()

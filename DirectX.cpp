@@ -4,6 +4,8 @@
 #include <sstream>
 #include <string>
 
+#ifndef PLATFORM_LINUX
+
 #define D3D11_CREATE_DEVICE_VIDEO_SUPPORT	0x800
 
 void Disaster(HRESULT hr, LPWSTR text)
@@ -650,3 +652,52 @@ void CDirectX::SetScissorRect(D3D11_RECT rect)
 	_devCon->RSSetScissorRects(1, &rect);
 }
 
+#else
+
+// Linux Stubs
+void Disaster(HRESULT hr, LPWSTR text) {}
+void SetDebugName(ID3D11DeviceChild* child, const char* name) {}
+void SetDebugName(IUnknown* unk, const char* name) {}
+
+CDirectX::CDirectX() : _dev(NULL), _devCon(NULL) {}
+CDirectX::~CDirectX() {}
+
+BOOL CDirectX::Init(HWND hWnd, int width, int height, BOOL windowed, BOOL anisotropicFilter, int bufferCount) { return TRUE; }
+void CDirectX::Dispose() {}
+void CDirectX::SetFullScreen(BOOL fullScreen) {}
+void CDirectX::Clear(float red, float green, float blue) {}
+void CDirectX::Present(UINT syncInterval, UINT flags) {}
+
+HRESULT CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Buffer** ppBuffer, char* name) { return S_OK; }
+HRESULT CDirectX::Map(ID3D11Resource* pResource, UINT subResource, D3D11_MAP mapType, UINT mapFlags, D3D11_MAPPED_SUBRESOURCE* pMappedResource) { return S_OK; }
+void CDirectX::Unmap(ID3D11Resource* pResource, UINT subResource) {}
+
+ID3D11Device* CDirectX::GetDevice() { return NULL; }
+ID3D11DeviceContext* CDirectX::GetDeviceContext() { return NULL; }
+
+HRESULT CDirectX::CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D, char* name) { return S_OK; }
+HRESULT CDirectX::CreateShaderResourceView(ID3D11Resource* pResource, D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc, ID3D11ShaderResourceView** ppSRView, char* name) { return S_OK; }
+
+void CDirectX::SetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer** ppVertexBuffers, const UINT* pStrides, const UINT* pOffsets) {}
+void CDirectX::SetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, UINT Offset) {}
+void CDirectX::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology) {}
+void CDirectX::Draw(UINT VertexCount, UINT StartVertexLocation) {}
+void CDirectX::DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) {}
+
+void CDirectX::SetShaderResources(UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView** ppShaderResourceViews) {}
+
+void CDirectX::EnableZBuffer() {}
+void CDirectX::DisableZBuffer() {}
+
+void CDirectX::Resize(int width, int height) {}
+
+CDXAdapter* CDirectX::GetAdapter() { return NULL; }
+
+void CDirectX::SelectSampler(BOOL anisotropic) {}
+void CDirectX::SetViewport(D3D11_VIEWPORT viewport) {}
+void CDirectX::SetScissorRect(D3D11_RECT rect) {}
+
+HRESULT CDirectX::ConfigureBackBuffer() { return S_OK; }
+HRESULT CDirectX::ReleaseBackBuffer() { return S_OK; }
+
+#endif
