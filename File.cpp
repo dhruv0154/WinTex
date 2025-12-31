@@ -305,6 +305,24 @@ int CFile::Write(LPBYTE pBuffer, int length)
 #endif
 }
 
+DWORD CFile::Size()
+{
+#ifdef PLATFORM_LINUX
+    if (_handle == INVALID_HANDLE_VALUE) return 0;
+    std::fstream* fs = (std::fstream*)_handle;
+    std::streampos current = fs->tellg();
+    fs->seekg(0, std::ios::end);
+    std::streampos end = fs->tellg();
+    fs->seekg(current, std::ios::beg);
+    fs->clear();
+    return (DWORD)end;
+#else
+    LARGE_INTEGER li;
+    ::GetFileSizeEx(_handle, &li);
+    return li.LowPart;
+#endif
+}
+
 BOOL CFile::Exists(LPCWSTR fileName)
 {
 #ifdef PLATFORM_LINUX

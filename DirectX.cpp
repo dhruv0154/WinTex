@@ -740,9 +740,9 @@ void CDirectX::SetFullScreen(BOOL fullScreen) {
 }
 
 void CDirectX::Clear(float red, float green, float blue) {
-    if (red == 0.0f && green == 0.0f && blue == 0.0f) {
-        red = 1.0f; green = 0.0f; blue = 1.0f; // Magenta for debugging
-    }
+    //if (red == 0.0f && green == 0.0f && blue == 0.0f) {
+    //    red = 1.0f; green = 0.0f; blue = 1.0f; // Magenta for debugging
+    //}
     glClearColor(red, green, blue, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }

@@ -54,12 +54,7 @@ public:
 	DWORD Seek(DWORD distance, SeekMethod method = SeekMethod::Begin);
 	int Read(LPBYTE pBuffer, int length);
 	int Write(LPBYTE pBuffer, int length);
-	DWORD Size()
-	{
-		LARGE_INTEGER li;
-		::GetFileSizeEx(_handle, &li);
-		return li.LowPart;
-	}
+	DWORD Size();
 
 	static BOOL Exists(LPCWSTR fileName);
 

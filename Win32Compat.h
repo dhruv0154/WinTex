@@ -13,6 +13,7 @@
 #include <iostream>
 #include <codecvt>
 #include <locale>
+#include <thread>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #ifdef __APPLE__
@@ -916,11 +917,27 @@ inline void MessageBox(HWND, LPCWSTR lpText, LPCWSTR lpCaption, UINT) {
 
 inline ULONGLONG GetTickCount64() { return SDL_GetTicks64(); }
 inline DWORD GetTickCount() { return SDL_GetTicks(); }
-inline void Sleep(DWORD) {}
+inline void Sleep(DWORD dwMilliseconds) { std::this_thread::sleep_for(std::chrono::milliseconds(dwMilliseconds)); }
 
 #define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
-inline HANDLE CreateThread(LPVOID lpThreadAttributes, size_t dwStackSize, DWORD (WINAPI *lpStartAddress)(LPVOID), LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId) { return INVALID_HANDLE_VALUE; }
-inline DWORD WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds) { return 0; }
+inline HANDLE CreateThread(LPVOID lpThreadAttributes, size_t dwStackSize, DWORD (WINAPI *lpStartAddress)(LPVOID), LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId) { 
+    try {
+        std::thread* t = new std::thread([lpStartAddress, lpParameter](){
+            lpStartAddress(lpParameter);
+        });
+        if (lpThreadId) *lpThreadId = 0; // Dummy ID
+        return (HANDLE)t;
+    } catch (...) {
+        return INVALID_HANDLE_VALUE;
+    }
+}
+inline DWORD WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds) { 
+    if (hHandle != INVALID_HANDLE_VALUE && hHandle != NULL) {
+        std::thread* t = (std::thread*)hHandle;
+        if (t->joinable()) t->join();
+    }
+    return 0; 
+}
 
 inline int MultiByteToWideChar(UINT, DWORD, const char*, int, LPWSTR, int) { return 0; }
 #define CP_UTF8 65001
@@ -1040,7 +1057,10 @@ typedef struct midihdr_tag {
 inline int midiOutGetNumDevs() { return 0; }
 inline int midiOutGetDevCapsA(int uDeviceID, MIDIOUTCAPSA* lpMidiOutCaps, UINT cbMidiOutCaps) { return 0; }
 inline MMRESULT midiOutClose(HMIDIOUT hmo) { return MMSYSERR_NOERROR; }
-inline MMRESULT midiOutOpen(LPHMIDIOUT phmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen) { return MMSYSERR_NOERROR; }
+inline MMRESULT midiOutOpen(LPHMIDIOUT phmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen) { 
+    if (phmo) *((HMIDIOUT*)phmo) = (HMIDIOUT)(uintptr_t)1;
+    return MMSYSERR_NOERROR; 
+}
 inline MMRESULT midiOutShortMsg(HMIDIOUT hmo, DWORD dwMsg) { return MMSYSERR_NOERROR; }
 inline MMRESULT midiOutPrepareHeader(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh) { return MMSYSERR_NOERROR; }
 inline MMRESULT midiOutLongMsg(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh) { return MMSYSERR_NOERROR; }
