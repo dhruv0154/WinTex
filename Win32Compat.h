@@ -1329,7 +1329,28 @@ namespace DirectX {
     using ::XMFLOAT4;
     // Add TriangleTests stub if needed, Location.cpp uses DirectX::TriangleTests::Intersects
     namespace TriangleTests {
-        inline bool Intersects(XMVECTOR origin, XMVECTOR direction, XMVECTOR v0, XMVECTOR v1, XMVECTOR v2, float& dist) { return false; }
+        inline bool Intersects(XMVECTOR origin, XMVECTOR direction, XMVECTOR v0, XMVECTOR v1, XMVECTOR v2, float& dist) { 
+            XMVECTOR e1 = XMVectorSubtract(v1, v0);
+            XMVECTOR e2 = XMVectorSubtract(v2, v0);
+            XMVECTOR p = XMVector3Cross(direction, e2);
+            float det = XMVector3Dot(e1, p).x;
+
+            if (det > -0.000001f && det < 0.000001f) return false;
+            float invDet = 1.0f / det;
+
+            XMVECTOR t = XMVectorSubtract(origin, v0);
+            float u = XMVector3Dot(t, p).x * invDet;
+            if (u < 0.0f || u > 1.0f) return false;
+
+            XMVECTOR q = XMVector3Cross(t, e1);
+            float v = XMVector3Dot(direction, q).x * invDet;
+            if (v < 0.0f || u + v > 1.0f) return false;
+
+            dist = XMVector3Dot(e2, q).x * invDet;
+            if (dist > 0.000001f) return true;
+
+            return false;
+        }
     }
 }
 
