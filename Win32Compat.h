@@ -1247,7 +1247,11 @@ inline BOOL PostThreadMessage(DWORD idThread, UINT Msg, WPARAM wParam, LPARAM lP
 inline BOOL AdjustWindowRect(RECT* lpRect, DWORD dwStyle, BOOL bMenu) { return TRUE; }
 inline BOOL MoveWindow(HWND hWnd, int X, int Y, int nWidth, int nHeight, BOOL bRepaint) { return TRUE; }
 inline BOOL ClientToScreen(HWND hWnd, POINT* lpPoint) { return TRUE; }
-inline BOOL SetCursorPos(int X, int Y) { return TRUE; }
+inline BOOL SetCursorPos(int X, int Y) { 
+    SDL_Window* window = SDL_GL_GetCurrentWindow();
+    if (window) SDL_WarpMouseInWindow(window, X, Y);
+    return TRUE; 
+}
 inline int _wtoi(const wchar_t *str) { return wcstol(str, NULL, 10); }
 inline BOOL GetKeyboardState(PBYTE lpKeyState) { return FALSE; }
 inline int ToAscii(UINT uVirtKey, UINT uScanCode, const BYTE* lpKeyState, LPWORD lpChar, UINT uFlags) { return 0; }
