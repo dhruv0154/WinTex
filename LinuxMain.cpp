@@ -40,6 +40,8 @@ int main(int argc, char** argv)
         return 1;
     }
     
+    SDL_ShowCursor(SDL_DISABLE);
+
     std::cout << "Initializing DXControls..." << std::endl;
     CDXControls::Init();
     
@@ -67,7 +69,7 @@ int main(int argc, char** argv)
     {
         CGameController::StartGame(pGame);
         
-        // CInputMapping::LoadControlsMap(); // Skipping for now
+        CInputMapping::LoadControlsMap();
         
         // Game Loop
         Uint32 lastTime = SDL_GetTicks();
@@ -84,11 +86,21 @@ int main(int argc, char** argv)
                     _runDXThread = FALSE;
                 }
                 else if (event.type == SDL_KEYDOWN) {
-                    // Simple key handling for testing
                     if (event.key.keysym.sym == SDLK_ESCAPE) {
                          _runDXThread = FALSE;
+                    } else if (event.key.keysym.sym == SDLK_RETURN) {
+                        // Enter skips video (Action)
+                        CModuleController::KeyDown(VK_RETURN, 0);
+                    } else {
+                        CModuleController::KeyDown(event.key.keysym.sym, 0); // TODO: proper mapping
                     }
-                    CModuleController::KeyDown(event.key.keysym.sym, 0); // TODO: proper mapping
+                }
+                else if (event.type == SDL_KEYUP) {
+                    if (event.key.keysym.sym == SDLK_RETURN) {
+                        CModuleController::KeyUp(VK_RETURN, 0);
+                    } else if (event.key.keysym.sym != SDLK_ESCAPE) {
+                        CModuleController::KeyUp(event.key.keysym.sym, 0);
+                    }
                 }
                 else if (event.type == SDL_MOUSEMOTION) {
                     POINT pt;
@@ -100,13 +112,15 @@ int main(int argc, char** argv)
                     POINT pt;
                     pt.x = event.button.x;
                     pt.y = event.button.y;
-                    CModuleController::MouseDown(pt, event.button.button);
+                    int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;
+                    CModuleController::MouseDown(pt, btn);
                 }
                 else if (event.type == SDL_MOUSEBUTTONUP) {
                     POINT pt;
                     pt.x = event.button.x;
                     pt.y = event.button.y;
-                    CModuleController::MouseUp(pt, event.button.button);
+                    int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;
+                    CModuleController::MouseUp(pt, btn);
                 }
             }
 
@@ -117,12 +131,18 @@ int main(int argc, char** argv)
             CGameController::Tick(deltaTime);
             CModuleController::Render();
             
-            if (frameCount++ % 10 == 0) {
+            if (frameCount++ % 60 == 0) {
                  unsigned char pixel[4];
                  glReadPixels(dx.GetWidth() / 2, dx.GetHeight() / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
                  std::cout << "Frame " << frameCount << " Size: " << dx.GetWidth() << "x" << dx.GetHeight() 
                            << " Center Pixel: R=" << (int)pixel[0] << " G=" << (int)pixel[1] 
-                           << " B=" << (int)pixel[2] << " A=" << (int)pixel[3] << std::endl;
+                           << " B=" << (int)pixel[2] << " A=" << (int)pixel[3];
+                 if (CModuleController::CurrentModule) {
+                     std::cout << " ModuleType: " << (int)CModuleController::CurrentModule->Type;
+                 } else {
+                     std::cout << " ModuleType: NULL";
+                 }
+                 std::cout << std::endl;
             }
             
             // Small sleep to prevent 100% CPU usage if vsync is off or not working

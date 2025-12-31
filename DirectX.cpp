@@ -837,6 +837,9 @@ void CDirectX::SetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer** 
         // Disable all arrays first to be safe (or at least the ones we might use)
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
+        // Also disable 2 and 3 just in case they were enabled
+        glDisableVertexAttribArray(2);
+        glDisableVertexAttribArray(3);
 
         if (stride == 20) { // TEXTURED_VERTEX_ORTHO
              glEnableVertexAttribArray(0); // Position (XMFLOAT3)
@@ -849,6 +852,9 @@ void CDirectX::SetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer** 
              glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
              glEnableVertexAttribArray(1); // TexCoord (XMFLOAT2)
              glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)12);
+             // Explicitly disable 2 and 3 (redundant but safe)
+             glDisableVertexAttribArray(2);
+             glDisableVertexAttribArray(3);
         }
         else if (stride == 32) { // COLOURED_VERTEX_ORTHO
              glEnableVertexAttribArray(0); // Position (XMFLOAT4)

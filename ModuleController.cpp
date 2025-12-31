@@ -216,7 +216,12 @@ void CModuleController::Render()
     static int mcRenderCount = 0;
     mcRenderCount++;
     bool debug = (mcRenderCount % 100 == 0);
-    if (debug && CurrentModule != NULL) std::cout << "CModuleController::Render CurrentModule Type: " << (int)CurrentModule->Type << std::endl;
+    if (debug) {
+        if (CurrentModule != NULL) 
+            std::cout << "CModuleController::Render CurrentModule Type: " << (int)CurrentModule->Type << std::endl;
+        else 
+            std::cout << "CModuleController::Render CurrentModule is NULL" << std::endl;
+    }
 
 	if (NextModule != NULL)
 	{

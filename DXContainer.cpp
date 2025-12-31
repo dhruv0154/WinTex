@@ -62,7 +62,7 @@ void CDXContainer::Render()
 
     static int renderCount = 0;
     renderCount++;
-    bool debug = (renderCount < 10) || (renderCount % 100 == 0);
+    bool debug = (renderCount % 100 == 0);
 
     if (debug) std::cout << "CDXContainer::Render called. this=" << this << " Child Count: " << _childElements.size() << std::endl;
 

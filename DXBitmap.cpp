@@ -103,11 +103,11 @@ CDXBitmap::~CDXBitmap()
 
 void CDXBitmap::Render()
 {
-	static bool firstRender = true;
-	if (firstRender) {
-		std::cout << "CDXBitmap::Render called (at least once)" << std::endl;
-		firstRender = false;
-	}
+    static int renderCount = 0;
+    renderCount++;
+    if (renderCount % 100 == 0) {
+        std::cout << "CDXBitmap::Render called. Count=" << renderCount << " VB=" << _vertexBuffer << std::endl;
+    }
 
 	if (_vertexBuffer == NULL) return;
 
