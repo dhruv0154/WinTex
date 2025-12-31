@@ -320,8 +320,15 @@ void CMainMenuModule::Quit(LPVOID data)
 
 void CMainMenuModule::Render()
 {
+    static bool first = true;
+    if (first) {
+        std::cout << "CMainMenuModule::Render called (ONCE) this=" << this << " _pScreen=" << _pScreen << std::endl;
+        first = false;
+    }
+
 	CDXFont::SelectBlackFont();
-	_pScreen->Render();
+    if (_pScreen) _pScreen->Render();
+    else std::cerr << "CMainMenuModule::Render _pScreen is NULL" << std::endl;
 
 	if (SaveMode != SaveMode::Load && (GetTickCount64() / 500) % 2)
 	{

@@ -5,6 +5,8 @@
 #else
 #include "Win32Compat.h"
 #endif
+#include <iostream>
+#include <string>
 
 CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR vsProfileName, LPCSTR psFunctionName, LPCSTR psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors)
 {
@@ -12,6 +14,149 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
 	_ps = NULL;
 	_layout = NULL;
 
+#ifdef PLATFORM_LINUX
+    std::string vsName = vsFunctionName;
+    std::string psName = psFunctionName;
+    
+    const char* vsSource = NULL;
+    const char* psSource = NULL;
+
+    // Vertex Shaders
+    const char* vsOrtho = 
+        "#version 330 core\n"
+        "layout(location = 0) in vec3 position;\n"
+        "layout(location = 1) in vec2 texCoord;\n"
+        "out vec2 TexCoord;\n"
+        "uniform mat4 World;\n"
+        "uniform mat4 View;\n"
+        "uniform mat4 Projection;\n"
+        "void main() {\n"
+        "   gl_Position = Projection * View * World * vec4(position, 1.0);\n"
+        "   TexCoord = texCoord;\n"
+        "}\n";
+
+    const char* vsColoured = 
+        "#version 330 core\n"
+        "layout(location = 0) in vec4 position;\n"
+        "layout(location = 1) in vec4 colour;\n"
+        "out vec4 Color;\n"
+        "uniform mat4 World;\n"
+        "uniform mat4 View;\n"
+        "uniform mat4 Projection;\n"
+        "void main() {\n"
+        "   gl_Position = Projection * View * World * position;\n"
+        "   Color = colour;\n"
+        "}\n";
+
+     const char* vsBasic = 
+        "#version 330 core\n"
+        "layout(location = 0) in vec3 position;\n"
+        "uniform mat4 World;\n"
+        "uniform mat4 View;\n"
+        "uniform mat4 Projection;\n"
+        "void main() {\n"
+        "   gl_Position = Projection * View * World * vec4(position, 1.0);\n"
+        "}\n";
+
+    // Pixel Shaders
+    const char* psTextured = 
+        "#version 330 core\n"
+        "in vec2 TexCoord;\n"
+        "out vec4 color;\n"
+        "uniform sampler2D texture1;\n"
+        "void main() {\n"
+        "   color = texture(texture1, TexCoord);\n"
+        "}\n";
+
+    const char* psColoured = 
+        "#version 330 core\n"
+        "in vec4 Color;\n"
+        "out vec4 color;\n"
+        "void main() {\n"
+        "   color = Color;\n"
+        "}\n";
+    
+    const char* psBasic = 
+        "#version 330 core\n"
+        "out vec4 color;\n"
+        "void main() {\n"
+        "   color = vec4(1.0, 1.0, 1.0, 1.0);\n"
+        "}\n";
+
+    // Select Source
+    if (vsName == "OrthoVS" || vsName == "TexturedVS") vsSource = vsOrtho;
+    else if (vsName == "ColouredVS" || vsName == "TransparentVS" || vsName == "MultiColouredFontVS") vsSource = vsColoured;
+    else if (vsName == "BasicVS") vsSource = vsBasic;
+    else vsSource = vsOrtho; // Fallback
+
+    if (psName == "TexturedPS" || psName == "TexFontPS" || psName == "TexFontPS_AA" || psName == "YUVPS") psSource = psTextured;
+    else if (psName == "ColouredPS" || psName == "TransparentPS" || psName == "MultiColouredFontPS" || psName == "MultiColouredFontPSPD") psSource = psColoured;
+    else if (psName == "BasicPS") psSource = psBasic;
+    else psSource = psTextured; // Fallback
+
+    std::cout << "Compiling Shader: VS=" << vsName << " PS=" << psName << std::endl;
+
+    // Compile VS
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &vsSource, NULL);
+    glCompileShader(vs);
+    GLint success;
+    GLchar infoLog[512];
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED: " << vsName << "\n" << infoLog << std::endl;
+    }
+
+    // Compile PS
+    GLuint ps = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(ps, 1, &psSource, NULL);
+    glCompileShader(ps);
+    glGetShaderiv(ps, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(ps, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::PIXEL::COMPILATION_FAILED: " << psName << "\n" << infoLog << std::endl;
+    }
+
+    // Link Program
+    GLuint prog = glCreateProgram();
+    glAttachShader(prog, vs);
+    glAttachShader(prog, ps);
+    
+    // Bind attributes explicitly to match our assumptions
+    glBindAttribLocation(prog, 0, "position");
+    if (vsSource == vsOrtho) glBindAttribLocation(prog, 1, "texCoord");
+    else if (vsSource == vsColoured) glBindAttribLocation(prog, 1, "colour");
+    
+    glLinkProgram(prog);
+    glGetProgramiv(prog, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(prog, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vs);
+    glDeleteShader(ps);
+    
+    // Set texture unit default
+    glUseProgram(prog);
+    GLint texLoc = glGetUniformLocation(prog, "texture1");
+    if (texLoc != -1) {
+        glUniform1i(texLoc, 0);
+    }
+    glUseProgram(0);
+
+    // Store program ID in _vs (Vertex Shader object)
+    pDX->GetDevice()->CreateVertexShader(NULL, 0, NULL, &_vs);
+    _vs->glId = prog;
+
+    // We don't really use separate PS in this simple GL implementation, 
+    // we use the linked program stored in _vs.
+    pDX->GetDevice()->CreatePixelShader(NULL, 0, NULL, &_ps);
+    
+    // Create dummy layout
+    pDX->GetDevice()->CreateInputLayout(ied, numDescriptors, NULL, 0, &_layout);
+#else
 	HRSRC hShader = FindResource(NULL, MAKEINTRESOURCE(resource), L"SHADER");
 	DWORD size = SizeofResource(NULL, hShader);
 	HGLOBAL hShaderGlobal = LoadResource(NULL, hShader);
@@ -38,6 +183,7 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
 	pDX->GetDevice()->CreatePixelShader(pPSb->GetBufferPointer(), pPSb->GetBufferSize(), NULL, &_ps);
 	if (pPSb != NULL) pPSb->Release();
 	pPSb = NULL;
+#endif
 }
 
 CDXShader::~CDXShader()
@@ -47,9 +193,17 @@ CDXShader::~CDXShader()
 
 void CDXShader::Activate(CDirectX* pDX)
 {
+#ifdef PLATFORM_LINUX
+    static int activateCount = 0;
+    activateCount++;
+    bool debug = (activateCount % 100 == 0);
+    if (debug) std::cout << "CDXShader::Activate ProgID=" << _vs->glId << std::endl;
+    glUseProgram(_vs->glId);
+#else
 	pDX->GetDeviceContext()->VSSetShader(_vs, 0, 0);
 	pDX->GetDeviceContext()->PSSetShader(_ps, 0, 0);
 	pDX->GetDeviceContext()->IASetInputLayout(_layout);
+#endif
 }
 
 void CDXShader::Dispose()

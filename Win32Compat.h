@@ -2,6 +2,7 @@
 #include "Platform.h"
 
 #ifdef PLATFORM_LINUX
+#define GL_GLEXT_PROTOTYPES 1
 #include <stdint.h>
 #include <string>
 #include <vector>
@@ -9,6 +10,18 @@
 #include <cstring>
 #include <cmath>
 #include <cwchar>
+#include <iostream>
+#include <codecvt>
+#include <locale>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>
+#ifdef __APPLE__
+#include <OpenGL/gl3.h>
+#else
+#include <GL/gl.h>
+#include <GL/glext.h>
+#endif
+#include "stb_image.h"
 
 // Windows Types
 typedef int BOOL;
@@ -48,9 +61,11 @@ typedef long long WPARAM;
 typedef long long LPARAM;
 typedef unsigned int UINT;
 typedef uint32_t UINT32;
+typedef uint8_t UINT8;
 typedef void* HANDLE;
 typedef long HRESULT;
 typedef int INT;
+typedef float FLOAT;
 
 #define TRUE 1
 #define FALSE 0
@@ -59,6 +74,7 @@ typedef int INT;
 #endif
 #define MAX_PATH 260
 #define S_OK 0
+#define E_FAIL -1
 #define WINAPI
 #define CALLBACK
 #define INFINITE 0xFFFFFFFF
@@ -89,22 +105,147 @@ struct XMVECTOR {
 
 struct XMMATRIX { 
     float m[4][4]; 
-    XMMATRIX() { memset(m, 0, sizeof(m)); m[0][0]=m[1][1]=m[2][2]=m[3][3]=1.0f; } // Identity by default
+    XMMATRIX() { 
+        memset(m, 0, sizeof(m)); 
+        m[0][0]=m[1][1]=m[2][2]=m[3][3]=1.0f; 
+    } 
 };
 
 // Math Functions
 inline XMMATRIX XMMatrixIdentity() { return XMMATRIX(); }
-inline XMMATRIX XMMatrixTranslation(float x, float y, float z) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixScaling(float x, float y, float z) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixRotationZ(float angle) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixRotationX(float angle) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixRotationY(float angle) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixLookAtLH(XMVECTOR eye, XMVECTOR focus, XMVECTOR up) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixOrthographicLH(float w, float h, float zn, float zf) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixPerspectiveFovLH(float fov, float aspect, float zn, float zf) { return XMMATRIX(); }
-inline XMMATRIX XMMatrixTranspose(XMMATRIX m) { return m; }
+
+inline XMMATRIX XMMatrixTranslation(float x, float y, float z) {
+    XMMATRIX M;
+    M.m[3][0] = x;
+    M.m[3][1] = y;
+    M.m[3][2] = z;
+    return M;
+}
+
+inline XMMATRIX XMMatrixScaling(float x, float y, float z) {
+    XMMATRIX M;
+    M.m[0][0] = x;
+    M.m[1][1] = y;
+    M.m[2][2] = z;
+    return M;
+}
+
+inline XMMATRIX XMMatrixRotationZ(float angle) {
+    XMMATRIX M;
+    float c = cosf(angle);
+    float s = sinf(angle);
+    M.m[0][0] = c;  M.m[0][1] = s;
+    M.m[1][0] = -s; M.m[1][1] = c;
+    return M;
+}
+
+inline XMMATRIX XMMatrixRotationX(float angle) {
+    XMMATRIX M;
+    float c = cosf(angle);
+    float s = sinf(angle);
+    M.m[1][1] = c;  M.m[1][2] = s;
+    M.m[2][1] = -s; M.m[2][2] = c;
+    return M;
+}
+
+inline XMMATRIX XMMatrixRotationY(float angle) {
+    XMMATRIX M;
+    float c = cosf(angle);
+    float s = sinf(angle);
+    M.m[0][0] = c;  M.m[0][2] = -s;
+    M.m[2][0] = s;  M.m[2][2] = c;
+    return M;
+}
+
+inline XMVECTOR XMVectorSubtract(XMVECTOR a, XMVECTOR b) {
+    return XMVECTOR(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
+}
+
+inline XMVECTOR XMVector3Normalize(XMVECTOR v) {
+    float len = sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
+    if (len > 0) return XMVECTOR(v.x/len, v.y/len, v.z/len, v.w);
+    return v;
+}
+
+inline XMVECTOR XMVector3Cross(XMVECTOR a, XMVECTOR b) {
+    return XMVECTOR(
+        a.y*b.z - a.z*b.y,
+        a.z*b.x - a.x*b.z,
+        a.x*b.y - a.y*b.x,
+        0.0f
+    );
+}
+
+inline XMVECTOR XMVector3Dot(XMVECTOR a, XMVECTOR b) {
+    float d = a.x*b.x + a.y*b.y + a.z*b.z;
+    return XMVECTOR(d,d,d,d);
+}
+
+inline XMMATRIX XMMatrixLookAtLH(XMVECTOR eye, XMVECTOR focus, XMVECTOR up) {
+    XMVECTOR zaxis = XMVector3Normalize(XMVectorSubtract(focus, eye));
+    XMVECTOR xaxis = XMVector3Normalize(XMVector3Cross(up, zaxis));
+    XMVECTOR yaxis = XMVector3Cross(zaxis, xaxis);
+
+    XMMATRIX M;
+    M.m[0][0] = xaxis.x; M.m[0][1] = yaxis.x; M.m[0][2] = zaxis.x; M.m[0][3] = 0.0f;
+    M.m[1][0] = xaxis.y; M.m[1][1] = yaxis.y; M.m[1][2] = zaxis.y; M.m[1][3] = 0.0f;
+    M.m[2][0] = xaxis.z; M.m[2][1] = yaxis.z; M.m[2][2] = zaxis.z; M.m[2][3] = 0.0f;
+    
+    M.m[3][0] = -XMVector3Dot(xaxis, eye).x;
+    M.m[3][1] = -XMVector3Dot(yaxis, eye).x;
+    M.m[3][2] = -XMVector3Dot(zaxis, eye).x;
+    M.m[3][3] = 1.0f;
+    return M;
+}
+
+inline XMMATRIX XMMatrixOrthographicLH(float w, float h, float zn, float zf) {
+    XMMATRIX M;
+    M.m[0][0] = 2.0f / w;
+    M.m[1][1] = 2.0f / h;
+    // Map zn->-1, zf->1 for GL clip space
+    M.m[2][2] = 2.0f / (zf - zn);
+    M.m[3][2] = -(zf + zn) / (zf - zn);
+    M.m[3][3] = 1.0f;
+    return M;
+}
+
+inline XMMATRIX XMMatrixPerspectiveFovLH(float fov, float aspect, float zn, float zf) {
+    XMMATRIX M;
+    float h = 1.0f / tanf(fov * 0.5f);
+    float w = h / aspect;
+    
+    M.m[0][0] = w;
+    M.m[1][1] = h;
+    // Map zn->-1, zf->1 for GL clip space
+    M.m[2][2] = (zf + zn) / (zf - zn);
+    M.m[2][3] = 1.0f;
+    M.m[3][2] = -(2.0f * zf * zn) / (zf - zn);
+    M.m[3][3] = 0.0f;
+    return M;
+}
+
+inline XMMATRIX XMMatrixTranspose(XMMATRIX m) {
+    // On Linux/GL, we use Row-Major structs to store Column-Major matrix data (layout match).
+    // The "Transpose" call in ConstantBuffers.cpp was intended to convert DX Row-Major to Shader Column-Major.
+    // Since our matrices are already in the correct memory layout for GL (when read as columns),
+    // we disable this transpose to preserve the layout.
+    return m;
+}
+
 inline XMVECTOR XMVectorSet(float x, float y, float z, float w) { return XMVECTOR(x,y,z,w); }
-inline XMMATRIX operator*(const XMMATRIX& a, const XMMATRIX& b) { return XMMATRIX(); }
+
+inline XMMATRIX operator*(const XMMATRIX& a, const XMMATRIX& b) {
+    XMMATRIX R;
+    for(int i=0; i<4; i++) {
+        for(int j=0; j<4; j++) {
+            R.m[i][j] = a.m[i][0]*b.m[0][j] +
+                        a.m[i][1]*b.m[1][j] +
+                        a.m[i][2]*b.m[2][j] +
+                        a.m[i][3]*b.m[3][j];
+        }
+    }
+    return R;
+}
 
 // D3D11 Stubs
 #define SUCCEEDED(hr) (((HRESULT)(hr)) >= 0)
@@ -116,6 +257,34 @@ inline XMMATRIX operator*(const XMMATRIX& a, const XMMATRIX& b) { return XMMATRI
 #define max(a,b) (((a)>(b))?(a):(b))
 #endif
 
+// GUID
+typedef struct _LUID {
+    DWORD LowPart;
+    LONG HighPart;
+} LUID, *PLUID;
+typedef struct _GUID {
+    unsigned long  Data1;
+    unsigned short Data2;
+    unsigned short Data3;
+    unsigned char  Data4[8];
+} GUID, IID;
+
+struct D3D11_VIEWPORT {
+    float TopLeftX;
+    float TopLeftY;
+    float Width;
+    float Height;
+    float MinDepth;
+    float MaxDepth;
+};
+
+struct D3D11_RECT {
+    LONG left;
+    LONG top;
+    LONG right;
+    LONG bottom;
+};
+
 // Forward Declarations
 typedef struct ID3D11Device ID3D11Device;
 typedef struct ID3D11DeviceContext ID3D11DeviceContext;
@@ -126,6 +295,13 @@ typedef struct ID3D11VertexShader ID3D11VertexShader;
 typedef struct ID3D11PixelShader ID3D11PixelShader;
 typedef struct ID3D11InputLayout ID3D11InputLayout;
 typedef struct ID3D11ClassLinkage ID3D11ClassLinkage;
+typedef struct ID3D11DepthStencilState ID3D11DepthStencilState;
+typedef struct ID3D11RasterizerState ID3D11RasterizerState;
+typedef struct ID3D11BlendState ID3D11BlendState;
+typedef struct ID3D11SamplerState ID3D11SamplerState;
+typedef struct ID3D11ShaderResourceView ID3D11ShaderResourceView;
+typedef struct ID3D11RenderTargetView ID3D11RenderTargetView;
+typedef struct ID3D11DepthStencilView ID3D11DepthStencilView;
 
 enum D3D11_INPUT_CLASSIFICATION {
     D3D11_INPUT_PER_VERTEX_DATA,
@@ -155,6 +331,7 @@ typedef struct D3D11_INPUT_ELEMENT_DESC {
 enum D3D11_MAP { D3D11_MAP_READ, D3D11_MAP_WRITE, D3D11_MAP_READ_WRITE, D3D11_MAP_WRITE_DISCARD, D3D11_MAP_WRITE_NO_OVERWRITE };
 enum D3D11_USAGE { D3D11_USAGE_DEFAULT, D3D11_USAGE_IMMUTABLE, D3D11_USAGE_DYNAMIC, D3D11_USAGE_STAGING };
 
+#define D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT 14
 #define D3D11_APPEND_ALIGNED_ELEMENT 0xffffffff
 enum D3D11_PRIMITIVE_TOPOLOGY { 
     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
@@ -223,88 +400,471 @@ typedef struct D3DX11_IMAGE_LOAD_INFO {
     void *pSrcInfo;
 } D3DX11_IMAGE_LOAD_INFO;
 
-typedef struct ID3D11DeviceChild { virtual void Release() {} } ID3D11DeviceChild;
-struct ID3D11Resource : public ID3D11DeviceChild {};
-struct ID3D11Buffer : public ID3D11Resource { };
-struct ID3D11Texture2D : public ID3D11Resource { 
-    void GetDesc(D3D11_TEXTURE2D_DESC *pDesc) {}
+typedef struct ID3D11DeviceChild { virtual void Release() {} virtual void SetPrivateData(GUID guid, UINT dataSize, const void* pData) {} } ID3D11DeviceChild;
+enum ResourceType { RT_Buffer, RT_Texture2D };
+struct ID3D11Resource : public ID3D11DeviceChild { 
+    GLuint glId = 0; 
+    std::vector<BYTE> cpuData;
+    UINT byteWidth = 0;
+    UINT bindFlags = 0;
+    UINT width = 0;
+    UINT height = 0;
+    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    ResourceType type;
 };
-struct ID3D11VertexShader : public ID3D11DeviceChild {};
-struct ID3D11PixelShader : public ID3D11DeviceChild {};
-struct ID3D11InputLayout : public ID3D11DeviceChild {};
+struct ID3D11Buffer : public ID3D11Resource { ID3D11Buffer() { type = RT_Buffer; } };
+struct ID3D11Texture2D : public ID3D11Resource { 
+    ID3D11Texture2D() { type = RT_Texture2D; }
+    void GetDesc(D3D11_TEXTURE2D_DESC *pDesc) {
+        pDesc->Width = width;
+        pDesc->Height = height;
+        pDesc->Format = format;
+    }
+};
+struct ID3D11VertexShader : public ID3D11DeviceChild {
+    GLuint glId = 0;
+    void* GetBufferPointer() { return NULL; }
+    size_t GetBufferSize() { return 0; }
+};
+struct ID3D11PixelShader : public ID3D11DeviceChild { GLuint glId = 0; };
+struct ID3D11InputLayout : public ID3D11DeviceChild { GLuint glId = 0; };
+struct ID3D11DepthStencilState : public ID3D11DeviceChild {};
+struct ID3D11RasterizerState : public ID3D11DeviceChild {};
+struct ID3D11BlendState : public ID3D11DeviceChild {};
+struct ID3D11SamplerState : public ID3D11DeviceChild {};
 
-struct ID3D11ShaderResourceView : public ID3D11DeviceChild {};
+struct ID3D11ShaderResourceView : public ID3D11DeviceChild { GLuint glId = 0; };
 struct ID3D11RenderTargetView : public ID3D11DeviceChild {};
 struct ID3D11DepthStencilView : public ID3D11DeviceChild {};
 typedef struct IDXGISwapChain IDXGISwapChain;
-typedef struct ID3D11DepthStencilState ID3D11DepthStencilState;
-typedef struct ID3D11RasterizerState ID3D11RasterizerState;
-typedef struct ID3D11BlendState ID3D11BlendState;
-typedef struct ID3D11SamplerState ID3D11SamplerState;
+
+typedef struct D3D11_DEPTH_STENCIL_DESC {
+    BOOL DepthEnable;
+    UINT DepthWriteMask;
+    UINT DepthFunc;
+    BOOL StencilEnable;
+    UINT8 StencilReadMask;
+    UINT8 StencilWriteMask;
+    struct {
+        UINT StencilFailOp;
+        UINT StencilDepthFailOp;
+        UINT StencilPassOp;
+        UINT StencilFunc;
+    } FrontFace;
+    struct {
+        UINT StencilFailOp;
+        UINT StencilDepthFailOp;
+        UINT StencilPassOp;
+        UINT StencilFunc;
+    } BackFace;
+} D3D11_DEPTH_STENCIL_DESC;
+
+typedef struct D3D11_RASTERIZER_DESC {
+    UINT FillMode;
+    UINT CullMode;
+    BOOL FrontCounterClockwise;
+    INT DepthBias;
+    FLOAT DepthBiasClamp;
+    FLOAT SlopeScaledDepthBias;
+    BOOL DepthClipEnable;
+    BOOL ScissorEnable;
+    BOOL MultisampleEnable;
+    BOOL AntialiasedLineEnable;
+} D3D11_RASTERIZER_DESC;
+
+typedef struct D3D11_SAMPLER_DESC {
+    UINT Filter;
+    UINT AddressU;
+    UINT AddressV;
+    UINT AddressW;
+    FLOAT MipLODBias;
+    UINT MaxAnisotropy;
+    UINT ComparisonFunc;
+    FLOAT BorderColor[4];
+    FLOAT MinLOD;
+    FLOAT MaxLOD;
+} D3D11_SAMPLER_DESC;
+
+typedef struct D3D11_BLEND_DESC {
+    BOOL AlphaToCoverageEnable;
+    BOOL IndependentBlendEnable;
+    struct {
+        BOOL BlendEnable;
+        UINT SrcBlend;
+        UINT DestBlend;
+        UINT BlendOp;
+        UINT SrcBlendAlpha;
+        UINT DestBlendAlpha;
+        UINT BlendOpAlpha;
+        UINT8 RenderTargetWriteMask;
+    } RenderTarget[8];
+} D3D11_BLEND_DESC;
+
+typedef struct D3D11_DEPTH_STENCIL_VIEW_DESC {
+    DXGI_FORMAT Format;
+    UINT ViewDimension;
+    UINT Flags;
+    union {
+        struct {
+            UINT MipSlice;
+        } Texture1D;
+        struct {
+            UINT MipSlice;
+        } Texture1DArray;
+        struct {
+            UINT MipSlice;
+        } Texture2D;
+        struct {
+            UINT MipSlice;
+        } Texture2DArray;
+        struct {
+            UINT MipSlice;
+        } Texture2DMS;
+        struct {
+            UINT MipSlice;
+        } Texture2DMSArray;
+    };
+} D3D11_DEPTH_STENCIL_VIEW_DESC;
+
+typedef struct D3D11_SHADER_RESOURCE_VIEW_DESC {
+    DXGI_FORMAT Format;
+    UINT ViewDimension;
+    union {
+        struct {
+            UINT MostDetailedMip;
+            UINT MipLevels;
+        } Texture2D;
+    };
+} D3D11_SHADER_RESOURCE_VIEW_DESC;
 
 struct ID3D11Device : public ID3D11DeviceChild {
     HRESULT CreateVertexShader(const void *pShaderBytecode, size_t BytecodeLength, ID3D11ClassLinkage *pClassLinkage, ID3D11VertexShader **ppVertexShader) { *ppVertexShader = new ID3D11VertexShader(); return S_OK; }
     HRESULT CreatePixelShader(const void *pShaderBytecode, size_t BytecodeLength, ID3D11ClassLinkage *pClassLinkage, ID3D11PixelShader **ppPixelShader) { *ppPixelShader = new ID3D11PixelShader(); return S_OK; }
     HRESULT CreateInputLayout(const D3D11_INPUT_ELEMENT_DESC *pInputElementDescs, UINT NumElements, const void *pShaderBytecodeWithInputSignature, size_t BytecodeLength, ID3D11InputLayout **ppInputLayout) { *ppInputLayout = new ID3D11InputLayout(); return S_OK; }
-    HRESULT CreateTexture2D(const D3D11_TEXTURE2D_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Texture2D **ppTexture2D) { *ppTexture2D = new ID3D11Texture2D(); return S_OK; }
+    HRESULT CreateTexture2D(const D3D11_TEXTURE2D_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Texture2D **ppTexture2D) { 
+        *ppTexture2D = new ID3D11Texture2D();
+        (*ppTexture2D)->width = pDesc->Width;
+        (*ppTexture2D)->height = pDesc->Height;
+        (*ppTexture2D)->format = pDesc->Format;
+        glGenTextures(1, &(*ppTexture2D)->glId);
+        glBindTexture(GL_TEXTURE_2D, (*ppTexture2D)->glId);
+        
+        GLint internalFormat = GL_RGBA;
+        GLenum format = GL_RGBA;
+        if (pDesc->Format == DXGI_FORMAT_B8G8R8A8_UNORM) format = GL_BGRA;
+        GLenum type = GL_UNSIGNED_BYTE;
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, pDesc->Width, pDesc->Height, 0, format, type, pInitialData ? pInitialData->pSysMem : NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        return S_OK; 
+    }
+    HRESULT CreateBuffer(const D3D11_BUFFER_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Buffer **ppBuffer) { *ppBuffer = new ID3D11Buffer(); return S_OK; }
+    HRESULT CreateDepthStencilView(ID3D11Resource *pResource, const D3D11_DEPTH_STENCIL_VIEW_DESC *pDesc, ID3D11DepthStencilView **ppDepthStencilView) { *ppDepthStencilView = new ID3D11DepthStencilView(); return S_OK; }
+    HRESULT CreateRenderTargetView(ID3D11Resource *pResource, const void *pDesc, ID3D11RenderTargetView **ppRTView) { *ppRTView = new ID3D11RenderTargetView(); return S_OK; }
+    HRESULT CreateSamplerState(const D3D11_SAMPLER_DESC *pSamplerDesc, ID3D11SamplerState **ppSamplerState) { *ppSamplerState = new ID3D11SamplerState(); return S_OK; }
+    HRESULT CreateBlendState(const D3D11_BLEND_DESC *pBlendStateDesc, ID3D11BlendState **ppBlendState) { *ppBlendState = new ID3D11BlendState(); return S_OK; }
+    HRESULT CreateRasterizerState(const D3D11_RASTERIZER_DESC *pRasterizerDesc, ID3D11RasterizerState **ppRasterizerState) { *ppRasterizerState = new ID3D11RasterizerState(); return S_OK; }
+    HRESULT CreateDepthStencilState(const D3D11_DEPTH_STENCIL_DESC *pDepthStencilDesc, ID3D11DepthStencilState **ppDepthStencilState) { *ppDepthStencilState = new ID3D11DepthStencilState(); return S_OK; }
+    HRESULT CreateShaderResourceView(ID3D11Resource *pResource, const D3D11_SHADER_RESOURCE_VIEW_DESC *pDesc, ID3D11ShaderResourceView **ppSRView) { *ppSRView = new ID3D11ShaderResourceView(); return S_OK; }
+    void CheckMultisampleQualityLevels(DXGI_FORMAT Format, UINT SampleCount, UINT *pNumQualityLevels) { *pNumQualityLevels = 1; }
 };
 
 struct ID3D11DeviceContext : public ID3D11DeviceChild {
-    HRESULT Map(ID3D11Resource *pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags, D3D11_MAPPED_SUBRESOURCE *pMappedResource) { return S_OK; }
-    void Unmap(ID3D11Resource *pResource, UINT Subresource) {}
-    void VSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppConstantBuffers) {}
-    void PSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppConstantBuffers) {}
-    void VSSetShader(ID3D11VertexShader *pVertexShader, ID3D11ClassLinkage *const *ppClassInstances, UINT NumClassInstances) {}
+    ID3D11Buffer* vsConstantBuffers[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
+    D3D11_PRIMITIVE_TOPOLOGY currentTopology;
+
+    ID3D11DeviceContext() {
+        memset(vsConstantBuffers, 0, sizeof(vsConstantBuffers));
+        currentTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    }
+
+    HRESULT Map(ID3D11Resource *pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags, D3D11_MAPPED_SUBRESOURCE *pMappedResource) { 
+        pMappedResource->RowPitch = 0;
+        pMappedResource->DepthPitch = 0;
+        pMappedResource->pData = NULL;
+        
+        if (pResource->type == RT_Buffer) {
+            ID3D11Buffer* buf = (ID3D11Buffer*)pResource;
+            if (buf->cpuData.size() < buf->byteWidth) buf->cpuData.resize(buf->byteWidth);
+            pMappedResource->pData = buf->cpuData.data();
+        } else if (pResource->type == RT_Texture2D) {
+            ID3D11Texture2D* tex = (ID3D11Texture2D*)pResource;
+            // Debug print
+            // std::cout << "Mapping Texture: " << tex->width << "x" << tex->height << " Type: " << tex->type << std::endl;
+            
+            if (tex->width == 0 || tex->height == 0) return E_FAIL;
+
+            pMappedResource->RowPitch = tex->width * 4; // Assume 4 bytes per pixel
+            pMappedResource->DepthPitch = 0;
+            size_t size = tex->height * pMappedResource->RowPitch;
+            if (tex->cpuData.size() < size) tex->cpuData.resize(size);
+            pMappedResource->pData = tex->cpuData.data();
+        }
+        return S_OK; 
+    }
+    void Unmap(ID3D11Resource *pResource, UINT Subresource) {
+        if (pResource->type == RT_Buffer) {
+            ID3D11Buffer* buf = (ID3D11Buffer*)pResource;
+            if (buf->bindFlags & D3D11_BIND_VERTEX_BUFFER) {
+                glBindBuffer(GL_ARRAY_BUFFER, buf->glId);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, buf->byteWidth, buf->cpuData.data());
+                glBindBuffer(GL_ARRAY_BUFFER, 0);
+            }
+        } else if (pResource->type == RT_Texture2D) {
+            ID3D11Texture2D* tex = (ID3D11Texture2D*)pResource;
+            glBindTexture(GL_TEXTURE_2D, tex->glId);
+            
+            GLenum format = GL_RGBA;
+            if (tex->format == DXGI_FORMAT_B8G8R8A8_UNORM) format = GL_BGRA;
+            
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex->width, tex->height, format, GL_UNSIGNED_BYTE, tex->cpuData.data());
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+    }
+    void VSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppConstantBuffers) {
+        for (UINT i = 0; i < NumBuffers; i++) {
+            if (StartSlot + i < D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT) {
+                vsConstantBuffers[StartSlot + i] = ppConstantBuffers[i];
+            }
+        }
+    }
+
+    void ApplyConstantBuffers() {
+        GLint prog = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+        if (prog == 0) {
+            static bool warnedProg = false;
+            if (!warnedProg) { std::cerr << "Warning: No active GL program in ApplyConstantBuffers" << std::endl; warnedProg = true; }
+            return;
+        }
+
+        static int frameCountDebug = 0;
+        frameCountDebug++;
+        bool debug = (frameCountDebug % 600 == 0); // Print occasionally
+
+        for (UINT slot = 0; slot < D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT; slot++) {
+            ID3D11Buffer* buf = vsConstantBuffers[slot];
+            if (!buf) continue;
+
+            if (slot == 0) { // VOP
+                GLint locView = glGetUniformLocation(prog, "View");
+                GLint locOrtho = glGetUniformLocation(prog, "Projection"); 
+                
+                // VOPBufferType structure: mat4 view(0), mat4 ortho(64), mat4 projection(128)
+                if (locView != -1) {
+                    glUniformMatrix4fv(locView, 1, GL_FALSE, (float*)(buf->cpuData.data()));
+                    if (debug) {
+                        float* m = (float*)(buf->cpuData.data());
+                        std::cerr << "ApplyCB: View Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                    }
+                }
+                else {
+                    static bool warnedView = false;
+                    if (!warnedView) { std::cerr << "Warning: Uniform 'View' not found in program " << prog << std::endl; warnedView = true; }
+                }
+
+                if (locOrtho != -1) {
+                    glUniformMatrix4fv(locOrtho, 1, GL_FALSE, (float*)(buf->cpuData.data() + 64)); 
+                    if (debug) {
+                        float* m = (float*)(buf->cpuData.data() + 64);
+                        std::cerr << "ApplyCB: Projection Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                    }
+                }
+                else {
+                    static bool warnedProj = false;
+                    if (!warnedProj) { std::cerr << "Warning: Uniform 'Projection' not found in program " << prog << std::endl; warnedProj = true; }
+                }
+            } else if (slot == 1) { // World
+                GLint locWorld = glGetUniformLocation(prog, "World");
+                if (locWorld != -1) {
+                    glUniformMatrix4fv(locWorld, 1, GL_FALSE, (float*)(buf->cpuData.data()));
+                    if (debug) {
+                        float* m = (float*)(buf->cpuData.data());
+                        std::cerr << "ApplyCB: World Matrix [0][0]=" << m[0] << " [3][0]=" << m[12] << " [3][1]=" << m[13] << std::endl;
+                    }
+                }
+                else {
+                    static bool warnedWorld = false;
+                    if (!warnedWorld) { std::cerr << "Warning: Uniform 'World' not found in program " << prog << std::endl; warnedWorld = true; }
+                }
+            }
+        }
+        
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+             std::cerr << "GL Error in ApplyConstantBuffers: " << err << std::endl;
+        }
+    }
+    void PSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppConstantBuffers) {
+        // PS might use them too, but for our simple shader PS only uses texture.
+    }
+    void VSSetShader(ID3D11VertexShader *pVertexShader, ID3D11ClassLinkage *const *ppClassInstances, UINT NumClassInstances) {
+        if (pVertexShader) glUseProgram(pVertexShader->glId);
+    }
     void PSSetShader(ID3D11PixelShader *pPixelShader, ID3D11ClassLinkage *const *ppClassInstances, UINT NumClassInstances) {}
     void IASetInputLayout(ID3D11InputLayout *pInputLayout) {}
+    void IASetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer *const *ppVertexBuffers, const UINT *pStrides, const UINT *pOffsets) {
+        if (NumBuffers > 0 && ppVertexBuffers[0]) {
+            glBindBuffer(GL_ARRAY_BUFFER, ppVertexBuffers[0]->glId);
+            UINT stride = pStrides[0];
+            glEnableVertexAttribArray(0); 
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+            glEnableVertexAttribArray(1); 
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)12);
+        }
+    }
+    void IASetIndexBuffer(ID3D11Buffer *pIndexBuffer, DXGI_FORMAT Format, UINT Offset) {
+        if (pIndexBuffer) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pIndexBuffer->glId);
+    }
+    void IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology) {
+        currentTopology = Topology;
+    }
+    void Draw(UINT VertexCount, UINT StartVertexLocation) {
+        ApplyConstantBuffers();
+        GLenum mode = GL_TRIANGLES;
+        if (currentTopology == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP) mode = GL_TRIANGLE_STRIP;
+        else if (currentTopology == D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP) mode = GL_LINE_STRIP;
+        
+        glDrawArrays(mode, StartVertexLocation, VertexCount);
+    }
+    void DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) {
+        ApplyConstantBuffers();
+        GLenum mode = GL_TRIANGLES;
+        if (currentTopology == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP) mode = GL_TRIANGLE_STRIP;
+        else if (currentTopology == D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP) mode = GL_LINE_STRIP;
+
+        glDrawElements(mode, IndexCount, GL_UNSIGNED_INT, (void*)(intptr_t)(StartIndexLocation * 4)); // Offset in bytes
+    }
+    void PSSetShaderResources(UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView *const *ppShaderResourceViews) {
+        if (NumViews > 0 && ppShaderResourceViews[0]) {
+            glActiveTexture(GL_TEXTURE0 + StartSlot);
+            glBindTexture(GL_TEXTURE_2D, ppShaderResourceViews[0]->glId);
+        }
+    }
+    void PSSetSamplers(UINT StartSlot, UINT NumSamplers, ID3D11SamplerState *const *ppSamplers) {}
+    void OMSetRenderTargets(UINT NumViews, ID3D11RenderTargetView *const *ppRenderTargetViews, ID3D11DepthStencilView *pDepthStencilView) {}
+    void OMSetDepthStencilState(ID3D11DepthStencilState *pDepthStencilState, UINT StencilRef) {}
+    void OMSetBlendState(ID3D11BlendState *pBlendState, const FLOAT BlendFactor[4], UINT SampleMask) {}
+    void RSSetViewports(UINT NumViewports, const D3D11_VIEWPORT *pViewports) {
+        if (NumViewports > 0) {
+            glViewport((GLint)pViewports[0].TopLeftX, (GLint)pViewports[0].TopLeftY, (GLsizei)pViewports[0].Width, (GLsizei)pViewports[0].Height);
+        }
+    }
+    void RSSetScissorRects(UINT NumRects, const D3D11_RECT *pRects) {
+        if (NumRects > 0) {
+            glScissor(pRects[0].left, pRects[0].top, pRects[0].right - pRects[0].left, pRects[0].bottom - pRects[0].top);
+            glEnable(GL_SCISSOR_TEST);
+        } else {
+            glDisable(GL_SCISSOR_TEST);
+        }
+    }
+    void RSSetState(ID3D11RasterizerState *pRasterizerState) {}
+    void ClearRenderTargetView(ID3D11RenderTargetView *pRenderTargetView, const FLOAT ColorRGBA[4]) {
+        glClearColor(ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3]);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+    void ClearDepthStencilView(ID3D11DepthStencilView *pDepthStencilView, UINT ClearFlags, FLOAT Depth, UINT8 Stencil) {
+        glClearDepth(Depth);
+        glClearStencil(Stencil);
+        GLbitfield mask = 0;
+        if (ClearFlags & 1) mask |= GL_DEPTH_BUFFER_BIT; // D3D11_CLEAR_DEPTH
+        if (ClearFlags & 2) mask |= GL_STENCIL_BUFFER_BIT; // D3D11_CLEAR_STENCIL
+        if (mask) glClear(mask);
+    }
+    void Flush() {}
 };
+
+static const GUID WKPDID_D3DDebugObjectName = { 0x4299e9, 0x3bea, 0x45d5, 0x8d, 0x44, 0x73, 0x54, 0x37, 0x6f, 0x74, 0x36 };
 
 typedef void ID3DX11ThreadPump;
 inline HRESULT D3DX11CreateTextureFromMemory(ID3D11Device* pDevice, const void* pSrcData, size_t SrcDataSize, D3DX11_IMAGE_LOAD_INFO* pLoadInfo, ID3DX11ThreadPump* pPump, ID3D11Resource** ppTexture, HRESULT* pHResult) { 
-    *ppTexture = new ID3D11Texture2D();
+    if (pSrcData == NULL) return E_FAIL;
+    ID3D11Texture2D* tex = new ID3D11Texture2D();
+    *ppTexture = tex;
+    
+    int w, h, n;
+    unsigned char *data = stbi_load_from_memory((const stbi_uc*)pSrcData, (int)SrcDataSize, &w, &h, &n, 4);
+    
+    if (data) {
+        std::cerr << "D3DX11CreateTextureFromMemory: Loaded image " << w << "x" << h << " channels=" << n << std::endl;
+        tex->width = w;
+        tex->height = h;
+        tex->format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+        glGenTextures(1, &tex->glId);
+        glBindTexture(GL_TEXTURE_2D, tex->glId);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        
+        stbi_image_free(data);
+    } else {
+        std::cerr << "D3DX11CreateTextureFromMemory: Failed to load image. Reason: " << stbi_failure_reason() << std::endl;
+        tex->width = 2;
+        tex->height = 2;
+        tex->format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        glGenTextures(1, &tex->glId);
+        glBindTexture(GL_TEXTURE_2D, tex->glId);
+        unsigned char pixels[] = { 
+            255, 0, 0, 255, 255, 0, 0, 255,
+            255, 0, 0, 255, 255, 0, 0, 255
+        };
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+    
     return S_OK; 
 }
 
 inline HRESULT D3DX11CreateTextureFromFile(ID3D11Device* pDevice, LPCWSTR pSrcFile, D3DX11_IMAGE_LOAD_INFO* pLoadInfo, ID3DX11ThreadPump* pPump, ID3D11Resource** ppTexture, HRESULT* pHResult) { 
-    *ppTexture = new ID3D11Texture2D();
+    if (pSrcFile == NULL) return E_FAIL;
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string filename = converter.to_bytes(pSrcFile);
+
+    ID3D11Texture2D* tex = new ID3D11Texture2D();
+    *ppTexture = tex;
+    
+    int w, h, n;
+    unsigned char *data = stbi_load(filename.c_str(), &w, &h, &n, 4);
+    
+    if (data) {
+        tex->width = w;
+        tex->height = h;
+        tex->format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+        glGenTextures(1, &tex->glId);
+        glBindTexture(GL_TEXTURE_2D, tex->glId);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        
+        stbi_image_free(data);
+    } else {
+        std::cerr << "D3DX11CreateTextureFromFile: Failed to load image: " << filename << std::endl;
+        tex->width = 2;
+        tex->height = 2;
+        tex->format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        glGenTextures(1, &tex->glId);
+        glBindTexture(GL_TEXTURE_2D, tex->glId);
+        unsigned char pixels[] = { 
+            255, 0, 0, 255, 255, 0, 0, 255,
+            255, 0, 0, 255, 255, 0, 0, 255
+        };
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
     return S_OK; 
 }
-
-typedef struct D3D11_INPUT_ELEMENT_DESC D3D11_INPUT_ELEMENT_DESC;
-
-typedef struct _LUID {
-    DWORD LowPart;
-    LONG HighPart;
-} LUID, *PLUID;
-typedef struct _GUID {
-    unsigned long  Data1;
-    unsigned short Data2;
-    unsigned short Data3;
-    unsigned char  Data4[8];
-} GUID, IID;
 
 struct IUnknown {
     virtual HRESULT QueryInterface(const IID &riid, void **ppvObject) { return S_OK; }
     virtual ULONG AddRef() { return 1; }
     virtual ULONG Release() { return 0; }
-};
-
-typedef struct D3D11_SHADER_RESOURCE_VIEW_DESC D3D11_SHADER_RESOURCE_VIEW_DESC;
-
-struct D3D11_VIEWPORT {
-    float TopLeftX;
-    float TopLeftY;
-    float Width;
-    float Height;
-    float MinDepth;
-    float MaxDepth;
-};
-
-struct D3D11_RECT {
-    LONG left;
-    LONG top;
-    LONG right;
-    LONG bottom;
 };
 
 // DXGI Stubs
@@ -346,11 +906,16 @@ inline int GetSystemMetrics(int) { return 1920; } // Dummy
 #define SM_CYSCREEN 1
 
 inline void OutputDebugString(LPCWSTR) {}
-inline void MessageBox(HWND, LPCWSTR, LPCWSTR, UINT) {}
+inline void MessageBox(HWND, LPCWSTR lpText, LPCWSTR lpCaption, UINT) {
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string text = converter.to_bytes(lpText);
+    std::string caption = converter.to_bytes(lpCaption);
+    std::cerr << "MessageBox [" << caption << "]: " << text << std::endl;
+}
 #define MB_OK 0
 
-inline DWORD GetTickCount64() { return 0; } // Should implement with clock_gettime
-inline DWORD GetTickCount() { return (DWORD)GetTickCount64(); }
+inline ULONGLONG GetTickCount64() { return SDL_GetTicks64(); }
+inline DWORD GetTickCount() { return SDL_GetTicks(); }
 inline void Sleep(DWORD) {}
 
 #define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)

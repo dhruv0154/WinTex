@@ -1,3 +1,4 @@
+#define STB_IMAGE_IMPLEMENTATION
 #include "DirectX.h"
 #include "resource.h"
 #include "Globals.h"
@@ -654,47 +655,278 @@ void CDirectX::SetScissorRect(D3D11_RECT rect)
 
 #else
 
-// Linux Stubs
-void Disaster(HRESULT hr, LPWSTR text) {}
+#include <iostream>
+
+// Linux Implementation
+void Disaster(HRESULT hr, LPWSTR text) {
+    std::cout << "DISASTER: " << hr << std::endl;
+}
 void SetDebugName(ID3D11DeviceChild* child, const char* name) {}
 void SetDebugName(IUnknown* unk, const char* name) {}
 
-CDirectX::CDirectX() : _dev(NULL), _devCon(NULL) {}
-CDirectX::~CDirectX() {}
+static SDL_Window* g_Window = NULL;
+static SDL_GLContext g_GLContext = NULL;
+static GLuint g_VAO = 0;
 
-BOOL CDirectX::Init(HWND hWnd, int width, int height, BOOL windowed, BOOL anisotropicFilter, int bufferCount) { return TRUE; }
-void CDirectX::Dispose() {}
-void CDirectX::SetFullScreen(BOOL fullScreen) {}
-void CDirectX::Clear(float red, float green, float blue) {}
-void CDirectX::Present(UINT syncInterval, UINT flags) {}
+CDirectX::CDirectX() {
+    _dev = new ID3D11Device();
+    _devCon = new ID3D11DeviceContext();
+    _width = 0;
+    _height = 0;
+}
 
-HRESULT CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Buffer** ppBuffer, char* name) { return S_OK; }
-HRESULT CDirectX::Map(ID3D11Resource* pResource, UINT subResource, D3D11_MAP mapType, UINT mapFlags, D3D11_MAPPED_SUBRESOURCE* pMappedResource) { return S_OK; }
-void CDirectX::Unmap(ID3D11Resource* pResource, UINT subResource) {}
+CDirectX::~CDirectX() {
+    Dispose();
+}
 
-ID3D11Device* CDirectX::GetDevice() { return NULL; }
-ID3D11DeviceContext* CDirectX::GetDeviceContext() { return NULL; }
+BOOL CDirectX::Init(HWND hWnd, int width, int height, BOOL windowed, BOOL anisotropicFilter, int bufferCount) {
+    _width = width;
+    _height = height;
 
-HRESULT CDirectX::CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D, char* name) { return S_OK; }
-HRESULT CDirectX::CreateShaderResourceView(ID3D11Resource* pResource, D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc, ID3D11ShaderResourceView** ppSRView, char* name) { return S_OK; }
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        return FALSE;
+    }
 
-void CDirectX::SetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer** ppVertexBuffers, const UINT* pStrides, const UINT* pOffsets) {}
-void CDirectX::SetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, UINT Offset) {}
-void CDirectX::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology) {}
-void CDirectX::Draw(UINT VertexCount, UINT StartVertexLocation) {}
-void CDirectX::DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) {}
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-void CDirectX::SetShaderResources(UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView** ppShaderResourceViews) {}
+    Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
+    if (!windowed) flags |= SDL_WINDOW_FULLSCREEN;
 
-void CDirectX::EnableZBuffer() {}
-void CDirectX::DisableZBuffer() {}
+    g_Window = SDL_CreateWindow("WinTex Linux", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, flags);
+    if (!g_Window) {
+        std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+        return FALSE;
+    }
 
-void CDirectX::Resize(int width, int height) {}
+    g_GLContext = SDL_GL_CreateContext(g_Window);
+    if (!g_GLContext) {
+        std::cout << "SDL_GL_CreateContext Error: " << SDL_GetError() << std::endl;
+        return FALSE;
+    }
+
+    // Initialize generic GL state
+    glGenVertexArrays(1, &g_VAO);
+    glBindVertexArray(g_VAO);
+
+    glViewport(0, 0, width, height);
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE); // Disable culling to be safe
+
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    return TRUE;
+}
+
+void CDirectX::Dispose() {
+    if (g_VAO) { glDeleteVertexArrays(1, &g_VAO); g_VAO = 0; }
+    if (_dev) { delete _dev; _dev = NULL; }
+    if (_devCon) { delete _devCon; _devCon = NULL; }
+    if (g_GLContext) { SDL_GL_DeleteContext(g_GLContext); g_GLContext = NULL; }
+    if (g_Window) { SDL_DestroyWindow(g_Window); g_Window = NULL; }
+    SDL_Quit();
+}
+
+void CDirectX::SetFullScreen(BOOL fullScreen) {
+    if (g_Window) {
+        SDL_SetWindowFullscreen(g_Window, fullScreen ? SDL_WINDOW_FULLSCREEN : 0);
+    }
+}
+
+void CDirectX::Clear(float red, float green, float blue) {
+    if (red == 0.0f && green == 0.0f && blue == 0.0f) {
+        red = 1.0f; green = 0.0f; blue = 1.0f; // Magenta for debugging
+    }
+    glClearColor(red, green, blue, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void CDirectX::Present(UINT syncInterval, UINT flags) {
+    if (g_Window) {
+        SDL_GL_SwapWindow(g_Window);
+    }
+}
+
+HRESULT CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Buffer** ppBuffer, char* name) { 
+    *ppBuffer = new ID3D11Buffer();
+    (*ppBuffer)->byteWidth = pDesc->ByteWidth;
+    (*ppBuffer)->bindFlags = pDesc->BindFlags;
+    (*ppBuffer)->cpuData.resize(pDesc->ByteWidth);
+
+    if (pDesc->BindFlags & D3D11_BIND_CONSTANT_BUFFER) {
+        // CPU-only for emulation
+        if (pInitialData) {
+            memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+        }
+        return S_OK;
+    }
+
+    // For Vertex/Index buffers, create GL buffer
+    glGenBuffers(1, &(*ppBuffer)->glId);
+    
+    GLenum target = (pDesc->BindFlags & D3D11_BIND_VERTEX_BUFFER) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
+    
+    glBindBuffer(target, (*ppBuffer)->glId);
+    if (pInitialData) {
+        glBufferData(target, pDesc->ByteWidth, pInitialData->pSysMem, (pDesc->Usage == D3D11_USAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+        // Also keep copy in cpuData for Map/Unmap if needed?
+        // Actually Map/Unmap implementation in Win32Compat.h uses cpuData and uploads on Unmap.
+        // So we should initialize cpuData with pInitialData.
+        memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+    } else {
+        glBufferData(target, pDesc->ByteWidth, NULL, (pDesc->Usage == D3D11_USAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+    }
+    glBindBuffer(target, 0);
+
+    return S_OK;
+}
+
+HRESULT CDirectX::Map(ID3D11Resource* pResource, UINT subResource, D3D11_MAP mapType, UINT mapFlags, D3D11_MAPPED_SUBRESOURCE* pMappedResource) { 
+    return _devCon->Map(pResource, subResource, mapType, mapFlags, pMappedResource);
+}
+
+void CDirectX::Unmap(ID3D11Resource* pResource, UINT subResource) {
+    _devCon->Unmap(pResource, subResource);
+}
+
+ID3D11Device* CDirectX::GetDevice() { return _dev; }
+ID3D11DeviceContext* CDirectX::GetDeviceContext() { return _devCon; }
+
+HRESULT CDirectX::CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D, char* name) { 
+    *ppTexture2D = new ID3D11Texture2D();
+    (*ppTexture2D)->width = pDesc->Width;
+    (*ppTexture2D)->height = pDesc->Height;
+    (*ppTexture2D)->format = pDesc->Format;
+
+    glGenTextures(1, &(*ppTexture2D)->glId);
+    glBindTexture(GL_TEXTURE_2D, (*ppTexture2D)->glId);
+    
+    GLint internalFormat = GL_RGBA;
+    GLenum format = GL_RGBA;
+    if (pDesc->Format == DXGI_FORMAT_B8G8R8A8_UNORM) format = GL_BGRA;
+    GLenum type = GL_UNSIGNED_BYTE;
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, pDesc->Width, pDesc->Height, 0, format, type, pInitialData ? pInitialData->pSysMem : NULL);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    return S_OK;
+}
+
+HRESULT CDirectX::CreateShaderResourceView(ID3D11Resource* pResource, D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc, ID3D11ShaderResourceView** ppSRView, char* name) { 
+    *ppSRView = new ID3D11ShaderResourceView();
+    // In D3D11, SRV is a view of a resource. In GL, we just use the texture ID.
+    // We can copy the GL ID from the resource.
+    if (pResource) (*ppSRView)->glId = pResource->glId;
+    return S_OK;
+}
+
+void CDirectX::SetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer** ppVertexBuffers, const UINT* pStrides, const UINT* pOffsets) {
+    if (NumBuffers > 0 && ppVertexBuffers[0]) {
+        glBindBuffer(GL_ARRAY_BUFFER, ppVertexBuffers[0]->glId);
+        
+        UINT stride = pStrides[0];
+        
+        // Disable all arrays first to be safe (or at least the ones we might use)
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+
+        if (stride == 20) { // TEXTURED_VERTEX_ORTHO
+             glEnableVertexAttribArray(0); // Position (XMFLOAT3)
+             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+             glEnableVertexAttribArray(1); // TexCoord (XMFLOAT2)
+             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)12);
+        }
+        else if (stride == 44) { // TEXTURED_VERTEX
+             glEnableVertexAttribArray(0); // Position (XMFLOAT3)
+             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+             glEnableVertexAttribArray(1); // TexCoord (XMFLOAT2)
+             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)12);
+        }
+        else if (stride == 32) { // COLOURED_VERTEX_ORTHO
+             glEnableVertexAttribArray(0); // Position (XMFLOAT4)
+             glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, stride, (void*)0);
+             glEnableVertexAttribArray(1); // Color (XMFLOAT4)
+             glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)16);
+        }
+        else if (stride == 48) { // COLOURED_VERTEX
+             glEnableVertexAttribArray(0); // Position (XMFLOAT4)
+             glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, stride, (void*)0);
+             glEnableVertexAttribArray(1); // Color (XMFLOAT4)
+             glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)16);
+        }
+        else {
+             // Default fallback (assume TEXTURED_VERTEX_ORTHO or similar)
+             glEnableVertexAttribArray(0); 
+             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+             glEnableVertexAttribArray(1); 
+             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)12);
+        }
+    }
+}
+
+void CDirectX::SetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, UINT Offset) {
+    if (pIndexBuffer) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pIndexBuffer->glId);
+}
+
+void CDirectX::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology) {
+    _devCon->IASetPrimitiveTopology(Topology);
+}
+
+void CDirectX::Draw(UINT VertexCount, UINT StartVertexLocation) {
+    static int drawCount = 0;
+    drawCount++;
+    bool debug = (drawCount % 100 == 0);
+    
+    if (debug) std::cout << "CDirectX::Draw Count=" << VertexCount << " Start=" << StartVertexLocation << std::endl;
+    
+    _devCon->Draw(VertexCount, StartVertexLocation);
+    
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cout << "GL Error in CDirectX::Draw: " << err << std::endl;
+    }
+}
+
+void CDirectX::DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) {
+    _devCon->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cout << "GL Error in CDirectX::DrawIndexed: " << err << std::endl;
+    }
+}
+
+void CDirectX::SetShaderResources(UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView** ppShaderResourceViews) {
+    _devCon->PSSetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
+}
+
+void CDirectX::EnableZBuffer() {
+    glEnable(GL_DEPTH_TEST);
+}
+
+void CDirectX::DisableZBuffer() {
+    glDisable(GL_DEPTH_TEST);
+}
+
+void CDirectX::Resize(int width, int height) {
+    _width = width;
+    _height = height;
+    glViewport(0, 0, width, height);
+}
 
 CDXAdapter* CDirectX::GetAdapter() { return NULL; }
 
 void CDirectX::SelectSampler(BOOL anisotropic) {}
-void CDirectX::SetViewport(D3D11_VIEWPORT viewport) {}
+void CDirectX::SetViewport(D3D11_VIEWPORT viewport) {
+    glViewport((GLint)viewport.TopLeftX, (GLint)viewport.TopLeftY, (GLsizei)viewport.Width, (GLsizei)viewport.Height);
+}
 void CDirectX::SetScissorRect(D3D11_RECT rect) {}
 
 HRESULT CDirectX::ConfigureBackBuffer() { return S_OK; }

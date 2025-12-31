@@ -9,11 +9,19 @@ if(WIN32)
 else()
     file(GLOB SOURCES "*.cpp")
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/WinTex.cpp")
+    message(STATUS "Sources: ${SOURCES}")
     add_definitions(-DPLATFORM_LINUX)
+    
+    find_package(SDL2 REQUIRED)
+    find_package(OpenGL REQUIRED)
+    
+    include_directories(${SDL2_INCLUDE_DIRS})
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -g -fno-omit-frame-pointer")
 endif()
 
 add_executable(WinTex ${SOURCES})
 
 if(NOT WIN32)
-    target_link_libraries(WinTex m)
+    target_link_libraries(WinTex m ${SDL2_LIBRARIES} ${OPENGL_LIBRARIES})
 endif()

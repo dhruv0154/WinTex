@@ -165,6 +165,10 @@ void CModuleController::Pop(CModuleBase* pModule)
 				CurrentModule = Modules.front();
 				ResumeModule(CurrentModule);
 			}
+			else
+			{
+				CurrentModule = NULL;
+			}
 		}
 
 		//ModulesToDelete.push_back(pModule);
@@ -208,6 +212,11 @@ void CModuleController::SendToFront(CModuleBase* pModule)
 void CModuleController::Render()
 {
 	_lock.Lock();
+
+    static int mcRenderCount = 0;
+    mcRenderCount++;
+    bool debug = (mcRenderCount % 100 == 0);
+    if (debug && CurrentModule != NULL) std::cout << "CModuleController::Render CurrentModule Type: " << (int)CurrentModule->Type << std::endl;
 
 	if (NextModule != NULL)
 	{

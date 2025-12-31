@@ -50,6 +50,7 @@ void SetRegistryFloat(HKEY key, LPCWSTR valueName, float value);
 void DebugTrace(CScriptState* pState, LPWSTR text);
 
 std::string ToString(LPCWSTR str);
+std::wstring ToWString(const std::string& str);
 
 void SwapCaptions();
 

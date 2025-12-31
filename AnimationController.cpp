@@ -8,6 +8,7 @@
 #include "Utilities.h"
 #include "Image.h"
 #include "MediaIdentifiers.h"
+#include "StaticImage.h"
 
 CAnimBase* CAnimationController::_anim = NULL;
 CDXText* CAnimationController::_pCaption = NULL;
@@ -224,6 +225,11 @@ CAnimBase* CAnimationController::Load(BinaryData bd, int factor)
 	else if (GetInt(bd.Data, 0, 4) == H2O)
 	{
 		pAnim = new CH2O(factor);
+	}
+	else if ((bd.Length > 2 && bd.Data[0] == 0xFF && bd.Data[1] == 0xD8) ||
+             (bd.Length > 8 && bd.Data[0] == 0x89 && bd.Data[1] == 0x50 && bd.Data[2] == 0x4E && bd.Data[3] == 0x47))
+	{
+		pAnim = new CStaticImage(factor);
 	}
 	//else if... Embedded palette + picture
 

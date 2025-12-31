@@ -91,7 +91,7 @@ public:
 	static int GetLocationInitializationScriptId() { return Game->GetLocationInitializationScriptId(); }
 	static int GetLocationEnvironmentScriptId() { return Game->GetLocationEnvironmentScriptId(); }
 
-	static void AutoSave() { SaveGame(L"GAMES\\SAVEGAME.000"); }
+	static void AutoSave() { SaveGame((LPWSTR)L"GAMES\\SAVEGAME.000"); }
 
 	static int GetHintCategoryCount() { return Game->GetHintCategoryCount(); }
 	static CHintCategory* GetHintCategory(int index) { return Game->GetHintCategory(index); }
