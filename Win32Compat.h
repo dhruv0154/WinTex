@@ -650,7 +650,8 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
 
             if (slot == 0) { // VOP
                 GLint locView = glGetUniformLocation(prog, "View");
-                GLint locOrtho = glGetUniformLocation(prog, "Projection"); 
+                GLint locOrtho = glGetUniformLocation(prog, "Ortho"); 
+                GLint locProj = glGetUniformLocation(prog, "Projection");
                 
                 // VOPBufferType structure: mat4 view(0), mat4 ortho(64), mat4 projection(128)
                 if (locView != -1) {
@@ -660,21 +661,21 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                         std::cerr << "ApplyCB: View Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
                     }
                 }
-                else {
-                    static bool warnedView = false;
-                    if (!warnedView) { std::cerr << "Warning: Uniform 'View' not found in program " << prog << std::endl; warnedView = true; }
-                }
 
                 if (locOrtho != -1) {
                     glUniformMatrix4fv(locOrtho, 1, GL_FALSE, (float*)(buf->cpuData.data() + 64)); 
                     if (debug) {
                         float* m = (float*)(buf->cpuData.data() + 64);
-                        std::cerr << "ApplyCB: Projection Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                        std::cerr << "ApplyCB: Ortho Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
                     }
                 }
-                else {
-                    static bool warnedProj = false;
-                    if (!warnedProj) { std::cerr << "Warning: Uniform 'Projection' not found in program " << prog << std::endl; warnedProj = true; }
+
+                if (locProj != -1) {
+                    glUniformMatrix4fv(locProj, 1, GL_FALSE, (float*)(buf->cpuData.data() + 128)); 
+                    if (debug) {
+                        float* m = (float*)(buf->cpuData.data() + 128);
+                        std::cerr << "ApplyCB: Projection Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                    }
                 }
             } else if (slot == 1) { // World
                 GLint locWorld = glGetUniformLocation(prog, "World");
@@ -1255,7 +1256,11 @@ inline BOOL GetClientRect(HWND hWnd, LPRECT lpRect) { return TRUE; }
 inline BOOL GetClipCursor(LPRECT lpRect) { return TRUE; }
 inline BOOL ClipCursor(const RECT* lpRect) { return TRUE; }
 inline HWND GetForegroundWindow() { return NULL; }
-inline int ShowCursor(BOOL bShow) { return 0; }
+inline int ShowCursor(BOOL bShow) { 
+    if (bShow) SDL_SetRelativeMouseMode(SDL_FALSE);
+    else SDL_SetRelativeMouseMode(SDL_TRUE);
+    return 0; 
+}
 inline void PostQuitMessage(int nExitCode) {}
 
 inline int GetKeyNameTextA(LONG lParam, LPSTR lpString, int nSize) { return 0; }

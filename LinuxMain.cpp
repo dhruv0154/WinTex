@@ -22,6 +22,45 @@
 
 BOOL _runDXThread = TRUE;
 
+int MapSDLKeyToVK(SDL_Keycode sym) {
+    if (sym >= SDLK_a && sym <= SDLK_z) return 'A' + (sym - SDLK_a);
+    if (sym >= SDLK_0 && sym <= SDLK_9) return '0' + (sym - SDLK_0);
+    if (sym == SDLK_UP) return VK_UP;
+    if (sym == SDLK_DOWN) return VK_DOWN;
+    if (sym == SDLK_LEFT) return VK_LEFT;
+    if (sym == SDLK_RIGHT) return VK_RIGHT;
+    if (sym == SDLK_SPACE) return VK_SPACE;
+    if (sym == SDLK_RETURN) return VK_RETURN;
+    if (sym == SDLK_ESCAPE) return VK_ESCAPE;
+    if (sym == SDLK_LSHIFT || sym == SDLK_RSHIFT) return 0x10; // VK_SHIFT
+    if (sym == SDLK_LCTRL || sym == SDLK_RCTRL) return 0x11; // VK_CONTROL
+    return 0;
+}
+
+int MapSDLScancodeToWinScan(SDL_Scancode sc) {
+    switch (sc) {
+        case SDL_SCANCODE_W: return 0x11;
+        case SDL_SCANCODE_A: return 0x1E;
+        case SDL_SCANCODE_S: return 0x1F;
+        case SDL_SCANCODE_D: return 0x20;
+        case SDL_SCANCODE_Q: return 0x10;
+        case SDL_SCANCODE_E: return 0x12;
+        case SDL_SCANCODE_I: return 0x17;
+        case SDL_SCANCODE_T: return 0x14;
+        case SDL_SCANCODE_H: return 0x23;
+        case SDL_SCANCODE_LSHIFT: return 0x2A;
+        case SDL_SCANCODE_RSHIFT: return 0x36;
+        case SDL_SCANCODE_ESCAPE: return 0x01;
+        case SDL_SCANCODE_RETURN: return 0x1C;
+        case SDL_SCANCODE_SPACE: return 0x39;
+        case SDL_SCANCODE_UP: return 0x48;
+        case SDL_SCANCODE_DOWN: return 0x50;
+        case SDL_SCANCODE_LEFT: return 0x4B;
+        case SDL_SCANCODE_RIGHT: return 0x4D;
+        default: return 0;
+    }
+}
+
 int main(int argc, char** argv)
 {
     std::cout << "Starting WinTex Linux Port..." << std::endl;
@@ -88,24 +127,30 @@ int main(int argc, char** argv)
                 else if (event.type == SDL_KEYDOWN) {
                     if (event.key.keysym.sym == SDLK_ESCAPE) {
                          _runDXThread = FALSE;
-                    } else if (event.key.keysym.sym == SDLK_RETURN) {
-                        // Enter skips video (Action)
-                        CModuleController::KeyDown(VK_RETURN, 0);
                     } else {
-                        CModuleController::KeyDown(event.key.keysym.sym, 0); // TODO: proper mapping
+                        int vk = MapSDLKeyToVK(event.key.keysym.sym);
+                        int scan = MapSDLScancodeToWinScan(event.key.keysym.scancode);
+                        LPARAM lParam = (scan << 16);
+                        if (vk != 0) CModuleController::KeyDown(vk, lParam);
                     }
                 }
                 else if (event.type == SDL_KEYUP) {
-                    if (event.key.keysym.sym == SDLK_RETURN) {
-                        CModuleController::KeyUp(VK_RETURN, 0);
-                    } else if (event.key.keysym.sym != SDLK_ESCAPE) {
-                        CModuleController::KeyUp(event.key.keysym.sym, 0);
+                    if (event.key.keysym.sym != SDLK_ESCAPE) {
+                        int vk = MapSDLKeyToVK(event.key.keysym.sym);
+                        int scan = MapSDLScancodeToWinScan(event.key.keysym.scancode);
+                        LPARAM lParam = (scan << 16);
+                        if (vk != 0) CModuleController::KeyUp(vk, lParam);
                     }
                 }
                 else if (event.type == SDL_MOUSEMOTION) {
                     POINT pt;
-                    pt.x = event.motion.x;
-                    pt.y = event.motion.y;
+                    if (SDL_GetRelativeMouseMode()) {
+                        pt.x = (dx.GetWidth() / 2) + event.motion.xrel;
+                        pt.y = (dx.GetHeight() / 2) + event.motion.yrel;
+                    } else {
+                        pt.x = event.motion.x;
+                        pt.y = event.motion.y;
+                    }
                     CModuleController::MouseMove(pt);
                 }
                 else if (event.type == SDL_MOUSEBUTTONDOWN) {
