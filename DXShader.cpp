@@ -35,6 +35,52 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
         "   TexCoord = texCoord;\n"
         "}\n";
 
+    const char* vsTextured = 
+        "#version 330 core\n"
+        "layout(location = 0) in vec3 position;\n"
+        "layout(location = 1) in vec2 texCoord;\n"
+        "layout(location = 2) in vec2 object;\n"
+        "layout(location = 3) in vec4 objectParameters;\n"
+        "out vec2 TexCoord;\n"
+        "uniform mat4 World;\n"
+        "uniform mat4 View;\n"
+        "uniform mat4 Projection;\n"
+        "\n"
+        "layout(std140) uniform Visibility {\n"
+        "    vec4 visibility[4096];\n"
+        "};\n"
+        "layout(std140) uniform Translation {\n"
+        "    vec4 translation[256];\n"
+        "};\n"
+        "\n"
+        "void main() {\n"
+        "   int objIdx = int(object.x);\n"
+        "   int subObjIdx = int(object.y);\n"
+        "\n"
+        "   // Object Visibility Check\n"
+        "   if (objIdx >= 0 && objIdx < 4096) {\n"
+        "       if (visibility[objIdx].x <= 0.0) {\n"
+        "           gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return;\n"
+        "       }\n"
+        "   }\n"
+        "\n"
+        "   // SubObject Visibility Check\n"
+        "   if (subObjIdx >= 0 && subObjIdx < 4096) {\n"
+        "       if (visibility[subObjIdx].y <= 0.0) {\n"
+        "           gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return;\n"
+        "       }\n"
+        "   }\n"
+        "\n"
+        "   // Translation (using Object Index)\n"
+        "   vec3 pos = position;\n"
+        "   if (objIdx >= 0 && objIdx < 256) {\n"
+        "       pos += translation[objIdx].xyz;\n"
+        "   }\n"
+        "\n"
+        "   gl_Position = Projection * View * World * vec4(pos, 1.0);\n"
+        "   TexCoord = texCoord;\n"
+        "}\n";
+
     const char* vsColoured = 
         "#version 330 core\n"
         "layout(location = 0) in vec4 position;\n"
@@ -84,7 +130,8 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
         "}\n";
 
     // Select Source
-    if (vsName == "OrthoVS" || vsName == "TexturedVS") vsSource = vsOrtho;
+    if (vsName == "OrthoVS") vsSource = vsOrtho;
+    else if (vsName == "TexturedVS") vsSource = vsTextured;
     else if (vsName == "ColouredVS" || vsName == "TransparentVS" || vsName == "MultiColouredFontVS") vsSource = vsColoured;
     else if (vsName == "BasicVS") vsSource = vsBasic;
     else vsSource = vsOrtho; // Fallback
@@ -126,6 +173,11 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
     // Bind attributes explicitly to match our assumptions
     glBindAttribLocation(prog, 0, "position");
     if (vsSource == vsOrtho) glBindAttribLocation(prog, 1, "texCoord");
+    else if (vsSource == vsTextured) {
+        glBindAttribLocation(prog, 1, "texCoord");
+        glBindAttribLocation(prog, 2, "object");
+        glBindAttribLocation(prog, 3, "objectParameters");
+    }
     else if (vsSource == vsColoured) glBindAttribLocation(prog, 1, "colour");
     
     glLinkProgram(prog);
@@ -138,11 +190,19 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
     glDeleteShader(vs);
     glDeleteShader(ps);
     
-    // Set texture unit default
+    // Set texture unit default and binding points for UBOs
     glUseProgram(prog);
     GLint texLoc = glGetUniformLocation(prog, "texture1");
     if (texLoc != -1) {
         glUniform1i(texLoc, 0);
+    }
+
+    if (vsSource == vsTextured) {
+        GLuint visIdx = glGetUniformBlockIndex(prog, "Visibility");
+        if (visIdx != GL_INVALID_INDEX) glUniformBlockBinding(prog, visIdx, 3);
+
+        GLuint transIdx = glGetUniformBlockIndex(prog, "Translation");
+        if (transIdx != GL_INVALID_INDEX) glUniformBlockBinding(prog, transIdx, 5);
     }
     glUseProgram(0);
 

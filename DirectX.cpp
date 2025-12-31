@@ -760,9 +760,30 @@ HRESULT CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA*
     (*ppBuffer)->cpuData.resize(pDesc->ByteWidth);
 
     if (pDesc->BindFlags & D3D11_BIND_CONSTANT_BUFFER) {
-        // CPU-only for emulation
-        if (pInitialData) {
-            memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+        // Check if this is a large buffer that needs UBO (Visibility/Translation)
+        bool createUBO = false;
+        if (name != NULL) {
+            if (strcmp(name, "Visibility") == 0 || strcmp(name, "Translation") == 0) {
+                createUBO = true;
+            }
+        }
+
+        if (createUBO) {
+             glGenBuffers(1, &(*ppBuffer)->glId);
+             glBindBuffer(GL_UNIFORM_BUFFER, (*ppBuffer)->glId);
+             // Initialize with CPU data if available, or just allocate
+             if (pInitialData) {
+                 glBufferData(GL_UNIFORM_BUFFER, pDesc->ByteWidth, pInitialData->pSysMem, GL_DYNAMIC_DRAW);
+                 memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+             } else {
+                 glBufferData(GL_UNIFORM_BUFFER, pDesc->ByteWidth, NULL, GL_DYNAMIC_DRAW);
+             }
+             glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        } else {
+             // CPU-only for emulation of small constant buffers (matrices etc)
+             if (pInitialData) {
+                 memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+             }
         }
         return S_OK;
     }
@@ -852,9 +873,10 @@ void CDirectX::SetVertexBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer** 
              glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
              glEnableVertexAttribArray(1); // TexCoord (XMFLOAT2)
              glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)12);
-             // Explicitly disable 2 and 3 (redundant but safe)
-             glDisableVertexAttribArray(2);
-             glDisableVertexAttribArray(3);
+             glEnableVertexAttribArray(2); // Object (XMFLOAT2)
+             glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)20);
+             glEnableVertexAttribArray(3); // ObjectParameters (XMFLOAT4)
+             glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride, (void*)28);
         }
         else if (stride == 32) { // COLOURED_VERTEX_ORTHO
              glEnableVertexAttribArray(0); // Position (XMFLOAT4)

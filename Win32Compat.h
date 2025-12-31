@@ -611,6 +611,11 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                 glBindBuffer(GL_ARRAY_BUFFER, buf->glId);
                 glBufferSubData(GL_ARRAY_BUFFER, 0, buf->byteWidth, buf->cpuData.data());
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
+            } else if ((buf->bindFlags & D3D11_BIND_CONSTANT_BUFFER) && buf->glId != 0) {
+                 // Update UBO data
+                 glBindBuffer(GL_UNIFORM_BUFFER, buf->glId);
+                 glBufferSubData(GL_UNIFORM_BUFFER, 0, buf->byteWidth, buf->cpuData.data());
+                 glBindBuffer(GL_UNIFORM_BUFFER, 0);
             }
         } else if (pResource->type == RT_Texture2D) {
             ID3D11Texture2D* tex = (ID3D11Texture2D*)pResource;
@@ -689,6 +694,14 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                 else {
                     static bool warnedWorld = false;
                     if (!warnedWorld) { std::cerr << "Warning: Uniform 'World' not found in program " << prog << std::endl; warnedWorld = true; }
+                }
+            } else if (slot == 3) { // Visibility
+                if (buf->glId != 0) {
+                     glBindBufferBase(GL_UNIFORM_BUFFER, 3, buf->glId);
+                }
+            } else if (slot == 5) { // Translation
+                if (buf->glId != 0) {
+                     glBindBufferBase(GL_UNIFORM_BUFFER, 5, buf->glId);
                 }
             }
         }
