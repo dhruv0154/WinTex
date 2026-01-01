@@ -205,7 +205,9 @@ void CConstantBuffers::Setup2D(CDirectX& dx)
 	float w = (float)dx.GetWidth();
 	float h = (float)dx.GetHeight();
 
-	//SetupVOP(dx, w, h, w / 2, -h / 2, -10.0f);
+#ifdef PLATFORM_WINDOWS
+	SetupVOP(dx, w, h, w / 2, -h / 2, -10.0f);
+#else
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	float camera_x = w / 2;
 	float camera_y = -h / 2;
@@ -218,6 +220,7 @@ void CConstantBuffers::Setup2D(CDirectX& dx)
 
 	// For 2D, we put Ortho matrix in the Perspective slot so shaders using "Projection" get Ortho
 	SetVOP(dx, &vm, &om, &om);
+#endif
 }
 
 void CConstantBuffers::Setup3D(CDirectX& dx)
