@@ -88,36 +88,33 @@ std::wstring CFile::Find(std::wstring path, std::wstring file)
 
 	WIN32_FIND_DATA fd;
 	HANDLE hFF = FindFirstFile((path + L"*").c_str(), &fd);
-    if (hFF != INVALID_HANDLE_VALUE)
-    {
-        do
-        {
-            std::wstring enumeratedFile = fd.cFileName;
+	do
+	{
+		std::wstring enumeratedFile = fd.cFileName;
 
-            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            {
-                if ((enumeratedFile != L".") && (enumeratedFile != L".."))
-                {
-                    foundFile = Find(path + enumeratedFile + L"\\", file);
+		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			if ((enumeratedFile != L".") && (enumeratedFile != L".."))
+			{
+				foundFile = Find(path + enumeratedFile + L"\\", file);
 
-                    if (foundFile.size() > 0)
-                    {
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                if (enumeratedFile == file)
-                {
-                    foundFile = path + file;
-                    break;
-                }
-            }
-        } while (FindNextFile(hFF, &fd));
+				if (foundFile.size() > 0)
+				{
+					break;
+				}
+			}
+		}
+		else
+		{
+			if (enumeratedFile == file)
+			{
+				foundFile = path + file;
+				break;
+			}
+		}
+	} while (FindNextFile(hFF, &fd));
 
-        FindClose(hFF);
-    }
+	FindClose(hFF);
 
 	return foundFile;
 #endif
