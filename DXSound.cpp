@@ -12,11 +12,13 @@ std::vector<CDXSound*> CDXSound::_activeSounds;
 std::vector<CDXSourceVoice*> _activeVoices; // Global list of active voices
 std::mutex CDXSound::_mutex;
 float CDXSound::_masterVolume = 1.0f;
+int CDXSound::_outputFreq = 44100;
 
 // CDXSourceVoice Implementation
-CDXSourceVoice::CDXSourceVoice(const WAVEFORMATEX* pwfx) {
+CDXSourceVoice::CDXSourceVoice(const WAVEFORMATEX* pwfx, IXAudio2VoiceCallback* pCallback) {
     _playing = false;
     _volume = 1.0f;
+    _pCallback = pCallback;
     if (pwfx) _format = *pwfx;
     else memset(&_format, 0, sizeof(_format));
     
@@ -39,11 +41,11 @@ void CDXSourceVoice::DestroyVoice() {
 HRESULT CDXSourceVoice::SubmitSourceBuffer(const XAUDIO2_BUFFER *pBuffer, const void *pBufferWMA) {
     if (!pBuffer) return E_FAIL;
     
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
     QueuedBuffer qb;
     qb.data = pBuffer->pAudioData;
     qb.size = pBuffer->AudioBytes;
-    qb.position = 0;
+    qb.position = 0.0;
     qb.ownsData = false; // We assume caller keeps data alive as per XAudio2 spec
     _buffers.push_back(qb);
     return S_OK;
@@ -65,7 +67,7 @@ HRESULT CDXSourceVoice::SetVolume(float Volume, UINT32 OperationSet) {
 }
 
 HRESULT CDXSourceVoice::FlushSourceBuffers() {
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
     _buffers.clear();
     return S_OK;
 }
@@ -73,94 +75,77 @@ HRESULT CDXSourceVoice::FlushSourceBuffers() {
 void CDXSourceVoice::Mix(int32_t* dst, int numSamples) {
     if (!_playing) return;
     
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
     if (_buffers.empty()) return;
 
     int samplesMixed = 0;
+    
+    // Calculate bytes per sample based on format
+    int bytesPerSample = (_format.wBitsPerSample / 8) * _format.nChannels;
+    if (bytesPerSample == 0) bytesPerSample = 2; // Default to 16-bit mono
+
+    float step = 1.0f;
+    if (_format.nSamplesPerSec > 0) {
+        step = (float)_format.nSamplesPerSec / (float)CDXSound::_outputFreq;
+    }
+
     while (samplesMixed < numSamples && !_buffers.empty()) {
         QueuedBuffer& buf = _buffers.front();
         
-        // Assuming 16-bit
-        int bytesPerSample = (_format.wBitsPerSample / 8) * _format.nChannels;
-        if (bytesPerSample == 0) bytesPerSample = 2; // Default to 16-bit mono
-
-        int remainingBytes = buf.size - buf.position;
-        int remainingSamples = remainingBytes / bytesPerSample;
-        
-        // Use (std::min) to avoid macro conflict
-        int samplesToMix = (std::min)(numSamples - samplesMixed, remainingSamples);
-        
-        const int16_t* src = (const int16_t*)(buf.data + buf.position);
-        
-        // Simple mixing (no resampling yet, assuming 44100 or close enough)
-        // If channels = 1, replicate to output if output is stereo (but our output is mono for now)
-        // If channels = 2, mix to mono?
-        // Our AudioCallback assumes mono output (S16SYS, 1 channel).
-        
-        // Handle sample rate conversion (simple step)
-        // output rate = 44100. input rate = _format.nSamplesPerSec
-        // step = input / output
-        
-        float step = 1.0f;
-        if (_format.nSamplesPerSec > 0) {
-            step = (float)_format.nSamplesPerSec / 44100.0f;
-        }
-
-        if (step == 1.0f && _format.nChannels == 1) {
-            for (int i = 0; i < samplesToMix; ++i) {
-                dst[samplesMixed + i] += (int32_t)(src[i] * _volume);
-            }
-            buf.position += samplesToMix * bytesPerSample;
-            samplesMixed += samplesToMix;
-        } else {
-             // Resample / Remix
-             for (int i = 0; i < samplesToMix; ++i) { // This loop logic is slightly flawed for resampling, but ok for direct copy
-                 // Correct logic: fill `dst` until full.
-                 // We consume `buf` based on step.
-                 break; // Fallback to simpler logic below
+        while (samplesMixed < numSamples) {
+             int pos = (int)buf.position;
+             // Align to block
+             pos -= (pos % bytesPerSample);
+             
+             if (pos >= buf.size) {
+                 // buffer exhausted
+                 break;
              }
              
-             // Let's implement a loop that fills dst
-             float currentPos = 0.0f;
-             int dstIndex = samplesMixed;
-             
-             // We need to update buf.position based on consumption
-             // But Mix is called for a fixed number of output samples.
-             
-             while (dstIndex < numSamples) {
-                 int srcIndex = (int)currentPos;
-                 int srcByteOffset = srcIndex * bytesPerSample;
-                 
-                 if (buf.position + srcByteOffset >= buf.size) {
-                     // buffer exhausted
-                     buf.position = buf.size; // Mark as done
-                     break;
-                 }
-                 
-                 int16_t sample = 0;
+             int16_t sample = 0;
+             if (_format.wBitsPerSample == 8) {
+                 // 8-bit audio is unsigned 0-255
                  if (_format.nChannels == 1) {
-                     sample = ((const int16_t*)(buf.data + buf.position + srcByteOffset))[0];
+                     // 8-bit Mono
+                     if (pos < buf.size) {
+                         uint8_t val = buf.data[pos];
+                         sample = (int16_t)((val - 128) * 256);
+                     }
                  } else {
-                     // Average channels
-                     int16_t l = ((const int16_t*)(buf.data + buf.position + srcByteOffset))[0];
-                     int16_t r = ((const int16_t*)(buf.data + buf.position + srcByteOffset))[1];
-                     sample = (l + r) / 2;
+                     // 8-bit Stereo
+                     if (pos + 1 < buf.size) {
+                         uint8_t l = buf.data[pos];
+                         uint8_t r = buf.data[pos + 1];
+                         sample = (int16_t)((((l - 128) + (r - 128)) / 2) * 256);
+                     }
                  }
-                 
-                 dst[dstIndex++] += (int32_t)(sample * _volume);
-                 currentPos += step;
+             } else {
+                 // Assume 16-bit
+                 if (_format.nChannels == 1) {
+                     // 16-bit Mono
+                     if (pos + 1 < buf.size) {
+                        sample = ((const int16_t*)(buf.data + pos))[0];
+                     }
+                 } else {
+                     // 16-bit Stereo or more: Average channels to mono
+                     if (pos + 3 < buf.size) {
+                        int16_t l = ((const int16_t*)(buf.data + pos))[0];
+                        int16_t r = ((const int16_t*)(buf.data + pos))[1];
+                        sample = (l + r) / 2;
+                     }
+                 }
              }
              
-             // Update buffer position
-             int bytesConsumed = (int)currentPos * bytesPerSample;
-             // Ensure we aligned to block
-             bytesConsumed -= (bytesConsumed % bytesPerSample);
-             buf.position += bytesConsumed;
-             samplesMixed = dstIndex;
+             dst[samplesMixed++] += (int32_t)(sample * _volume);
+             
+             buf.position += (step * bytesPerSample);
         }
 
-        if (buf.position >= buf.size) {
+        if ((int)buf.position >= buf.size) {
             _buffers.erase(_buffers.begin());
+            if (_pCallback) {
+                _pCallback->OnBufferEnd(NULL);
+            }
         }
     }
 }
@@ -182,6 +167,8 @@ void CDXSound::AudioCallback(void* userdata, Uint8* stream, int len) {
 
     // Mix Sounds
     if (!_activeSounds.empty()) {
+        float step = 44100.0f / (float)_outputFreq;
+        
         for (auto it = _activeSounds.begin(); it != _activeSounds.end(); ) {
             CDXSound* sound = *it;
             if (!sound->_audioData.playing) {
@@ -194,20 +181,21 @@ void CDXSound::AudioCallback(void* userdata, Uint8* stream, int len) {
                  continue;
             }
 
-            const int16_t* src = (const int16_t*)(sound->_audioData.data + sound->_audioData.position);
-            int remainingBytes = sound->_audioData.length - sound->_audioData.position;
-            int bytesToMix = (remainingBytes > len) ? len : remainingBytes;
-            
-            // Use (std::min) to avoid macro conflict
-            int samplesToMix = (std::min)(sampleCount, bytesToMix / 2);
-
-            for (int i = 0; i < samplesToMix; ++i) {
-                mixBuffer[i] += src[i];
-            }
-
-            sound->_audioData.position += bytesToMix;
-            if (sound->_audioData.position >= sound->_audioData.length) {
-                sound->_audioData.playing = false;
+            // Mix
+            for (int i = 0; i < sampleCount; ++i) {
+                int pos = (int)sound->_audioData.position;
+                // Align to 2 bytes (16-bit mono)
+                pos -= (pos % 2);
+                
+                if (pos + 1 >= sound->_audioData.length) {
+                    sound->_audioData.playing = false;
+                    break;
+                }
+                
+                const int16_t* src = (const int16_t*)(sound->_audioData.data + pos);
+                mixBuffer[i] += *src;
+                
+                sound->_audioData.position += (step * 2.0); // 2 bytes per sample
             }
             
             ++it;
@@ -239,7 +227,7 @@ CDXSound::CDXSound()
     _audioData.playing = false;
     _audioData.data = NULL;
     _audioData.length = 0;
-    _audioData.position = 0;
+    _audioData.position = 0.0;
 #endif
 }
 
@@ -281,6 +269,7 @@ void CDXSound::Init()
     } else {
         SDL_PauseAudioDevice(_audioDevice, 0);
         std::cout << "Audio initialized. Freq: " << have.freq << " Channels: " << (int)have.channels << std::endl;
+        _outputFreq = have.freq;
     }
     SetVolume((pConfig->Volume) / 100.0f);
 #endif
@@ -357,7 +346,7 @@ void CDXSound::Play(PBYTE pData, DWORD size)
         std::lock_guard<std::mutex> lock(_mutex);
         _audioData.data = pData + 64;
         _audioData.length = size - 64;
-        _audioData.position = 0;
+        _audioData.position = 0.0;
         _audioData.playing = true;
         
         bool found = false;
@@ -403,7 +392,7 @@ IXAudio2SourceVoice* CDXSound::CreateSourceVoice(WAVEFORMATEX* pwfx, UINT32 Flag
 	    XAudio2->CreateSourceVoice(&ret, pwfx, Flags, MaxFrequencyRatio, pCallback);
     }
 #else
-    ret = new CDXSourceVoice(pwfx);
+    ret = new CDXSourceVoice(pwfx, pCallback);
 #endif
 	return ret;
 }

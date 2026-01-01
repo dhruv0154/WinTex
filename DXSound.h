@@ -36,7 +36,7 @@ public:
 	struct AudioData {
 		const uint8_t* data;
 		uint32_t length;
-		uint32_t position;
+		double position;
 		bool playing;
 	};
 	AudioData _audioData;
@@ -46,6 +46,7 @@ public:
 	static std::vector<CDXSound*> _activeSounds;
 	static std::mutex _mutex;
 	static float _masterVolume;
+	static int _outputFreq;
 #endif
 
 protected:
@@ -57,7 +58,7 @@ protected:
 #ifdef PLATFORM_LINUX
 class CDXSourceVoice : public IXAudio2SourceVoice {
 public:
-    CDXSourceVoice(const WAVEFORMATEX* pwfx);
+    CDXSourceVoice(const WAVEFORMATEX* pwfx, IXAudio2VoiceCallback* pCallback = NULL);
     ~CDXSourceVoice();
 
     HRESULT SubmitSourceBuffer(const XAUDIO2_BUFFER *pBuffer, const void *pBufferWMA = NULL) override;
@@ -79,10 +80,11 @@ private:
     struct QueuedBuffer {
         const uint8_t* data;
         uint32_t size;
-        uint32_t position;
+        double position;
         bool ownsData; // If we need to copy
     };
     std::vector<QueuedBuffer> _buffers;
-    std::mutex _mutex;
+    std::recursive_mutex _mutex;
+    IXAudio2VoiceCallback* _pCallback;
 };
 #endif
