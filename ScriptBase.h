@@ -17,7 +17,7 @@ class CScriptBase
 {
 public:
 	CScriptBase();
-	~CScriptBase();
+	virtual ~CScriptBase();
 
 	virtual void Execute(CScriptState* pState, int id) = 0;
 	virtual void Resume(CScriptState* pState, BOOL breakWait = FALSE) = 0;
