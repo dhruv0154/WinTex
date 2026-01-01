@@ -34,8 +34,8 @@ void CDXScreen::Init()
 	UpVector = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	float x = (float)dx.GetWidth() / 2.0f;
 	float y = (float)dx.GetHeight() / 2.0f;
-	PositionVector = XMVectorSet(x, -y, -10.0f, 0.0f);
-	LookAtVector = XMVectorSet(x, -y, 1.0f, 0.0f);
+	PositionVector = XMVectorSet(x, y, -10.0f, 0.0f);
+	LookAtVector = XMVectorSet(x, y, 1.0f, 0.0f);
 
 	ViewMatrix = XMMatrixLookAtLH(PositionVector, LookAtVector, UpVector);
 	OrthoMatrix = XMMatrixOrthographicLH((float)dx.GetWidth(), (float)dx.GetHeight(), 0.1f, 1000.0f);

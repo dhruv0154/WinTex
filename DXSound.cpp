@@ -321,7 +321,7 @@ void CDXSound::Play(PBYTE pData, DWORD size)
 	}
 #else
     if (_audioDevice == 0) {
-        // std::cerr << "Play called but audio device not initialized" << std::endl;
+        std::cerr << "Play called but audio device not initialized" << std::endl;
         return;
     }
     
