@@ -44,72 +44,58 @@ void CDXFont::Init(PBYTE pFont, DWORD size)
 			int charwidth = 16;
 			int charheight = 16;
 			LPBYTE pData = (LPBYTE)mappedResource.pData;
-
-			if (pData && desc.Width >= 16)
+			for (int c = 0; c < 224; c++)
 			{
-				for (int c = 0; c < 224; c++)
+				int fp = charheight;
+				int lp = 0;
+				int cw = -1;
+
+				// Find width of character
+				for (int y = 0; y < charheight; y++)
 				{
-					int fp = charheight;
-					int lp = 0;
-					int cw = -1;
-
-					// Find width of character
-					for (int y = 0; y < charheight; y++)
+					for (int x = 0; x < charwidth; x++)
 					{
-						for (int x = 0; x < charwidth; x++)
+						for (int l = 0; l < 4; l++)
 						{
-							for (int l = 0; l < 4; l++)
-							{
-								int r = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 0];
-								int g = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 1];
-								int b = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 2];
-								int a = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 3];
+							int r = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 0];
+							int g = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 1];
+							int b = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 2];
+							int a = pData[offset + ((y + l * charheight) * desc.Width + x) * 4 + 3];
 
-								if (a > 0)
+							if (a > 0)
+							{
+								if (x > cw)
 								{
-									if (x > cw)
-									{
-										cw = x;
-									}
-									if (y < fp)
-									{
-										fp = y;
-									}
-									if (y > lp)
-									{
-										lp = y;
-									}
+									cw = x;
+								}
+								if (y < fp)
+								{
+									fp = y;
+								}
+								if (y > lp)
+								{
+									lp = y;
 								}
 							}
 						}
 					}
-
-					if (cw < 0) cw = 0;
-
-					_widths[c] = (float)(cw + 1);
-
-					if ((lp - fp) > tallest)
-					{
-						tallest = lp - fp;
-					}
-
-					offset += charwidth * 4;
 				}
 
-				_widths[0] = 5;	// Hardcoding space to be 5 pixels
+				if (cw < 0) cw = 0;
 
-				_height = tallest + 1.0f;
-			}
-			else
-			{
-				// Fallback for when mapping fails (e.g. Linux stub)
-				for (int c = 0; c < 224; c++)
+				_widths[c] = (float)(cw + 1);
+
+				if ((lp - fp) > tallest)
 				{
-					_widths[c] = (float)charwidth;
+					tallest = lp - fp;
 				}
-				_widths[0] = 5;
-				_height = (float)charheight;
+
+				offset += charwidth * 4;
 			}
+
+			_widths[0] = 5;	// Hardcoding space to be 5 pixels
+
+			_height = tallest + 1.0f;
 			_y1 = 0.75;
 			_y2 = ((float)3 * charheight + _height) / (float)desc.Height;
 
