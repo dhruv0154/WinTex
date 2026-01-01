@@ -226,11 +226,6 @@ CAnimBase* CAnimationController::Load(BinaryData bd, int factor)
 	{
 		pAnim = new CH2O(factor);
 	}
-	else if ((bd.Length > 2 && bd.Data[0] == 0xFF && bd.Data[1] == 0xD8) ||
-             (bd.Length > 8 && bd.Data[0] == 0x89 && bd.Data[1] == 0x50 && bd.Data[2] == 0x4E && bd.Data[3] == 0x47))
-	{
-		pAnim = new CStaticImage(factor);
-	}
 	//else if... Embedded palette + picture
 
 	if (pAnim != NULL) pAnim->Init(bd);
