@@ -17,15 +17,12 @@ XMVECTOR CDXScreen::LookAtVector;
 float CDXScreen::FieldOfView;
 float CDXScreen::ScreenAspect;
 
-#include <iostream>
 CDXScreen::CDXScreen()
 {
-    std::cout << "CDXScreen::CDXScreen() this=" << this << std::endl;
 }
 
 CDXScreen::~CDXScreen()
 {
-    std::cout << "CDXScreen::~CDXScreen() this=" << this << std::endl;
 }
 
 void CDXScreen::Init()

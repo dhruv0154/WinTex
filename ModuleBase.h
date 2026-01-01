@@ -36,7 +36,7 @@ public:
 	virtual void Pause() {}
 	virtual void Resume() {}
 	virtual void Dispose() {}
-	virtual void Render() { std::cout << "CModuleBase::Render (Base) called" << std::endl; }
+	virtual void Render() {}
 	virtual void MouseMove(POINT pt) {}
 	virtual void MouseDown(POINT pt, int btn) {}
 	virtual void MouseUp(POINT pt, int btn) {}

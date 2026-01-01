@@ -4,10 +4,8 @@
 #include "DXBitmap.h"
 #include <algorithm>
 
-#include <iostream>
 CDXContainer::CDXContainer()
 {
-    std::cout << "CDXContainer::CDXContainer() this=" << this << std::endl;
 }
 
 CDXContainer::~CDXContainer()
@@ -60,17 +58,10 @@ void CDXContainer::Render()
 	dx.DisableZBuffer();
 	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    static int renderCount = 0;
-    renderCount++;
-    bool debug = (renderCount % 100 == 0);
-
-    if (debug) std::cout << "CDXContainer::Render called. this=" << this << " Child Count: " << _childElements.size() << std::endl;
-
 	std::list<CDXControl*>::iterator it = _childElements.begin();
 	std::list<CDXControl*>::iterator end = _childElements.end();
 	while (it != end)
 	{
-        if (debug) std::cout << "Container Render Child Type: " << (int)(*it)->GetType() << " Visible: " << (*it)->GetVisible() << std::endl;
 		if ((*it)->GetVisible())
 		{
 			(*it)->Render();

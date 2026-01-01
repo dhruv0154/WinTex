@@ -56,9 +56,6 @@ BinaryData LoadEntry(LPCWSTR fileName, int itemIndex)
 		if (file.Open(_fileName))
 		{
 			// TraceLine(L"LoadEntry: Successfully opened file");
-			#ifdef PLATFORM_LINUX
-			std::cerr << "LoadEntry: Successfully opened " << ToString(fileName) << std::endl;
-			#endif
 
 			int len = 10 + itemIndex * 4;
 			LPBYTE header = new BYTE[len];
@@ -281,7 +278,6 @@ void TraceLine(int val, int rad) { Trace(val, rad); Trace(L"\r\n"); }
 #ifdef PLATFORM_LINUX
 PBYTE GetResource(int resource, LPWSTR type, PDWORD pSize)
 {
-    std::cerr << "GetResource: Requesting ID " << resource << std::endl;
     std::string filename;
     switch (resource) {
         case IDR_XML_UAKM: filename = "UAKM.xml"; break;
@@ -311,22 +307,17 @@ PBYTE GetResource(int resource, LPWSTR type, PDWORD pSize)
         case 124: filename = "Sounds/ButtonClick.wav"; break; // IDR_WAVE_BUTTON_CLICK
 
         default:
-            std::cerr << "GetResource: Unknown resource ID " << resource << std::endl;
             return NULL;
     }
     
-    std::cerr << "GetResource: Opening " << filename << std::endl;
-    
     // Try to find the file if it doesn't exist
     if (!std::filesystem::exists(filename)) {
-        std::cerr << "GetResource: File not found at " << filename << ". CWD: " << std::filesystem::current_path() << std::endl;
         
         // Try to find it recursively in current directory
         try {
             std::string targetName = std::filesystem::path(filename).filename().string();
             for(auto& p: std::filesystem::recursive_directory_iterator(".")) {
                 if (p.path().filename() == targetName) {
-                    std::cerr << "GetResource: Found at " << p.path().string() << std::endl;
                     filename = p.path().string();
                     break;
                 }
@@ -336,16 +327,13 @@ PBYTE GetResource(int resource, LPWSTR type, PDWORD pSize)
 
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
-        std::cerr << "GetResource: Failed to open " << filename << std::endl;
         return NULL;
     }
     
     std::streamsize size = file.tellg();
-    std::cerr << "GetResource: Size " << size << std::endl;
     file.seekg(0, std::ios::beg);
     
     if (size <= 0) {
-        std::cerr << "GetResource: Invalid size" << std::endl;
         return NULL;
     }
     

@@ -140,10 +140,6 @@ BinaryData CLZ::Decompress(LPWSTR pFileName)
 	CFile file;
 	if (file.Open(path.c_str(), CFile::Mode::Read))
 	{
-		#ifdef PLATFORM_LINUX
-		std::cerr << "Decompress: Successfully opened " << ToString(path.c_str()) << std::endl;
-		#endif
-
 		int fileSize = file.Seek(0, CFile::SeekMethod::End);
 		file.Seek(0, CFile::SeekMethod::Begin);
 

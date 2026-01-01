@@ -659,7 +659,6 @@ void CDirectX::SetScissorRect(D3D11_RECT rect)
 
 // Linux Implementation
 void Disaster(HRESULT hr, LPWSTR text) {
-    std::cout << "DISASTER: " << hr << std::endl;
 }
 void SetDebugName(ID3D11DeviceChild* child, const char* name) {}
 void SetDebugName(IUnknown* unk, const char* name) {}
@@ -909,26 +908,11 @@ void CDirectX::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology) {
 }
 
 void CDirectX::Draw(UINT VertexCount, UINT StartVertexLocation) {
-    static int drawCount = 0;
-    drawCount++;
-    bool debug = (drawCount % 100 == 0);
-    
-    if (debug) std::cout << "CDirectX::Draw Count=" << VertexCount << " Start=" << StartVertexLocation << std::endl;
-    
     _devCon->Draw(VertexCount, StartVertexLocation);
-    
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::cout << "GL Error in CDirectX::Draw: " << err << std::endl;
-    }
 }
 
 void CDirectX::DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) {
     _devCon->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::cout << "GL Error in CDirectX::DrawIndexed: " << err << std::endl;
-    }
 }
 
 void CDirectX::SetShaderResources(UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView** ppShaderResourceViews) {

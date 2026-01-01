@@ -34,13 +34,9 @@ void CUAKMMainMenuModule::Credits(LPVOID data)
 
 void CUAKMMainMenuModule::SetupScreen()
 {
-    std::cout << "CUAKMMainMenuModule::SetupScreen called" << std::endl;
 	DWORD s;
 	PBYTE pImg = GetResource(IDB_JPG_UAKM_TITLE, L"JPG", &s);
-    if (!pImg) std::cerr << "GetResource IDB_JPG_UAKM_TITLE failed" << std::endl;
 	CDXBitmap* pBmp = _pScreen->AddBitmap(pImg, s, Alignment::CenterX | Alignment::CenterY | Alignment::Scale | Alignment::Crop);
-    if (pBmp) std::cout << "AddBitmap succeeded" << std::endl;
-    else std::cerr << "AddBitmap failed" << std::endl;
 
 	// TODO: Use string resources, or read from configuration file
 	char* pNG = "New game";

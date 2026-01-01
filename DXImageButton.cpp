@@ -136,12 +136,6 @@ CDXImageButton::~CDXImageButton()
 
 void CDXImageButton::Render()
 {
-	static bool firstRender = true;
-	if (firstRender) {
-		std::cout << "CDXImageButton::Render called (at least once)" << std::endl;
-		firstRender = false;
-	}
-
 	if (_vertexBuffer == NULL) return;
 
 	UINT stride = sizeof(TEXTURED_VERTEX);

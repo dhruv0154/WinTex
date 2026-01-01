@@ -36,7 +36,6 @@ void CDXBitmap::Init()
 {
 	_w = static_cast<float>(_texture.Width());
 	_h = static_cast<float>(_texture.Height());
-    std::cout << "CDXBitmap::Init w=" << _w << " h=" << _h << std::endl;
 
 	double sw = dx.GetWidth();
 	double sh = dx.GetHeight();
@@ -103,12 +102,6 @@ CDXBitmap::~CDXBitmap()
 
 void CDXBitmap::Render()
 {
-    static int renderCount = 0;
-    renderCount++;
-    if (renderCount % 100 == 0) {
-        std::cout << "CDXBitmap::Render called. Count=" << renderCount << " VB=" << _vertexBuffer << std::endl;
-    }
-
 	if (_vertexBuffer == NULL) return;
 
 	ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();

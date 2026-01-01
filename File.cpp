@@ -57,7 +57,6 @@ std::wstring CFile::Find(std::wstring path, std::wstring file)
 
     try {
         if (!fs::exists(sPath)) {
-             std::cerr << "CFile::Find: Path " << sPath << " does not exist." << std::endl;
              return L"";
         }
 
@@ -73,14 +72,11 @@ std::wstring CFile::Find(std::wstring path, std::wstring file)
                 // std::cerr << "Checking " << filename << std::endl;
                 if (strcasecmp(filename.c_str(), sFile.c_str()) == 0) {
                      std::string foundPath = entry.path().string();
-                     std::cerr << "CFile::Find: Found " << sFile << " at " << foundPath << std::endl;
                      return StrToWStr(foundPath);
                 }
             }
         }
-        std::cerr << "CFile::Find: Could not find " << sFile << " in " << sPath << std::endl;
     } catch (const std::exception& ex) {
-        std::cerr << "CFile::Find error: " << ex.what() << std::endl;
     } catch (...) {
         // Ignore permission errors etc
     }
@@ -188,7 +184,6 @@ BOOL CFile::Open(LPCWSTR fileName, Mode mode, Sharing share)
         return TRUE;
     } else {
         delete fs;
-        // std::cerr << "Failed to open file: " << sRealFile << std::endl;
         _handle = INVALID_HANDLE_VALUE;
         return FALSE;
     }

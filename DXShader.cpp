@@ -141,8 +141,6 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
     else if (psName == "BasicPS") psSource = psBasic;
     else psSource = psTextured; // Fallback
 
-    std::cout << "Compiling Shader: VS=" << vsName << " PS=" << psName << std::endl;
-
     // Compile VS
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vsSource, NULL);
@@ -254,10 +252,6 @@ CDXShader::~CDXShader()
 void CDXShader::Activate(CDirectX* pDX)
 {
 #ifdef PLATFORM_LINUX
-    static int activateCount = 0;
-    activateCount++;
-    bool debug = (activateCount % 100 == 0);
-    if (debug) std::cout << "CDXShader::Activate ProgID=" << _vs->glId << std::endl;
     glUseProgram(_vs->glId);
 #else
 	pDX->GetDeviceContext()->VSSetShader(_vs, 0, 0);

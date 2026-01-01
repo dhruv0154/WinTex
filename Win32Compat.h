@@ -663,7 +663,7 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                     glUniformMatrix4fv(locView, 1, GL_FALSE, (float*)(buf->cpuData.data()));
                     if (debug) {
                         float* m = (float*)(buf->cpuData.data());
-                        std::cerr << "ApplyCB: View Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                        //std::cerr << "ApplyCB: View Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
                     }
                 }
 
@@ -671,7 +671,7 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                     glUniformMatrix4fv(locOrtho, 1, GL_FALSE, (float*)(buf->cpuData.data() + 64)); 
                     if (debug) {
                         float* m = (float*)(buf->cpuData.data() + 64);
-                        std::cerr << "ApplyCB: Ortho Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                        //std::cerr << "ApplyCB: Ortho Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
                     }
                 }
 
@@ -679,7 +679,7 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                     glUniformMatrix4fv(locProj, 1, GL_FALSE, (float*)(buf->cpuData.data() + 128)); 
                     if (debug) {
                         float* m = (float*)(buf->cpuData.data() + 128);
-                        std::cerr << "ApplyCB: Projection Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
+                        //std::cerr << "ApplyCB: Projection Matrix [0][0]=" << m[0] << " [3][3]=" << m[15] << std::endl;
                     }
                 }
             } else if (slot == 1) { // World
@@ -688,7 +688,7 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                     glUniformMatrix4fv(locWorld, 1, GL_FALSE, (float*)(buf->cpuData.data()));
                     if (debug) {
                         float* m = (float*)(buf->cpuData.data());
-                        std::cerr << "ApplyCB: World Matrix [0][0]=" << m[0] << " [3][0]=" << m[12] << " [3][1]=" << m[13] << std::endl;
+                        //std::cerr << "ApplyCB: World Matrix [0][0]=" << m[0] << " [3][0]=" << m[12] << " [3][1]=" << m[13] << std::endl;
                     }
                 }
                 else {

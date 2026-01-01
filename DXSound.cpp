@@ -151,11 +151,6 @@ void CDXSourceVoice::Mix(int32_t* dst, int numSamples) {
 }
 
 void CDXSound::AudioCallback(void* userdata, Uint8* stream, int len) {
-    static int callCount = 0;
-    if (callCount++ % 100 == 0) {
-       // std::cout << "AudioCallback called. Len: " << len << std::endl;
-    }
-
     std::lock_guard<std::mutex> lock(_mutex);
     SDL_memset(stream, 0, len);
 
@@ -268,7 +263,6 @@ void CDXSound::Init()
         std::cerr << "SDL OpenAudioDevice Failed: " << SDL_GetError() << std::endl;
     } else {
         SDL_PauseAudioDevice(_audioDevice, 0);
-        std::cout << "Audio initialized. Freq: " << have.freq << " Channels: " << (int)have.channels << std::endl;
         _outputFreq = have.freq;
     }
     SetVolume((pConfig->Volume) / 100.0f);
