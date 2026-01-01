@@ -114,9 +114,7 @@ int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 			outPtr = currentRow * _width;
 
 			BOOL readOffset = FALSE;
-			int chunks;
-			memcpy(&chunks, _pInputBuffer + inPtr, 2);
-			if (chunks > 32767) chunks -= 65536; // Sign extend
+			int chunks = *(short*)(_pInputBuffer + inPtr);
 			inPtr += 2;
 			if (chunks < 0)
 			{
@@ -166,9 +164,7 @@ int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 			outPtr = currentRow * _width;
 
 			BOOL readOffset = FALSE;
-			int chunks;
-			memcpy(&chunks, _pInputBuffer + inPtr, 2);
-			if (chunks > 32767) chunks -= 65536;
+			int chunks = *(short*)(_pInputBuffer + inPtr);
 			inPtr += 2;
 			if (chunks < 0)
 			{
@@ -195,9 +191,7 @@ int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 				{
 					int c1 = *(_pInputBuffer + inPtr++);
 					int c2 = *(_pInputBuffer + inPtr++);
-					int pattern;
-					memcpy(&pattern, _pInputBuffer + inPtr, 2);
-					if (pattern > 32767) pattern -= 65536;
+					int pattern = *(short*)(_pInputBuffer + inPtr);
 					inPtr += 2;
 					int copyOut = outPtr;
 					for (int y = 0; y < 4; y++)
@@ -225,9 +219,7 @@ int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 			outPtr = currentRow * _width;
 
 			BOOL readOffset = FALSE;
-			int chunks;
-			memcpy(&chunks, _pInputBuffer + inPtr, 2);
-			if (chunks > 32767) chunks -= 65536;
+			int chunks = *(short*)(_pInputBuffer + inPtr);
 			inPtr += 2;
 			if (chunks < 0)
 			{
@@ -276,9 +268,7 @@ int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 			outPtr = currentRow * _width;
 
 			BOOL readOffset = FALSE;
-			int chunks;
-			memcpy(&chunks, _pInputBuffer + inPtr, 2);
-			if (chunks > 32767) chunks -= 65536;
+			int chunks = *(short*)(_pInputBuffer + inPtr);
 			inPtr += 2;
 			if (chunks < 0)
 			{
@@ -306,9 +296,7 @@ int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 					int c = *(_pInputBuffer + inPtr++);
 					int c2 = (c >> 4) & 0xf;
 					int c1 = c & 0xf;
-					int pattern;
-					memcpy(&pattern, _pInputBuffer + inPtr, 2);
-					if (pattern > 32767) pattern -= 65536;
+					int pattern = *(short*)(_pInputBuffer + inPtr);
 					inPtr += 2;
 
 					int copyOut = outPtr;
