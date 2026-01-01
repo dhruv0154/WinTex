@@ -306,7 +306,10 @@ PBYTE GetResource(int resource, LPWSTR type, PDWORD pSize)
         
         case IDR_RAWFONT_UAKM: filename = "Images/UAKMFont.bin"; break;
         case IDR_RAWFONT_PD: filename = "Images/PDFont.bin"; break;
-            
+        
+        case 123: filename = "Sounds/ButtonMouseOver.wav"; break; // IDR_WAVE_BUTTON_MOUSEOVER
+        case 124: filename = "Sounds/ButtonClick.wav"; break; // IDR_WAVE_BUTTON_CLICK
+
         default:
             std::cerr << "GetResource: Unknown resource ID " << resource << std::endl;
             return NULL;
