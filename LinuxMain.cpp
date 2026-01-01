@@ -63,7 +63,7 @@ int MapSDLScancodeToWinScan(SDL_Scancode sc) {
 
 int main(int argc, char** argv)
 {
-    std::cout << "Starting WinTex Linux Port..." << std::endl;
+    std::cout << "Starting WinTex SDL Port..." << std::endl;
 
     BOOL uakm = TRUE; // Default to UAKM for now
     isUAKM = TRUE;

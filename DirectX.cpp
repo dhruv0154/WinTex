@@ -697,7 +697,7 @@ BOOL CDirectX::Init(HWND hWnd, int width, int height, BOOL windowed, BOOL anisot
     Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
     if (!windowed) flags |= SDL_WINDOW_FULLSCREEN;
 
-    g_Window = SDL_CreateWindow("WinTex Linux", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, flags);
+    g_Window = SDL_CreateWindow("WinTex SDL", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, flags);
     if (!g_Window) {
         std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
         return FALSE;
