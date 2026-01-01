@@ -77,46 +77,31 @@ BOOL CGameBase::LoadIcons(BinaryData bd)
 					CTexture* pTexture = pB->GetTexture();
 					ID3D11Texture2D* pTex = pTexture->GetTexture();
 					D3D11_MAPPED_SUBRESOURCE subRes;
-					ZeroMemory(&subRes, sizeof(subRes));
 					dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
 					PBYTE pSrc = pIcon + 16;
 					PBYTE pDst = (PBYTE)subRes.pData;
+					ZeroMemory(pDst, h * subRes.RowPitch);
 
-					if (pDst)
+					for (int y = 0; y < h; y++)
 					{
-						ZeroMemory(pDst, h * subRes.RowPitch);
+						int o = GetInt(pSrc, 0, 2);
+						int l = GetInt(pSrc, 2, 2);
 
-						for (int y = 0; y < h; y++)
+						for (int x = 0; x < l; x++)
 						{
-							int o = GetInt(pSrc, 0, 2);
-							int l = GetInt(pSrc, 2, 2);
-
-							for (int x = 0; x < l; x++)
+							int c = pSrc[4 + x];
+							if (c > 0)
 							{
-								int c = pSrc[4 + x];
-								if (c > 0)
-								{
-									pDst[(o + x) * 4 + 2] = colourTranslationTable[pPalette[c * 3 + 0] & 0x3f];
-									pDst[(o + x) * 4 + 1] = colourTranslationTable[pPalette[c * 3 + 1] & 0x3f];
-									pDst[(o + x) * 4 + 0] = colourTranslationTable[pPalette[c * 3 + 2] & 0x3f];
-									pDst[(o + x) * 4 + 3] = 0xff;
-								}
+								pDst[(o + x) * 4 + 2] = colourTranslationTable[pPalette[c * 3 + 0] & 0x3f];
+								pDst[(o + x) * 4 + 1] = colourTranslationTable[pPalette[c * 3 + 1] & 0x3f];
+								pDst[(o + x) * 4 + 0] = colourTranslationTable[pPalette[c * 3 + 2] & 0x3f];
+								pDst[(o + x) * 4 + 3] = 0xff;
 							}
+						}
 
-							pSrc += 4 + l;
-							pDst += subRes.RowPitch;
-						}
-					}
-					else
-					{
-						// Skip filling texture if map failed (Linux stub)
-						// Still need to advance pSrc
-						for (int y = 0; y < h; y++)
-						{
-							int l = GetInt(pSrc, 2, 2);
-							pSrc += 4 + l;
-						}
+						pSrc += 4 + l;
+						pDst += subRes.RowPitch;
 					}
 
 					dx.Unmap(pTex, 0);
