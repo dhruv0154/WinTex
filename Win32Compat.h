@@ -560,7 +560,63 @@ struct ID3D11Device : public ID3D11DeviceChild {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         return S_OK; 
     }
-    HRESULT CreateBuffer(const D3D11_BUFFER_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Buffer **ppBuffer) { *ppBuffer = new ID3D11Buffer(); return S_OK; }
+    HRESULT CreateBuffer(const D3D11_BUFFER_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Buffer **ppBuffer) { *ppBuffer = new ID3D11Buffer();
+        (*ppBuffer)->byteWidth = pDesc->ByteWidth;
+        (*ppBuffer)->bindFlags = pDesc->BindFlags;
+        (*ppBuffer)->cpuData.resize(pDesc->ByteWidth);
+
+        if (pDesc->BindFlags & D3D11_BIND_CONSTANT_BUFFER) {
+            // Check if this is a large buffer that needs UBO (Visibility/Translation/TexFont)
+            bool createUBO = false;
+            char* name = (char*)pInitialData; // Hack: pInitialData is repurposed as name in implementation calls sometimes, but not here.
+            // Wait, CreateBuffer implementation in DirectX.cpp (Windows) takes name.
+            // In Win32Compat.h, the signature is:
+            // HRESULT CreateBuffer(const D3D11_BUFFER_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Buffer **ppBuffer)
+            // It doesn't take name.
+            // But CDirectX::CreateBuffer does take name.
+            // The stubs in Win32Compat.h don't have name passed to them?
+            // CDirectX::CreateBuffer in DirectX.cpp calls _dev->CreateBuffer(..., ppBuffer).
+            // It then calls SetDebugName.
+            // Win32Compat.h implementation of ID3D11Device::CreateBuffer doesn't know the name.
+            
+            // However, we can check byte width to guess?
+            // VisibilityBufferType: 4096 * 16 = 65536 bytes
+            // TranslationBufferType: 256 * 16 = 4096 bytes
+            // TexFontBufferType: 4 * 16 = 64 bytes.
+            // TexFont is small. It could be a normal uniform.
+            // But if we want to use a block layout in shader, UBO is easier.
+            // Or we can just use glUniform4fv in ApplyConstantBuffers if it's small.
+            
+            // Let's create UBO for all constant buffers to be safe/uniform?
+            // Or just always create UBO for constant buffers.
+            createUBO = true; 
+
+            if (createUBO) {
+                 glGenBuffers(1, &(*ppBuffer)->glId);
+                 glBindBuffer(GL_UNIFORM_BUFFER, (*ppBuffer)->glId);
+                 if (pInitialData) {
+                     glBufferData(GL_UNIFORM_BUFFER, pDesc->ByteWidth, pInitialData->pSysMem, GL_DYNAMIC_DRAW);
+                     memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+                 } else {
+                     glBufferData(GL_UNIFORM_BUFFER, pDesc->ByteWidth, NULL, GL_DYNAMIC_DRAW);
+                 }
+                 glBindBuffer(GL_UNIFORM_BUFFER, 0);
+            }
+        } else {
+            // For Vertex/Index buffers
+            glGenBuffers(1, &(*ppBuffer)->glId);
+            GLenum target = (pDesc->BindFlags & D3D11_BIND_VERTEX_BUFFER) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
+            glBindBuffer(target, (*ppBuffer)->glId);
+            if (pInitialData) {
+                glBufferData(target, pDesc->ByteWidth, pInitialData->pSysMem, (pDesc->Usage == D3D11_USAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+                memcpy((*ppBuffer)->cpuData.data(), pInitialData->pSysMem, pDesc->ByteWidth);
+            } else {
+                glBufferData(target, pDesc->ByteWidth, NULL, (pDesc->Usage == D3D11_USAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+            }
+            glBindBuffer(target, 0);
+        }
+        return S_OK; 
+    }
     HRESULT CreateDepthStencilView(ID3D11Resource *pResource, const D3D11_DEPTH_STENCIL_VIEW_DESC *pDesc, ID3D11DepthStencilView **ppDepthStencilView) { *ppDepthStencilView = new ID3D11DepthStencilView(); return S_OK; }
     HRESULT CreateRenderTargetView(ID3D11Resource *pResource, const void *pDesc, ID3D11RenderTargetView **ppRTView) { *ppRTView = new ID3D11RenderTargetView(); return S_OK; }
     HRESULT CreateSamplerState(const D3D11_SAMPLER_DESC *pSamplerDesc, ID3D11SamplerState **ppSamplerState) { *ppSamplerState = new ID3D11SamplerState(); return S_OK; }
@@ -699,6 +755,10 @@ struct ID3D11DeviceContext : public ID3D11DeviceChild {
                 if (buf->glId != 0) {
                      glBindBufferBase(GL_UNIFORM_BUFFER, 3, buf->glId);
                 }
+            } else if (slot == 4) { // TexFont
+                if (buf->glId != 0) {
+                     glBindBufferBase(GL_UNIFORM_BUFFER, 4, buf->glId);
+                }
             } else if (slot == 5) { // Translation
                 if (buf->glId != 0) {
                      glBindBufferBase(GL_UNIFORM_BUFFER, 5, buf->glId);
@@ -814,6 +874,9 @@ inline HRESULT D3DX11CreateTextureFromMemory(ID3D11Device* pDevice, const void* 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         
+        tex->cpuData.resize(w * h * 4);
+        memcpy(tex->cpuData.data(), data, w * h * 4);
+
         stbi_image_free(data);
     } else {
         std::cerr << "D3DX11CreateTextureFromMemory: Failed to load image. Reason: " << stbi_failure_reason() << std::endl;
@@ -857,6 +920,9 @@ inline HRESULT D3DX11CreateTextureFromFile(ID3D11Device* pDevice, LPCWSTR pSrcFi
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         
+        tex->cpuData.resize(w * h * 4);
+        memcpy(tex->cpuData.data(), data, w * h * 4);
+
         stbi_image_free(data);
     } else {
         std::cerr << "D3DX11CreateTextureFromFile: Failed to load image: " << filename << std::endl;

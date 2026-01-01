@@ -762,7 +762,7 @@ HRESULT CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA*
         // Check if this is a large buffer that needs UBO (Visibility/Translation)
         bool createUBO = false;
         if (name != NULL) {
-            if (strcmp(name, "Visibility") == 0 || strcmp(name, "Translation") == 0) {
+            if (strcmp(name, "Visibility") == 0 || strcmp(name, "Translation") == 0 || strcmp(name, "TexFont") == 0) {
                 createUBO = true;
             }
         }

@@ -121,6 +121,27 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
         "void main() {\n"
         "   color = Color;\n"
         "}\n";
+
+    const char* psTexFont = 
+        "#version 330 core\n"
+        "in vec2 TexCoord;\n"
+        "out vec4 color;\n"
+        "uniform sampler2D texture1;\n"
+        "\n"
+        "layout(std140) uniform TexFont {\n"
+        "    vec4 colour1;\n"
+        "    vec4 colour2;\n"
+        "    vec4 colour3;\n"
+        "    vec4 colour4;\n"
+        "};\n"
+        "\n"
+        "void main() {\n"
+        "   vec4 l0 = texture(texture1, vec2(TexCoord.x, TexCoord.y - 0.75));\n"
+        "   vec4 l1 = texture(texture1, vec2(TexCoord.x, TexCoord.y - 0.50));\n"
+        "   vec4 l2 = texture(texture1, vec2(TexCoord.x, TexCoord.y - 0.25));\n"
+        "   vec4 l3 = texture(texture1, vec2(TexCoord.x, TexCoord.y));\n"
+        "   color = l0.a * colour1 + l1.a * colour2 + l2.a * colour3 + l3.a * colour4;\n"
+        "}\n";
     
     const char* psBasic = 
         "#version 330 core\n"
@@ -136,7 +157,8 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
     else if (vsName == "BasicVS") vsSource = vsBasic;
     else vsSource = vsOrtho; // Fallback
 
-    if (psName == "TexturedPS" || psName == "TexFontPS" || psName == "TexFontPS_AA" || psName == "YUVPS") psSource = psTextured;
+    if (psName == "TexturedPS" || psName == "YUVPS") psSource = psTextured;
+    else if (psName == "TexFontPS" || psName == "TexFontPS_AA") psSource = psTexFont;
     else if (psName == "ColouredPS" || psName == "TransparentPS" || psName == "MultiColouredFontPS" || psName == "MultiColouredFontPSPD") psSource = psColoured;
     else if (psName == "BasicPS") psSource = psBasic;
     else psSource = psTextured; // Fallback
@@ -201,6 +223,11 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
 
         GLuint transIdx = glGetUniformBlockIndex(prog, "Translation");
         if (transIdx != GL_INVALID_INDEX) glUniformBlockBinding(prog, transIdx, 5);
+    }
+
+    if (psSource == psTexFont) {
+        GLuint texFontIdx = glGetUniformBlockIndex(prog, "TexFont");
+        if (texFontIdx != GL_INVALID_INDEX) glUniformBlockBinding(prog, texFontIdx, 4);
     }
     glUseProgram(0);
 
