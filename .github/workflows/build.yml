@@ -34,8 +34,13 @@ jobs:
       uses: nuget/setup-nuget@v1
     - run: nuget install Microsoft.DXSDK.D3DX -Version 9.29.952.8 -OutputDirectory dependencies
 
+    - name: List dependencies
+      shell: cmd
+      run: |
+        if exist dependencies dir /s dependencies
+
     - name: Configure CMake
-      run: cmake -B build
+      run: cmake -B build -A x64
       env:
         DXSDK_DIR: ${{ github.workspace }}\dependencies\Microsoft.DXSDK.D3DX.9.29.952.8\build\native
       
