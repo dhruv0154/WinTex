@@ -141,12 +141,13 @@ void CVideoPlayer::Init(HWND hWnd, LPCTSTR fileName)
 	}
 }
 
-void CVideoPlayer::Update()
+BOOL CVideoPlayer::Update()
 {
 	if (_pPlayer != NULL && _bHasVideo == TRUE)
 	{
 		_pPlayer->UpdateVideo();
 	}
+	return !_done;
 }
 
 void MediaPlayerCallback::OnMediaPlayerEvent(MFP_EVENT_HEADER* pEventHeader)
