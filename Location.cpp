@@ -15,7 +15,7 @@
 #include "AnimationController.h"
 #include "GameController.h"
 #include "Utilities.h"
-#include "Math.h"
+#include <cmath>
 #include <tuple>
 #include "LocationDataHeader.h"
 #include <algorithm>

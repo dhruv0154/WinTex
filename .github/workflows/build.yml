@@ -37,11 +37,7 @@ jobs:
     - name: Configure CMake
       run: cmake -B build
       env:
-        INCLUDE: ${{ github.workspace }}\dependencies\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\include;${{ env.INCLUDE }}
-        LIB: ${{ github.workspace }}\dependencies\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\lib\x64;${{ env.LIB }}
+        DXSDK_DIR: ${{ github.workspace }}\dependencies\Microsoft.DXSDK.D3DX.9.29.952.8\build\native
       
     - name: Build
       run: cmake --build build --config Release
-      env:
-        INCLUDE: ${{ github.workspace }}\dependencies\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\include;${{ env.INCLUDE }}
-        LIB: ${{ github.workspace }}\dependencies\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\lib\x64;${{ env.LIB }}
