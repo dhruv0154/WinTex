@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 if(WIN32)
     file(GLOB SOURCES "*.cpp")
-    add_definitions(-DPLATFORM_WINDOWS)
+    add_definitions(-DPLATFORM_WINDOWS -DUNICODE -D_UNICODE)
     if(DEFINED ENV{DXSDK_DIR})
         include_directories($ENV{DXSDK_DIR}/include)
         link_directories($ENV{DXSDK_DIR}/lib/x64)
