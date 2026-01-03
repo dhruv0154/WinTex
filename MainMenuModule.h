@@ -127,7 +127,7 @@ protected:
 
 	void Clear();
 
-	static SaveMode SaveMode;
+	static SaveMode CurrentSaveMode;
 
 	static void ConfigureControl(InputAction data);
 	static void ConfigControlsCancel(InputAction data);

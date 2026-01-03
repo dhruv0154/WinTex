@@ -251,12 +251,14 @@ inline XMMATRIX operator*(const XMMATRIX& a, const XMMATRIX& b) {
 // D3D11 Stubs
 #define SUCCEEDED(hr) (((HRESULT)(hr)) >= 0)
 #define FAILED(hr) (((HRESULT)(hr)) < 0)
-#ifndef min
-#define min(a,b) (((a)<(b))?(a):(b))
+#ifdef min
+#undef min
 #endif
-#ifndef max
-#define max(a,b) (((a)>(b))?(a):(b))
+#ifdef max
+#undef max
 #endif
+template<typename T1, typename T2> inline auto min(T1 a, T2 b) { return (a < b) ? a : b; }
+template<typename T1, typename T2> inline auto max(T1 a, T2 b) { return (a > b) ? a : b; }
 
 // GUID
 typedef struct _LUID {
@@ -1344,7 +1346,15 @@ typedef struct DIJOYSTATE2 {
 #define VK_DECIMAL 0x6E
 #define VK_DIVIDE 0x6F
 
-inline BOOL PostThreadMessage(DWORD idThread, UINT Msg, WPARAM wParam, LPARAM lParam) { return TRUE; }
+inline BOOL PostThreadMessage(DWORD idThread, UINT Msg, WPARAM wParam, LPARAM lParam) { 
+    if (Msg == WM_CLOSE) {
+        SDL_Event event;
+        event.type = SDL_QUIT;
+        event.quit.timestamp = SDL_GetTicks();
+        SDL_PushEvent(&event);
+    }
+    return TRUE; 
+}
 inline BOOL AdjustWindowRect(RECT* lpRect, DWORD dwStyle, BOOL bMenu) { return TRUE; }
 inline BOOL MoveWindow(HWND hWnd, int X, int Y, int nWidth, int nHeight, BOOL bRepaint) { return TRUE; }
 inline BOOL ClientToScreen(HWND hWnd, POINT* lpPoint) { return TRUE; }

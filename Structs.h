@@ -24,7 +24,7 @@ struct Line
 
 struct TLPoint
 {
-	Point* Point;
+	struct Point* Point;
 	float U;
 	float V;
 
