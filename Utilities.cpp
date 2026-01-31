@@ -371,10 +371,6 @@ void ClearCaptions(std::list<CCaption*>* pCap)
 
 int GetRegistryInt(HKEY key, LPCWSTR valueName, int defaultValue)
 {
-#ifdef PLATFORM_LINUX
-    // Simple stub for now
-    return defaultValue;
-#else
 	int data = 0;
 	DWORD size = sizeof(data);
 	if (RegGetValue(key, L"", valueName, RRF_RT_REG_DWORD, NULL, (PVOID)&data, &size) == ERROR_SUCCESS)
@@ -383,25 +379,16 @@ int GetRegistryInt(HKEY key, LPCWSTR valueName, int defaultValue)
 	}
 
 	return defaultValue;
-#endif
 }
 
 void SetRegistryInt(HKEY key, LPCWSTR valueName, int value)
 {
-#ifdef PLATFORM_LINUX
-    // Stub
-#else
 	DWORD size = sizeof(value);
 	RegSetValueEx(key, valueName, 0, REG_DWORD, (PBYTE)&value, size);
-#endif
 }
 
 float GetRegistryFloat(HKEY key, LPCWSTR valueName, float defaultValue)
 {
-#ifdef PLATFORM_LINUX
-    // Stub
-    return defaultValue;
-#else
 	DWORD stringLength = 0;
 	DWORD size = sizeof(stringLength);
 	DWORD keyType = 0;
@@ -419,17 +406,12 @@ float GetRegistryFloat(HKEY key, LPCWSTR valueName, float defaultValue)
 	}
 
 	return defaultValue;
-#endif
 }
 
 void SetRegistryFloat(HKEY key, LPCWSTR valueName, float value)
 {
-#ifdef PLATFORM_LINUX
-    // Stub
-#else
 	std::wstring data = std::to_wstring(value);
 	RegSetValueEx(key, valueName, 0, REG_SZ, (PBYTE)data.c_str(), static_cast<int>(data.length()));
-#endif
 }
 
 void DebugTrace(CScriptState* pState, LPWSTR text)

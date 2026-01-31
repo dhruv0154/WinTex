@@ -14,6 +14,60 @@
 #include <codecvt>
 #include <locale>
 #include <thread>
+#include <ctime>
+#include <algorithm>
+#include <fstream>
+#include <fcntl.h>
+#include <filesystem>
+namespace fs = std::filesystem;
+
+inline std::string ResolvePath(std::string filename) {
+    std::replace(filename.begin(), filename.end(), '\\', '/');
+    if (filename.empty()) return filename;
+    if (filename[0] == '/') return filename;
+    if (filename.compare(0, 2, "./") == 0) return filename;
+
+    static std::string dataRoot = "";
+    static bool searched = false;
+
+    if (!searched) {
+        const char* common[] = { "game/kmoon", "game/pd", "data" };
+        for (const char* c : common) {
+            if (fs::exists(std::string(c) + "/GRAPHICS.AP") || fs::exists(std::string(c) + "/UAKM.xml") || fs::exists(std::string(c) + "/PD.xml")) {
+                dataRoot = c;
+                break;
+            }
+        }
+        if (dataRoot.empty()) {
+            try {
+                for (const auto& entry : fs::recursive_directory_iterator(".", fs::directory_options::skip_permission_denied)) {
+                    if (entry.path().filename() == "GRAPHICS.AP") {
+                        dataRoot = entry.path().parent_path().string();
+                        if (dataRoot.compare(0, 2, "./") == 0) dataRoot = dataRoot.substr(2);
+                        break;
+                    }
+                }
+            } catch (...) {}
+        }
+        if (dataRoot.empty()) dataRoot = ".";
+        searched = true;
+    }
+
+    // Don't prepend if it already starts with dataRoot
+    if (dataRoot != "." && filename.compare(0, dataRoot.length(), dataRoot) == 0) {
+        if (filename.length() == dataRoot.length() || filename[dataRoot.length()] == '/') {
+            return filename;
+        }
+    }
+
+    if (fs::exists(filename)) return filename;
+    return dataRoot + "/" + filename;
+}
+
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #ifdef __APPLE__
@@ -1184,21 +1238,11 @@ typedef struct _WIN32_FIND_DATAW {
     WCHAR cAlternateFileName[14];
 } WIN32_FIND_DATAW, WIN32_FIND_DATA, *PWIN32_FIND_DATAW, *LPWIN32_FIND_DATAW;
 
-inline HANDLE CreateFile(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, void* lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile) { return INVALID_HANDLE_VALUE; }
-inline BOOL CloseHandle(HANDLE hObject) { return TRUE; }
-inline BOOL ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, void* lpOverlapped) { if(lpNumberOfBytesRead)*lpNumberOfBytesRead=0; return FALSE; }
-inline BOOL WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, void* lpOverlapped) { if(lpNumberOfBytesWritten)*lpNumberOfBytesWritten=nNumberOfBytesToWrite; return TRUE; }
-inline DWORD SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod) { return 0; }
-inline BOOL FindClose(HANDLE hFindFile) { return TRUE; }
-inline HANDLE FindFirstFile(LPCWSTR lpFileName, WIN32_FIND_DATAW* lpFindFileData) { return INVALID_HANDLE_VALUE; }
-inline BOOL FindNextFile(HANDLE hFindFile, WIN32_FIND_DATAW* lpFindFileData) { return FALSE; }
-inline BOOL DeleteFile(LPCWSTR lpFileName) { return FALSE; }
-
 typedef union _LARGE_INTEGER {
   struct {
     DWORD LowPart;
     LONG  HighPart;
-  } ;
+  };
   struct {
     DWORD LowPart;
     LONG  HighPart;
@@ -1206,8 +1250,164 @@ typedef union _LARGE_INTEGER {
   long long QuadPart;
 } LARGE_INTEGER, *PLARGE_INTEGER;
 
-inline BOOL GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize) { return FALSE; }
-inline DWORD GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh) { return 0; }
+inline HANDLE CreateFile(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, void* lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile) { 
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string filename = ResolvePath(converter.to_bytes(lpFileName));
+
+    if (dwCreationDisposition == CREATE_ALWAYS || dwCreationDisposition == CREATE_NEW || dwCreationDisposition == OPEN_ALWAYS) {
+        size_t lastSlash = filename.find_last_of('/');
+        if (lastSlash != std::string::npos) {
+            std::string dir = filename.substr(0, lastSlash);
+            if (!dir.empty() && !fs::exists(dir)) {
+                try { fs::create_directories(dir); } catch(...) {}
+            }
+        }
+    }
+
+    int flags = 0;
+    if ((dwDesiredAccess & GENERIC_READ) && (dwDesiredAccess & GENERIC_WRITE)) flags = O_RDWR;
+    else if (dwDesiredAccess & GENERIC_WRITE) flags = O_WRONLY;
+    else flags = O_RDONLY;
+
+    if (dwCreationDisposition == CREATE_ALWAYS) flags |= O_CREAT | O_TRUNC;
+    else if (dwCreationDisposition == CREATE_NEW) flags |= O_CREAT | O_EXCL;
+    else if (dwCreationDisposition == OPEN_ALWAYS) flags |= O_CREAT;
+    else if (dwCreationDisposition == TRUNCATE_EXISTING) flags |= O_TRUNC;
+
+    int fd = open(filename.c_str(), flags, 0666);
+    if (fd == -1) return INVALID_HANDLE_VALUE;
+    return (HANDLE)(intptr_t)fd;
+}
+inline BOOL CloseHandle(HANDLE hObject) { 
+    if (hObject == INVALID_HANDLE_VALUE || hObject == NULL) return FALSE;
+    if ((uintptr_t)hObject < 65536) {
+        close((int)(intptr_t)hObject);
+        return TRUE;
+    }
+    return TRUE; 
+}
+inline BOOL ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, void* lpOverlapped) { 
+    if (hFile == INVALID_HANDLE_VALUE) return FALSE;
+    ssize_t bytes = read((int)(intptr_t)hFile, lpBuffer, nNumberOfBytesToRead);
+    if (bytes == -1) return FALSE;
+    if (lpNumberOfBytesRead) *lpNumberOfBytesRead = (DWORD)bytes;
+    return TRUE; 
+}
+inline BOOL WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, void* lpOverlapped) { 
+    if (hFile == INVALID_HANDLE_VALUE) return FALSE;
+    ssize_t bytes = write((int)(intptr_t)hFile, lpBuffer, nNumberOfBytesToWrite);
+    if (bytes == -1) return FALSE;
+    if (lpNumberOfBytesWritten) *lpNumberOfBytesWritten = (DWORD)bytes;
+    return TRUE; 
+}
+inline DWORD SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod) { 
+    if (hFile == INVALID_HANDLE_VALUE) return 0xFFFFFFFF;
+    int whence = SEEK_SET;
+    if (dwMoveMethod == FILE_CURRENT) whence = SEEK_CUR;
+    else if (dwMoveMethod == FILE_END) whence = SEEK_END;
+    off_t res = lseek((int)(intptr_t)hFile, lDistanceToMove, whence);
+    return (DWORD)res;
+}
+struct FindData {
+    DIR* dir;
+    std::string pattern;
+    std::string directory;
+};
+
+inline BOOL FindNextFile(HANDLE hFindFile, WIN32_FIND_DATAW* lpFindFileData);
+
+inline HANDLE FindFirstFile(LPCWSTR lpFileName, WIN32_FIND_DATAW* lpFindFileData) { 
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string fullPattern = ResolvePath(converter.to_bytes(lpFileName));
+
+    size_t lastSlash = fullPattern.find_last_of('/');
+    std::string directory = (lastSlash == std::string::npos) ? "." : fullPattern.substr(0, lastSlash);
+    std::string pattern = (lastSlash == std::string::npos) ? fullPattern : fullPattern.substr(lastSlash + 1);
+
+    DIR* dir = opendir(directory.c_str());
+    if (!dir) return INVALID_HANDLE_VALUE;
+
+    FindData* fd = new FindData{ dir, pattern, directory };
+    
+    if (FindNextFile((HANDLE)fd, lpFindFileData)) {
+        return (HANDLE)fd;
+    }
+
+    closedir(dir);
+    delete fd;
+    return INVALID_HANDLE_VALUE;
+}
+
+inline BOOL FindNextFile(HANDLE hFindFile, WIN32_FIND_DATAW* lpFindFileData) { 
+    if (hFindFile == INVALID_HANDLE_VALUE || hFindFile == NULL) return FALSE;
+    FindData* fd = (FindData*)hFindFile;
+
+    struct dirent* entry;
+    while ((entry = readdir(fd->dir)) != NULL) {
+        std::string name = entry->d_name;
+        if (name == "." || name == "..") continue;
+
+        // Simple wildcard match for *.* or *
+        bool match = false;
+        if (fd->pattern == "*.*" || fd->pattern == "*") match = true;
+        else {
+            // Very basic matching: check if name contains pattern or matches exactly
+            if (name == fd->pattern) match = true;
+        }
+
+        if (match) {
+            std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+            std::wstring wname = converter.from_bytes(name);
+            wcsncpy(lpFindFileData->cFileName, wname.c_str(), 260);
+            
+            // Get file info
+            std::string fullPath = fd->directory + "/" + name;
+            struct stat st;
+            if (stat(fullPath.c_str(), &st) == 0) {
+                lpFindFileData->dwFileAttributes = S_ISDIR(st.st_mode) ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+                lpFindFileData->nFileSizeLow = (DWORD)st.st_size;
+                lpFindFileData->nFileSizeHigh = (DWORD)(st.st_size >> 32);
+            } else {
+                lpFindFileData->dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+                lpFindFileData->nFileSizeLow = 0;
+                lpFindFileData->nFileSizeHigh = 0;
+            }
+            return TRUE;
+        }
+    }
+    return FALSE; 
+}
+
+inline BOOL FindClose(HANDLE hFindFile) { 
+    if (hFindFile == INVALID_HANDLE_VALUE || hFindFile == NULL) return FALSE;
+    FindData* fd = (FindData*)hFindFile;
+    closedir(fd->dir);
+    delete fd;
+    return TRUE; 
+}
+inline BOOL DeleteFile(LPCWSTR lpFileName) { 
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string filename = ResolvePath(converter.to_bytes(lpFileName));
+    return unlink(filename.c_str()) == 0;
+}
+
+inline BOOL GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize) { 
+    if (hFile == INVALID_HANDLE_VALUE) return FALSE;
+    struct stat st;
+    if (fstat((int)(intptr_t)hFile, &st) == 0) {
+        lpFileSize->QuadPart = st.st_size;
+        return TRUE;
+    }
+    return FALSE; 
+}
+inline DWORD GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh) { 
+    LARGE_INTEGER li;
+    if (GetFileSizeEx(hFile, &li)) {
+        if (lpFileSizeHigh) *lpFileSizeHigh = li.u.HighPart;
+        return li.u.LowPart;
+    }
+    return 0xFFFFFFFF; 
+}
 
 // Resource Stubs
 typedef void* HMODULE;
@@ -1232,16 +1432,6 @@ inline HRESULT D3DX11CompileFromMemory(const char* pSrcData, size_t SrcDataLen, 
 }
 
 // Registry Stubs
-typedef void* HKEY;
-#define HKEY_CURRENT_USER ((HKEY)0x80000001)
-#define KEY_READ 0x20019
-#define KEY_WRITE 0x20006
-#define REG_DWORD 4
-inline LONG RegOpenKeyEx(HKEY hKey, LPCWSTR lpSubKey, DWORD ulOptions, DWORD samDesired, HKEY *phkResult) { return 1; } // Fail
-inline LONG RegCreateKeyEx(HKEY hKey, LPCWSTR lpSubKey, DWORD Reserved, LPWSTR lpClass, DWORD dwOptions, DWORD samDesired, void* lpSecurityAttributes, HKEY *phkResult, DWORD *lpdwDisposition) { return 1; } // Fail
-inline LONG RegSetValueEx(HKEY hKey, LPCWSTR lpValueName, DWORD Reserved, DWORD dwType, const BYTE *lpData, DWORD cbData) { return 1; }
-inline LONG RegCloseKey(HKEY hKey) { return 0; }
-
 #define RRF_RT_REG_BINARY 8
 #define ERROR_SUCCESS 0
 #define PVOID void*
@@ -1249,8 +1439,85 @@ inline LONG RegCloseKey(HKEY hKey) { return 0; }
 #define RRF_RT_REG_DWORD 0x00000010
 #define RRF_RT_REG_SZ 0x00000002
 #define REG_SZ 1
-typedef DWORD* LPDWORD;
-inline LONG RegGetValue(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData) { return 1; }
+typedef void* HKEY;
+#define HKEY_CURRENT_USER ((HKEY)0x80000001)
+#define KEY_READ 0x20019
+#define KEY_WRITE 0x20006
+#define REG_DWORD 4
+inline std::map<std::string, std::string>& GetRegistryMap() {
+    static std::map<std::string, std::string> reg;
+    static bool loaded = false;
+    if (!loaded) {
+        std::ifstream f("registry.txt");
+        std::string line;
+        while (std::getline(f, line)) {
+            size_t sep = line.find('=');
+            if (sep != std::string::npos) reg[line.substr(0, sep)] = line.substr(sep + 1);
+        }
+        loaded = true;
+    }
+    return reg;
+}
+
+inline void SaveRegistry() {
+    std::ofstream f("registry.txt");
+    for (auto const& [key, val] : GetRegistryMap()) {
+        f << key << "=" << val << "\n";
+    }
+}
+
+inline LONG RegOpenKeyEx(HKEY hKey, LPCWSTR lpSubKey, DWORD ulOptions, DWORD samDesired, HKEY *phkResult) { 
+    GetRegistryMap();
+    *phkResult = (HKEY)0x1234;
+    return 0; 
+}
+inline LONG RegCreateKeyEx(HKEY hKey, LPCWSTR lpSubKey, DWORD Reserved, LPWSTR lpClass, DWORD dwOptions, DWORD samDesired, void* lpSecurityAttributes, HKEY *phkResult, DWORD *lpdwDisposition) { 
+    GetRegistryMap();
+    *phkResult = (HKEY)0x1234;
+    return 0; 
+}
+inline LONG RegSetValueEx(HKEY hKey, LPCWSTR lpValueName, DWORD Reserved, DWORD dwType, const BYTE *lpData, DWORD cbData) { 
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string name = converter.to_bytes(lpValueName);
+    if (dwType == REG_DWORD) {
+        GetRegistryMap()[name] = std::to_string(*(DWORD*)lpData);
+    } else if (dwType == REG_SZ) {
+        GetRegistryMap()[name] = converter.to_bytes((LPCWSTR)lpData);
+    }
+    SaveRegistry();
+    return 0; 
+}
+inline LONG RegCloseKey(HKEY hKey) { return 0; }
+
+inline LONG RegGetValue(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData) { 
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::string name = converter.to_bytes(lpValue);
+    auto& reg = GetRegistryMap();
+    if (reg.count(name)) {
+        std::string val = reg[name];
+        if (dwFlags & RRF_RT_REG_DWORD) {
+            if (pdwType) *pdwType = REG_DWORD;
+            if (pvData) *(DWORD*)pvData = (DWORD)std::stoul(val);
+            if (pcbData) *pcbData = 4;
+            return 0;
+        } else if (dwFlags & RRF_RT_REG_SZ) {
+            std::wstring wval = converter.from_bytes(val);
+            DWORD len = (DWORD)((wval.length() + 1) * sizeof(WCHAR));
+            if (pvData) {
+                if (*pcbData >= len) {
+                    memcpy(pvData, wval.c_str(), len);
+                } else {
+                    *pcbData = len;
+                    return 234; // MORE_DATA
+                }
+            }
+            if (pcbData) *pcbData = len;
+            if (pdwType) *pdwType = REG_SZ;
+            return 0;
+        }
+    }
+    return 1; 
+}
 
 // DirectInput Stubs
 typedef struct IDirectInput8 IDirectInput8;
@@ -1392,7 +1659,20 @@ typedef struct _SYSTEMTIME {
     WORD wMilliseconds;
 } SYSTEMTIME, *PSYSTEMTIME, *LPSYSTEMTIME;
 
-inline void GetLocalTime(LPSYSTEMTIME lpSystemTime) {}
+inline void GetLocalTime(LPSYSTEMTIME lpSystemTime) {
+    std::time_t t = std::time(nullptr);
+    std::tm* tm = std::localtime(&t);
+    if (tm) {
+        lpSystemTime->wYear = tm->tm_year + 1900;
+        lpSystemTime->wMonth = tm->tm_mon + 1;
+        lpSystemTime->wDayOfWeek = tm->tm_wday;
+        lpSystemTime->wDay = tm->tm_mday;
+        lpSystemTime->wHour = tm->tm_hour;
+        lpSystemTime->wMinute = tm->tm_min;
+        lpSystemTime->wSecond = tm->tm_sec;
+        lpSystemTime->wMilliseconds = 0;
+    }
+}
 
 #include <stdio.h>
 #include <stdlib.h>
