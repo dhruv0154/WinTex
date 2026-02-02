@@ -21,6 +21,8 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
+extern std::string gDataPath;
+
 inline std::string ResolvePath(std::string filename) {
     std::replace(filename.begin(), filename.end(), '\\', '/');
     if (filename.empty()) return filename;
@@ -31,25 +33,11 @@ inline std::string ResolvePath(std::string filename) {
     static bool searched = false;
 
     if (!searched) {
-        const char* common[] = { "game/kmoon", "game/pd", "data" };
-        for (const char* c : common) {
-            if (fs::exists(std::string(c) + "/GRAPHICS.AP") || fs::exists(std::string(c) + "/UAKM.xml") || fs::exists(std::string(c) + "/PD.xml")) {
-                dataRoot = c;
-                break;
-            }
+        if (!gDataPath.empty()) {
+            dataRoot = gDataPath;
+        } else {
+            dataRoot = ".";
         }
-        if (dataRoot.empty()) {
-            try {
-                for (const auto& entry : fs::recursive_directory_iterator(".", fs::directory_options::skip_permission_denied)) {
-                    if (entry.path().filename() == "GRAPHICS.AP") {
-                        dataRoot = entry.path().parent_path().string();
-                        if (dataRoot.compare(0, 2, "./") == 0) dataRoot = dataRoot.substr(2);
-                        break;
-                    }
-                }
-            } catch (...) {}
-        }
-        if (dataRoot.empty()) dataRoot = ".";
         searched = true;
     }
 

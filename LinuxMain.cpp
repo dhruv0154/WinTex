@@ -105,6 +105,10 @@ int MapSDLScancodeToWinScan(SDL_Scancode sc) {
 
 int main(int argc, char** argv)
 {
+    if (argc > 1) {
+        gDataPath = argv[1];
+    }
+
     BOOL uakm = TRUE; // Default to UAKM for now
     isUAKM = TRUE;
     
