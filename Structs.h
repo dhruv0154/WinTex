@@ -1,20 +1,9 @@
-#ifndef STRUCTS_H_
-#define STRUCTS_H_
 #pragma once
 
-#ifdef PLATFORM_WINDOWS
-#include "D3DX11-NoWarn.h"
-#include <DirectXPackedVector.h>
-#endif
-#include <list>
+#include <cstdint>
 #include <string>
 #include "Point.h"
 #include "Enums.h"
-
-#ifdef PLATFORM_WINDOWS
-using namespace DirectX::PackedVector;
-using namespace DirectX;
-#endif
 
 struct Line
 {
@@ -72,7 +61,7 @@ struct ModelSubObject
 	int VerticeOffset;
 	int PointCount;
 	Box BoundingBox;
-	BOOL Active;
+	bool Active;
 
 	TLPoint* Points;
 	Triangle* Triangles;
@@ -89,12 +78,12 @@ struct ModelObject
 struct SpritePosInfo
 {
 	Point Position;
-	BOOL Visible;
+	bool Visible;
 };
 
 struct Buffer
 {
-	LPBYTE pData;
+	uint8_t* pData;
 	int Size;
 	int Frame;
 };
@@ -116,10 +105,10 @@ struct Rect
 struct ListBoxItem
 {
 	int Id = 0;
-	std::wstring Text = L"";
+	std::string Text = "";
 	int StartVertex = 0;
 	int VerticeCount = 0;
-	BOOL MouseOver = FALSE;
+	bool MouseOver = FALSE;
 };
 
 struct InventoryItem
@@ -139,12 +128,12 @@ struct Animation
 {
 	int Type;					// 1,2,3,4,14,15,16 (4 can have sub-type 1,2,3,4,5,6,7,8)
 	AnimationStatus Status;
-	DWORD FrameDuration;
-	DWORD ConstantFrameDuration;
-	ULONGLONG FrameTime;
-	LPBYTE AnimDataPointer;
-	LPBYTE AnimDataPointerInit;
-	LPBYTE AnimDataPointerEnd;
+	uint32_t FrameDuration;
+	uint32_t ConstantFrameDuration;
+	uint64_t FrameTime;
+	uint8_t* AnimDataPointer;
+	uint8_t* AnimDataPointerInit;
+	uint8_t* AnimDataPointerEnd;
 	int ParentAnim;				// Used by 4.7, resume parent when this completes
 	int ObjectId;
 	int Parameter;
@@ -153,11 +142,11 @@ struct Animation
 
 struct FrameData
 {
-	LPBYTE VideoPointer;
+	uint8_t* VideoPointer;
 	int VideoSize;
-	LPBYTE PalettePointer;
+	uint8_t* PalettePointer;
 	int PaletteSize;
-	LPBYTE AudioPointer;
+	uint8_t* AudioPointer;
 	int AudiSize;
 
 	int FrameNumber;
@@ -165,8 +154,8 @@ struct FrameData
 
 struct ControlCoordinates
 {
-	BYTE KeyCode;
-	BYTE Flags;
+	byte KeyCode;
+	byte Flags;
 	int MinY;
 	int MaxY;
 	int MinX;

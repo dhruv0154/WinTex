@@ -1,26 +1,19 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
-
 typedef struct UAKMExamStruct
 {
-	BYTE Id;
-	BYTE AddItemId;
-	BYTE ParameterAIndex;
-	BYTE ParameterAValue;
-	BYTE AskAbout1;
-	BYTE AskAbout2;
-	BYTE Travel1;
-	BYTE Travel2;
-	BYTE ExamFileNumber;
-	BYTE ExamEntryNumber;
+	uint8_t Id;
+	uint8_t AddItemId;
+	uint8_t ParameterAIndex;
+	uint8_t ParameterAValue;
+	uint8_t AskAbout1;
+	uint8_t AskAbout2;
+	uint8_t Travel1;
+	uint8_t Travel2;
+	uint8_t ExamFileNumber;
+	uint8_t ExamEntryNumber;
 	int DescriptionOffset;
-	BYTE Flags;
-	short Rate;
-	short HintState;
+	uint8_t Flags;
+	uint16_t Rate;
+	uint16_t HintState;
 };

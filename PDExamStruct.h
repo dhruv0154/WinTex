@@ -1,30 +1,25 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
+#include <cstdint>
 
 #pragma pack(1)
 struct PDExamStruct
 {
-	short Id;
-	short AddItemId;
-	short ParameterAIndex;
-	BYTE ParameterAValue;
-	BYTE AskAbout1;
-	BYTE AskAbout2;
-	BYTE Travel1;
-	BYTE Travel2;
-	BYTE Unknown1;
-	BYTE ExamFileNumber;
-	BYTE ExamEntryNumber;
+	uint16_t Id;
+	uint16_t AddItemId;
+	uint16_t ParameterAIndex;
+	uint8_t ParameterAValue;
+	uint8_t AskAbout1;
+	uint8_t AskAbout2;
+	uint8_t Travel1;
+	uint8_t Travel2;
+	uint8_t Unknown1;
+	uint8_t ExamFileNumber;
+	uint8_t ExamEntryNumber;
 	int DescriptionOffset;
-	BYTE Flags;
-	BYTE Rate;
-	BYTE Unknown2;
-	short HintState;
+	uint8_t Flags;
+	uint8_t Rate;
+	uint8_t Unknown2;
+	uint16_t HintState;
 };
 #pragma pack(8)
