@@ -1,20 +1,11 @@
 #include "DXShader.h"
 #include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <d3dcompiler.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include <iostream>
 #include <string>
 
 CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR vsProfileName, LPCSTR psFunctionName, LPCSTR psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors)
 {
-	_vs = NULL;
-	_ps = NULL;
-	_layout = NULL;
 
-#ifdef PLATFORM_LINUX
     std::string vsName = vsFunctionName;
     std::string psName = psFunctionName;
     
@@ -231,44 +222,7 @@ CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR 
     }
     glUseProgram(0);
 
-    // Store program ID in _vs (Vertex Shader object)
-    pDX->GetDevice()->CreateVertexShader(NULL, 0, NULL, &_vs);
-    _vs->glId = prog;
-
-    // We don't really use separate PS in this simple GL implementation, 
-    // we use the linked program stored in _vs.
-    pDX->GetDevice()->CreatePixelShader(NULL, 0, NULL, &_ps);
-    
-    // Create dummy layout
-    pDX->GetDevice()->CreateInputLayout(ied, numDescriptors, NULL, 0, &_layout);
-#else
-	HRSRC hShader = FindResource(NULL, MAKEINTRESOURCE(resource), L"SHADER");
-	DWORD size = SizeofResource(NULL, hShader);
-	HGLOBAL hShaderGlobal = LoadResource(NULL, hShader);
-	char* pShader = (char*)LockResource(hShaderGlobal);
-
-	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#ifdef DEBUG
-	flags |= D3DCOMPILE_DEBUG;
-#endif
-
-	// Create vertex shader
-	ID3D10Blob* pVSb;
-	D3DX11CompileFromMemory(pShader, size, "SHADER", NULL, NULL, vsFunctionName, vsProfileName, flags, 0, NULL, &pVSb, NULL, NULL);
-	pDX->GetDevice()->CreateVertexShader(pVSb->GetBufferPointer(), pVSb->GetBufferSize(), NULL, &_vs);
-
-	// Create input layout
-	pDX->GetDevice()->CreateInputLayout(ied, numDescriptors, pVSb->GetBufferPointer(), pVSb->GetBufferSize(), &_layout);
-	if (pVSb != NULL)pVSb->Release();
-	pVSb = NULL;
-
-	// Create pixel shader
-	ID3D10Blob* pPSb;
-	D3DX11CompileFromMemory(pShader, size, "SHADER", NULL, NULL, psFunctionName, psProfileName, 0, 0, NULL, &pPSb, NULL, NULL);
-	pDX->GetDevice()->CreatePixelShader(pPSb->GetBufferPointer(), pPSb->GetBufferSize(), NULL, &_ps);
-	if (pPSb != NULL) pPSb->Release();
-	pPSb = NULL;
-#endif
+    _glProgramId = prog;
 }
 
 CDXShader::~CDXShader()
@@ -278,32 +232,14 @@ CDXShader::~CDXShader()
 
 void CDXShader::Activate(CDirectX* pDX)
 {
-#ifdef PLATFORM_LINUX
-    glUseProgram(_vs->glId);
-#else
-	pDX->GetDeviceContext()->VSSetShader(_vs, 0, 0);
-	pDX->GetDeviceContext()->PSSetShader(_ps, 0, 0);
-	pDX->GetDeviceContext()->IASetInputLayout(_layout);
-#endif
+    if (_glProgramId != 0)
+        glUseProgram(_vs->glId);
 }
 
 void CDXShader::Dispose()
 {
-	if (_vs != NULL)
-	{
-		_vs->Release();
-		_vs = NULL;
-	}
-
-	if (_ps != NULL)
-	{
-		_ps->Release();
-		_ps = NULL;
-	}
-
-	if (_layout != NULL)
-	{
-		_layout->Release();
-		_layout = NULL;
-	}
+	if (_glProgramId != 0) {
+        glDeleteProgram(_glProgramId);
+        _glProgramId = 0;
+    }
 }

@@ -1,55 +1,18 @@
 #include "DXAdapter.h"
 
-CDXAdapter::CDXAdapter(IDXGIAdapter* pAdapter)
+CDXAdapter::CDXAdapter()
 {
-	_numModes = 0;
-	_displayModeList = NULL;
-
-	_pAdapter = pAdapter;
-	pAdapter->GetDesc(&_adapterDesc);
-
-	IDXGIOutput* adapterOutput;
-	if (pAdapter->EnumOutputs(0, &adapterOutput) == S_OK)
-	{
-		if (adapterOutput->GetDisplayModeList(DXGI_FORMAT_B8G8R8A8_UNORM, 0, &_numModes, NULL) == S_OK)
-		{
-			_displayModeList = new DXGI_MODE_DESC[_numModes];
-			if (adapterOutput->GetDisplayModeList(DXGI_FORMAT_B8G8R8A8_UNORM, 0, &_numModes, _displayModeList) == S_OK)
-			{
-				for (unsigned int i = 0; i < _numModes; i++)
-				{
-					for (unsigned int j = i + 1; j < _numModes; j++)
-					{
-						if (_displayModeList[i].Width == _displayModeList[j].Width && _displayModeList[i].Height == _displayModeList[j].Height)
-						{
-							for (unsigned int k = j + 1; k < _numModes; k++)
-							{
-								_displayModeList[k - 1] = _displayModeList[k];
-							}
-
-							j--;
-							_numModes--;
-						}
-					}
-				}
-			}
-		}
-
-		adapterOutput->Release();
-	}
+    _numModes = 1;
+    _displayModeList = new DummyDisplayMode[1];
+    _displayModeList[0].Width = 640;
+    _displayModeList[0].Height = 480;
 }
 
 CDXAdapter::~CDXAdapter()
 {
-	if (_pAdapter != NULL)
-	{
-		_pAdapter->Release();
-		_pAdapter = NULL;
-	}
-
-	if (_displayModeList != NULL)
-	{
-		delete _displayModeList;
-		_displayModeList = NULL;
-	}
+    if (_displayModeList != nullptr)
+    {
+        delete[] _displayModeList;
+        _displayModeList = nullptr;
+    }
 }

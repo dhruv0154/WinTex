@@ -1,24 +1,23 @@
 #include "Shaders.h"
-#include "D3D11-NoWarn.h" 
-#include "resource.h"
 #include "Globals.h"
+#include <cmath>
 
-CDXShader* CShaders::_orthoShader = NULL;
-CDXShader* CShaders::_textureShader = NULL;
-CDXShader* CShaders::_texFontShader = NULL;
-CDXShader* CShaders::_texFontShader_AA = NULL;
-CDXShader* CShaders::_multiColouredFontShader = NULL;
-CDXShader* CShaders::_colourShader = NULL;
-CDXShader* CShaders::_transparentColourShader = NULL;
-CDXShader* CShaders::_yuvShader = NULL;
-CDXShader* CShaders::_basicShader = NULL;
+CDXShader* CShaders::_orthoShader = nullptr;
+CDXShader* CShaders::_textureShader = nullptr;
+CDXShader* CShaders::_texFontShader = nullptr;
+CDXShader* CShaders::_texFontShader_AA = nullptr;
+CDXShader* CShaders::_multiColouredFontShader = nullptr;
+CDXShader* CShaders::_colourShader = nullptr;
+CDXShader* CShaders::_transparentColourShader = nullptr;
+CDXShader* CShaders::_yuvShader = nullptr;
+CDXShader* CShaders::_basicShader = nullptr;
 
 const char* vertexShaderProfile = "vs_5_0";
 const char* pixelShaderProfile = "ps_5_0";
 
 void CShaders::SelectOrthoShader()
 {
-	if (_orthoShader == NULL)
+	if (_orthoShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC tsied[] =
 		{
@@ -27,7 +26,7 @@ void CShaders::SelectOrthoShader()
 			{ "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "TEXCOORD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_orthoShader = new CDXShader(&dx, IDR_SHADER, "OrthoVS", vertexShaderProfile, "TexturedPS", pixelShaderProfile, tsied, 4);
+		_orthoShader = new CDXShader(&dx, 0, "OrthoVS", vertexShaderProfile, "TexturedPS", pixelShaderProfile, tsied, 4);
 	}
 
 	_orthoShader->Activate(&dx);
@@ -35,7 +34,7 @@ void CShaders::SelectOrthoShader()
 
 void CShaders::SelectTextureShader()
 {
-	if (_textureShader == NULL)
+	if (_textureShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC tsied[] =
 		{
@@ -44,7 +43,7 @@ void CShaders::SelectTextureShader()
 			{ "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "TEXCOORD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_textureShader = new CDXShader(&dx, IDR_SHADER, "TexturedVS", vertexShaderProfile, "TexturedPS", pixelShaderProfile, tsied, 4);
+		_textureShader = new CDXShader(&dx, 0, "TexturedVS", vertexShaderProfile, "TexturedPS", pixelShaderProfile, tsied, 4);
 	}
 
 	_textureShader->Activate(&dx);
@@ -55,14 +54,14 @@ void CShaders::SelectTexFontShader()
 	if (rintf(pConfig->FontScale) == pConfig->FontScale)
 	{
 		// Integer, use normal shader
-		if (_texFontShader == NULL)
+		if (_texFontShader == nullptr)
 		{
 			D3D11_INPUT_ELEMENT_DESC tsied[] =
 			{
 				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			};
-			_texFontShader = new CDXShader(&dx, IDR_SHADER, "OrthoVS", vertexShaderProfile, "TexFontPS", pixelShaderProfile, tsied, 2);
+			_texFontShader = new CDXShader(&dx, 0, "OrthoVS", vertexShaderProfile, "TexFontPS", pixelShaderProfile, tsied, 2);
 		}
 
 		_texFontShader->Activate(&dx);
@@ -70,14 +69,14 @@ void CShaders::SelectTexFontShader()
 	else
 	{
 		// Fraction, use AA shader
-		if (_texFontShader_AA == NULL)
+		if (_texFontShader_AA == nullptr)
 		{
 			D3D11_INPUT_ELEMENT_DESC tsied[] =
 			{
 				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			};
-			_texFontShader_AA = new CDXShader(&dx, IDR_SHADER, "OrthoVS", vertexShaderProfile, "TexFontPS_AA", pixelShaderProfile, tsied, 2);
+			_texFontShader_AA = new CDXShader(&dx, 0, "OrthoVS", vertexShaderProfile, "TexFontPS_AA", pixelShaderProfile, tsied, 2);
 		}
 
 		_texFontShader_AA->Activate(&dx);
@@ -86,7 +85,7 @@ void CShaders::SelectTexFontShader()
 
 void CShaders::SelectMultiColouredFontShader()
 {
-	if (_multiColouredFontShader == NULL)
+	if (_multiColouredFontShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC tsied[] =
 		{
@@ -94,7 +93,7 @@ void CShaders::SelectMultiColouredFontShader()
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_multiColouredFontShader = new CDXShader(&dx, IDR_SHADER, "MultiColouredFontVS", vertexShaderProfile, "MultiColouredFontPS", pixelShaderProfile, tsied, 3);
+		_multiColouredFontShader = new CDXShader(&dx, 0, "MultiColouredFontVS", vertexShaderProfile, "MultiColouredFontPS", pixelShaderProfile, tsied, 3);
 	}
 
 	_multiColouredFontShader->Activate(&dx);
@@ -102,7 +101,7 @@ void CShaders::SelectMultiColouredFontShader()
 
 void CShaders::SelectMultiColouredFontShaderPD()
 {
-	if (_multiColouredFontShader == NULL)
+	if (_multiColouredFontShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC tsied[] =
 		{
@@ -110,7 +109,7 @@ void CShaders::SelectMultiColouredFontShaderPD()
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_multiColouredFontShader = new CDXShader(&dx, IDR_SHADER, "MultiColouredFontVS", vertexShaderProfile, "MultiColouredFontPSPD", pixelShaderProfile, tsied, 3);
+		_multiColouredFontShader = new CDXShader(&dx, 0, "MultiColouredFontVS", vertexShaderProfile, "MultiColouredFontPSPD", pixelShaderProfile, tsied, 3);
 	}
 
 	_multiColouredFontShader->Activate(&dx);
@@ -118,14 +117,14 @@ void CShaders::SelectMultiColouredFontShaderPD()
 
 void CShaders::SelectColourShader()
 {
-	if (_colourShader == NULL)
+	if (_colourShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC csied[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_colourShader = new CDXShader(&dx, IDR_SHADER, "ColouredVS", vertexShaderProfile, "ColouredPS", pixelShaderProfile, csied, 2);
+		_colourShader = new CDXShader(&dx, 0, "ColouredVS", vertexShaderProfile, "ColouredPS", pixelShaderProfile, csied, 2);
 	}
 
 	_colourShader->Activate(&dx);
@@ -133,7 +132,7 @@ void CShaders::SelectColourShader()
 
 void CShaders::SelectTransparentColourShader()
 {
-	if (_transparentColourShader == NULL)
+	if (_transparentColourShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC csied[] =
 		{
@@ -141,7 +140,7 @@ void CShaders::SelectTransparentColourShader()
 			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_transparentColourShader = new CDXShader(&dx, IDR_SHADER, "TransparentVS", vertexShaderProfile, "TransparentPS", pixelShaderProfile, csied, 3);
+		_transparentColourShader = new CDXShader(&dx, 0, "TransparentVS", vertexShaderProfile, "TransparentPS", pixelShaderProfile, csied, 3);
 	}
 
 	_transparentColourShader->Activate(&dx);
@@ -149,14 +148,14 @@ void CShaders::SelectTransparentColourShader()
 
 void CShaders::SelectYUVShader()
 {
-	if (_yuvShader == NULL)
+	if (_yuvShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC tsied[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_yuvShader = new CDXShader(&dx, IDR_SHADER, "OrthoVS", vertexShaderProfile, "YUVPS", pixelShaderProfile, tsied, 2);
+		_yuvShader = new CDXShader(&dx, 0, "OrthoVS", vertexShaderProfile, "YUVPS", pixelShaderProfile, tsied, 2);
 	}
 
 	_yuvShader->Activate(&dx);
@@ -164,13 +163,13 @@ void CShaders::SelectYUVShader()
 
 void CShaders::SelectBasicShader()
 {
-	if (_basicShader == NULL)
+	if (_basicShader == nullptr)
 	{
 		D3D11_INPUT_ELEMENT_DESC tsied[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		_basicShader = new CDXShader(&dx, IDR_SHADER, "BasicVS", vertexShaderProfile, "BasicPS", pixelShaderProfile, tsied, 1);
+		_basicShader = new CDXShader(&dx, 0, "BasicVS", vertexShaderProfile, "BasicPS", pixelShaderProfile, tsied, 1);
 	}
 
 	_basicShader->Activate(&dx);
@@ -178,51 +177,51 @@ void CShaders::SelectBasicShader()
 
 void CShaders::Dispose()
 {
-	if (_orthoShader != NULL)
+	if (_orthoShader != nullptr)
 	{
 		_orthoShader->Dispose();
-		_orthoShader = NULL;
+		_orthoShader = nullptr;
 	}
 
-	if (_textureShader != NULL)
+	if (_textureShader != nullptr)
 	{
 		_textureShader->Dispose();
-		_textureShader = NULL;
+		_textureShader = nullptr;
 	}
 
-	if (_texFontShader != NULL)
+	if (_texFontShader != nullptr)
 	{
 		_texFontShader->Dispose();
-		_texFontShader = NULL;
+		_texFontShader = nullptr;
 	}
 
-	if (_multiColouredFontShader != NULL)
+	if (_multiColouredFontShader != nullptr)
 	{
 		_multiColouredFontShader->Dispose();
-		_multiColouredFontShader = NULL;
+		_multiColouredFontShader = nullptr;
 	}
 
-	if (_colourShader != NULL)
+	if (_colourShader != nullptr)
 	{
 		_colourShader->Dispose();
-		_colourShader = NULL;
+		_colourShader = nullptr;
 	}
 
-	if (_transparentColourShader != NULL)
+	if (_transparentColourShader != nullptr)
 	{
 		_transparentColourShader->Dispose();
-		_transparentColourShader = NULL;
+		_transparentColourShader = nullptr;
 	}
 
-	if (_yuvShader != NULL)
+	if (_yuvShader != nullptr)
 	{
 		_yuvShader->Dispose();
-		_yuvShader = NULL;
+		_yuvShader = nullptr;
 	}
 
-	if (_basicShader != NULL)
+	if (_basicShader != nullptr)
 	{
 		_basicShader->Dispose();
-		_basicShader = NULL;
+		_basicShader = nullptr;
 	}
 }

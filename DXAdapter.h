@@ -2,16 +2,18 @@
 
 #include "DXBase.h"
 
-class CDXAdapter : CDXBase
+// dummy struct to replace DXGI_MODE_DESC
+struct DummyDisplayMode {
+    unsigned int Width;
+    unsigned int Height;
+};
+
+class CDXAdapter : public CDXBase
 {
 public:
-	CDXAdapter(IDXGIAdapter* pAdapter);
-	~CDXAdapter();
+    CDXAdapter();
+    ~CDXAdapter();
 
-	DXGI_ADAPTER_DESC _adapterDesc;
-	unsigned int _numModes;
-	DXGI_MODE_DESC* _displayModeList;
-
-private:
-	IDXGIAdapter* _pAdapter;
+    unsigned int _numModes;
+    DummyDisplayMode* _displayModeList;
 };
