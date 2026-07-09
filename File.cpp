@@ -1,38 +1,27 @@
 #include "File.h"
-#include "Platform.h"
+#include "Globals.h"
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <strings.h>
 
 namespace fs = std::filesystem;
 
-// Helper to convert wstring to string
-static std::string WStrToStr(const std::wstring& wstr) {
-    if (wstr.empty()) return std::string();
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    try {
-        return converter.to_bytes(wstr);
-    } catch (...) {
-        return "";
-    }
-}
+std::unordered_map<std::string, std::string> CFile::FileMap;
 
-static std::wstring StrToWStr(const std::string& str) {
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    try {
-        return converter.from_bytes(str);
-    } catch (...) {
-        return L"";
+static std::string ResolvePath(const std::string& path) 
+{
+    if (!gamePath.empty() && path.find(gamePath) == std::string::npos) {
+        fs::path p = fs::path(gamePath) / path;
+        return p.string();
     }
+    return path;
 }
-
-std::unordered_map<std::wstring, std::wstring> CFile::FileMap;
 
 CFile::CFile()
 {
-	_handle = INVALID_HANDLE_VALUE;
 }
 
 CFile::~CFile()
@@ -40,16 +29,15 @@ CFile::~CFile()
 	Close();
 }
 
-std::wstring CFile::Find(std::wstring path, std::wstring file)
+std::string CFile::Find(std::string path, std::string file)
 {
-    std::string sPath = ResolvePath(WStrToStr(path));
-    std::string sFile = WStrToStr(file);
+    std::string sPath = ResolvePath(path);
     
     if (sPath.empty()) sPath = ".";
 
     try {
         if (!fs::exists(sPath)) {
-             return L"";
+            return "";
         }
 
         for (const auto& entry : fs::recursive_directory_iterator(sPath, fs::directory_options::skip_permission_denied)) {
@@ -57,17 +45,17 @@ std::wstring CFile::Find(std::wstring path, std::wstring file)
                 std::string filename = entry.path().filename().string();
                 if (strcasecmp(filename.c_str(), sFile.c_str()) == 0) {
                      std::string foundPath = entry.path().string();
-                     return StrToWStr(foundPath);
+                     return foundPath;
                 }
             }
         }
     } catch (...) {}
-    return L"";
+    return "";
 }
 
-BOOL CFile::Open(LPCWSTR fileName, Mode mode, Sharing share)
+bool CFile::Open(const std::string& fileName, Mode mode)
 {
-	std::wstring realFile = fileName;
+	std::string realFile = fileName;
 	if (mode == Mode::Read)
 	{
 		auto it = FileMap.find(fileName);
@@ -80,18 +68,19 @@ BOOL CFile::Open(LPCWSTR fileName, Mode mode, Sharing share)
 			if (Exists(fileName))
 			{
 				FileMap[fileName] = fileName;
+                realFile = FileMap[fileName];
 			}
 			else
 			{
-				std::wstring path = L".";
-				std::wstring file = fileName;
+				std::string path = ".";
+				std::string file = fileName;
                 
-                std::string sFileName = WStrToStr(fileName);
+                std::string sFileName = fileName;
                 std::replace(sFileName.begin(), sFileName.end(), '\\', '/');
                 size_t lastSlash = sFileName.find_last_of('/');
                 if (lastSlash != std::string::npos) {
-                    file = StrToWStr(sFileName.substr(lastSlash + 1));
-                    path = StrToWStr(sFileName.substr(0, lastSlash));
+                    file = sFileName.substr(lastSlash + 1);
+                    path = sFileName.substr(0, lastSlash);
                 }
 
 				realFile = Find(path, file);
@@ -103,46 +92,70 @@ BOOL CFile::Open(LPCWSTR fileName, Mode mode, Sharing share)
 		}
 	}
 
-	Creation c = (mode == Mode::Read) ? Creation::OpenExisting : (mode == Mode::Write) ? Creation::CreateAlways : Creation::OpenAlways;
-	_handle = CreateFile(realFile.c_str(), (DWORD)mode, (DWORD)share, NULL, (DWORD)c, (DWORD)Flags::Normal, NULL);
-	return (_handle != INVALID_HANDLE_VALUE);
+	std::ios_base::openmode openMode = std::ios::binary;
+	if (mode == Mode::Read) openMode |= std::ios::in;
+	if (mode == Mode::Write) openMode |= (std::ios::out | std::ios::trunc);
+
+	_stream.open(realFile, mode);
+	return _stream.is_open();
 }
 
 void CFile::Close()
 {
-	if (_handle != INVALID_HANDLE_VALUE)
+	if (_stream.is_open())
 	{
-		CloseHandle(_handle);
-		_handle = INVALID_HANDLE_VALUE;
+		_stream.close();
 	}
 }
 
-DWORD CFile::Seek(DWORD distance, SeekMethod method)
+uint32_t CFile::Seek(uint32_t distance, SeekMethod method)
 {
-	return SetFilePointer(_handle, distance, NULL, (DWORD)method);
+	if (!_stream.is_open()) return 0;
+
+	std::ios_base::seekdir dir;
+	if (method == SeekMethod::Begin) dir = std::ios::beg;
+    else if (method == SeekMethod::Current) dir = std::ios::cur;
+    else dir = std::ios::end;
+
+	_stream.seekg(distance, dir);
+	_stream.seekp(distance, dir);
+
+	return static_cast<uint32_t>(_stream.tellg());
 }
 
-int CFile::Read(LPBYTE pBuffer, int length)
+int CFile::Read(uint8_t* pBuffer, int length)
 {
-	int read = 0;
-	ReadFile(_handle, pBuffer, length, (LPDWORD)&read, NULL);
-	return read;
+	if (!_stream.is_open()) return 0;
+
+	_stream.read(reinterpret_cast<char*>(pBuffer), length);
+
+	return static_cast<int>(_stream.gcount());
 }
 
-int CFile::Write(LPBYTE pBuffer, int length)
+int CFile::Write(uint8_t* pBuffer, int length)
 {
-	int written = 0;
-	WriteFile(_handle, pBuffer, length, (LPDWORD)&written, NULL);
-	return written;
+	if (!_stream.is_open()) return 0;
+
+	_stream.read(reinterpret_cast<char*>(pBuffer), length);
+
+	return _stream.fail() ? 0 : length;
 }
 
-DWORD CFile::Size()
+uint32_t CFile::Size()
 {
-	return GetFileSize(_handle, NULL);
+	if (!_stream.open()) return 0;
+	
+	std::streampos currentPos = _stream.tellg();
+	_stream.seekg(0, std::ios:end);
+
+	uint32_t size = static_cast<uint32_t>(_stream.tellg());
+	_stream.seekg(currentPos, std::ios::beg);
+
+	return size;
 }
 
-BOOL CFile::Exists(LPCWSTR fileName)
+bool CFile::Exists(const std::string& fileName)
 {
-    std::string path = ResolvePath(WStrToStr(fileName));
+    std::string path = ResolvePath(fileName);
     return fs::exists(path);
 }

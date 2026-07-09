@@ -1,12 +1,9 @@
 #pragma once
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
+
 #include <unordered_map>
 #include <string>
+#include <fstream>
+#include <cstdint>
 
 class CFile
 {
@@ -14,53 +11,31 @@ public:
 	CFile();
 	~CFile();
 
-	enum class Mode : UINT
+	enum class Mode
 	{
-		Read = GENERIC_READ,
-		Write = GENERIC_WRITE
-	};
-
-	enum class Sharing
-	{
-		None = 0,
-		Read = FILE_SHARE_READ,
-		Write = FILE_SHARE_WRITE,
-		Delete = FILE_SHARE_DELETE
-	};
-
-	enum class Creation
-	{
-		CreateNew = CREATE_NEW,
-		CreateAlways = CREATE_ALWAYS,
-		OpenExisting = OPEN_EXISTING,
-		OpenAlways = OPEN_ALWAYS,
-		TruncateExisting = TRUNCATE_EXISTING
-	};
-
-	enum class Flags
-	{
-		Normal = FILE_ATTRIBUTE_NORMAL,
+		Read,
+		Write
 	};
 
 	enum class SeekMethod
 	{
-		Begin = FILE_BEGIN,
-		Current = FILE_CURRENT,
-		End = FILE_END
+		Begin,
+		Current,
+		End
 	};
 
-	BOOL Open(LPCWSTR fileName, Mode mode = Mode::Read, Sharing share = Sharing::Read);
+	bool Open(const std::string& Name, Mode mode = Mode::Read);
 	void Close();
-	DWORD Seek(DWORD distance, SeekMethod method = SeekMethod::Begin);
+	uint32_t Seek(uint32_t distance, SeekMethod method = SeekMethod::Begin);
 	int Read(LPBYTE pBuffer, int length);
 	int Write(LPBYTE pBuffer, int length);
-	DWORD Size();
+	uint32_t Size();
 
-	static BOOL Exists(LPCWSTR fileName);
+	static bool Exists(const std::string& fileName);
 
 protected:
-	HANDLE _handle;
+	std::fstream _stream;
 
-	static std::unordered_map<std::wstring, std::wstring> FileMap;
-	static std::wstring Find(std::wstring path, std::wstring file);
+	static std::unordered_map<std::string, std::string> FileMap;
+	static std::string Find(std::string path, std::string file);
 };
