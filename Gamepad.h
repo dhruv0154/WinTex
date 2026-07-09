@@ -1,6 +1,5 @@
 #pragma once
 
-#include "dinput-NoWarn.h"
 #include <list>
 #include "Utilities.h"
 #include <string>

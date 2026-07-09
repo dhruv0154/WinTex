@@ -1,12 +1,5 @@
 #pragma once
 
-#include "Platform.h"
-
-#ifdef PLATFORM_LINUX
-#include "Win32Compat.h"
-#else
-#include <Windows.h>
-#endif
 #include "DirectX.h"
 #include "Caption.h"
 #include "ScriptBase.h"
@@ -35,7 +28,7 @@ extern std::list<CCaption*> captions1;
 extern std::list<CCaption*> captions2;
 extern std::list<CCaption*>* pDisplayCaptions;
 extern std::list<CCaption*>* pAddCaptions;
-extern PWSTR gamePath;
+extern std::string gamePath;
 
 extern CMutex _lock;
 
@@ -49,7 +42,7 @@ inline Alignment operator&(Alignment a, Alignment b)
 	return static_cast<Alignment>(static_cast<int>(a) & static_cast<int>(b));
 }
 
-extern HWND _hWnd;
+extern void* _hWnd;
 
 extern CConfiguration* pConfig;
 
@@ -59,7 +52,7 @@ extern CDXFont TexFont;
 
 extern CMIDIPlayer* pMIDI;
 
-extern BOOL isUAKM;
+extern bool isUAKM;
 
 extern COverlay* pOverlay;
 extern COverlay* pClimbLadderOverlay;

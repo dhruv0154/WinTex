@@ -1,8 +1,3 @@
-#include <windows.h>
-#include <windowsx.h>
-#include "D3D11-NoWarn.h"
-#include "D3DX11-NoWarn.h"
-#include "D3DX10-NoWarn.h"
 #include "LZ.h"
 #include "File.h"
 #include "Utilities.h"
@@ -14,23 +9,110 @@
 #include "PDGame.h"
 #include "DXScreen.h"
 #include "DXShader.h"
-#include "resource.h"
 #include "Configuration.h"
 #include "AnimationController.h"
 #include "GameController.h"
+#include "DXControls.h"
+#include "MIDIPlayer.h"
+#include "PDMIDIPlayer.h"
+#include "ModuleController.h"
+#include "ConstantBuffers.h"
+#include "InputMapping.h"
 #include "Gamepad.h"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <SDL2/SDL.h>
 
 #include "VideoModule.h"
 
-#pragma comment (lib, "d3d11.lib")
-#pragma comment (lib, "d3dx11.lib")
+bool _runDXThread = true;
 
-DWORD WINAPI Direct3DThread(LPVOID lpParameter);
-DWORD WINAPI TimerThread(LPVOID lpParameter);
-BOOL _runDXThread = TRUE;
+
+int MapSDLKeyToVK(SDL_Keycode sym) {
+    if (sym >= SDLK_a && sym <= SDLK_z) return 'A' + (sym - SDLK_a);
+    if (sym >= SDLK_0 && sym <= SDLK_9) return '0' + (sym - SDLK_0);
+    if (sym == SDLK_UP) return VK_UP;
+    if (sym == SDLK_DOWN) return VK_DOWN;
+    if (sym == SDLK_LEFT) return VK_LEFT;
+    if (sym == SDLK_RIGHT) return VK_RIGHT;
+    if (sym == SDLK_SPACE) return VK_SPACE;
+    if (sym == SDLK_RETURN) return VK_RETURN;
+    if (sym == SDLK_ESCAPE) return VK_ESCAPE;
+    if (sym == SDLK_BACKSPACE) return VK_BACK;
+    if (sym == SDLK_TAB) return VK_TAB;
+    if (sym == SDLK_LSHIFT || sym == SDLK_RSHIFT) return VK_SHIFT;
+    if (sym == SDLK_LCTRL || sym == SDLK_RCTRL) return VK_CONTROL;
+    if (sym == SDLK_LALT || sym == SDLK_RALT) return VK_MENU;
+    if (sym == SDLK_INSERT) return VK_INSERT;
+    if (sym == SDLK_DELETE) return VK_DELETE;
+    if (sym == SDLK_HOME) return VK_HOME;
+    if (sym == SDLK_END) return VK_END;
+    if (sym == SDLK_PAGEUP) return VK_PRIOR;
+    if (sym == SDLK_PAGEDOWN) return VK_NEXT;
+    if (sym >= SDLK_F1 && sym <= SDLK_F12) return VK_F1 + (sym - SDLK_F1);
+    return 0;
+}
+
+int MapSDLScancodeToWinScan(SDL_Scancode sc) {
+    switch (sc) {
+        case SDL_SCANCODE_W: return 0x11;
+        case SDL_SCANCODE_A: return 0x1E;
+        case SDL_SCANCODE_S: return 0x1F;
+        case SDL_SCANCODE_D: return 0x20;
+        case SDL_SCANCODE_Q: return 0x10;
+        case SDL_SCANCODE_E: return 0x12;
+        case SDL_SCANCODE_R: return 0x13;
+        case SDL_SCANCODE_T: return 0x14;
+        case SDL_SCANCODE_Y: return 0x15;
+        case SDL_SCANCODE_U: return 0x16;
+        case SDL_SCANCODE_I: return 0x17;
+        case SDL_SCANCODE_O: return 0x18;
+        case SDL_SCANCODE_P: return 0x19;
+        case SDL_SCANCODE_F: return 0x21;
+        case SDL_SCANCODE_G: return 0x22;
+        case SDL_SCANCODE_H: return 0x23;
+        case SDL_SCANCODE_J: return 0x24;
+        case SDL_SCANCODE_K: return 0x25;
+        case SDL_SCANCODE_L: return 0x26;
+        case SDL_SCANCODE_Z: return 0x2C;
+        case SDL_SCANCODE_X: return 0x2D;
+        case SDL_SCANCODE_C: return 0x2E;
+        case SDL_SCANCODE_V: return 0x2F;
+        case SDL_SCANCODE_B: return 0x30;
+        case SDL_SCANCODE_N: return 0x31;
+        case SDL_SCANCODE_M: return 0x32;
+        case SDL_SCANCODE_LSHIFT: return 0x2A;
+        case SDL_SCANCODE_RSHIFT: return 0x36;
+        case SDL_SCANCODE_LCTRL: return 0x1D;
+        case SDL_SCANCODE_RCTRL: return 0x1D; // Windows maps both to 1D but with extended bit for right
+        case SDL_SCANCODE_LALT: return 0x38;
+        case SDL_SCANCODE_RALT: return 0x38;
+        case SDL_SCANCODE_ESCAPE: return 0x01;
+        case SDL_SCANCODE_RETURN: return 0x1C;
+        case SDL_SCANCODE_SPACE: return 0x39;
+        case SDL_SCANCODE_UP: return 0x48;
+        case SDL_SCANCODE_DOWN: return 0x50;
+        case SDL_SCANCODE_LEFT: return 0x4B;
+        case SDL_SCANCODE_RIGHT: return 0x4D;
+        case SDL_SCANCODE_TAB: return 0x0F;
+        case SDL_SCANCODE_BACKSPACE: return 0x0E;
+        case SDL_SCANCODE_INSERT: return 0x52;
+        case SDL_SCANCODE_DELETE: return 0x53;
+        case SDL_SCANCODE_HOME: return 0x47;
+        case SDL_SCANCODE_END: return 0x4F;
+        case SDL_SCANCODE_PAGEUP: return 0x49;
+        case SDL_SCANCODE_PAGEDOWN: return 0x51;
+        default: return 0;
+    }
+}
 
 void Dispose()
 {
+	for (auto pad : _gamepads) {
+        SDL_GameControllerClose(pad);
+    }
+    _gamepads.clear();
 	CGamepadController::Dispose();
 	CDXControls::Dispose();
 	CConstantBuffers::Dispose();
@@ -38,319 +120,194 @@ void Dispose()
 	dx.Dispose();
 }
 
-BOOL InitD3D()
+
+int main(int argc, char** argv)
 {
-	if (dx.Init(_hWnd, pConfig->Width, pConfig->Height, !pConfig->FullScreen, pConfig->AnisotropicFilter) == FALSE)
-	{
-		//MessageBox(_hWnd, dx.ErrorMessage, L"InitD3D", MB_OK);
-		return FALSE;
-	}
+    if (argc > 1) {
+        gamePath = argv[1];
+    }
 
-	CDXControls::Init();
+    bool uakm = false, pd = false;
+    std::string windowTitle = "";
 
-	CConstantBuffers::Setup2D(dx);	// Prepare for 2D rendering of title animation
+    if (CFile::Exists("TEX3.EXE")) {
+        uakm = true;
+        isUAKM = true;
+        windowTitle = "Tex Murphy: Under a Killing Moon";
+        pConfig = new CConfiguration("Under A Killing Moon");
+    }
+    else if (CFile::Exists("TEX4.EXE")) {
+        pd = true;
+        isUAKM = false;
+        windowTitle = "Tex Murphy: The Pandora Directive";
+        pConfig = new CConfiguration("The Pandora Directive");
+    }
+    else {
+        std::cerr << "Original game executables not found!" << std::endl;
+        return 1;
+    }
 
-	return TRUE;
-}
+    if (!dx.Init(nullptr, pConfig->Width, pConfig->Height, !pConfig->FullScreen, pConfig->AnisotropicFilter)) {
+        return 1;
+    }
+    SDL_SetWindowTitle((SDL_Window*)_hWnd, windowTitle.c_str());
+    SDL_ShowCursor(SDL_DISABLE);
 
-LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
-	{
-		case WM_ACTIVATEAPP:
-			PostThreadMessage(CModuleController::MainThreadId, message, wParam, lParam);
-			return 0;
-			break;
-		case WM_DESTROY:
-		{
-			// close the application entirely
-			_runDXThread = FALSE;
-			PostQuitMessage(0);
-			return 0;
-		}
-		case WM_KEYUP:
-		case WM_KEYDOWN:
-		{
-			PostThreadMessage(CModuleController::D3DThreadId, message, wParam, lParam);
-			return 0;
-			break;
-		}
-		case WM_SIZE:
-		{
-			dx.Resize(lParam & 0x7fff, (lParam >> 16) & 0x7fff);
-			break;
-		}
-	}
+    CDXControls::Init();
+    CConstantBuffers::Setup2D(dx);
 
-	return DefWindowProc(hWnd, message, wParam, lParam);
-}
+    if (uakm) pMIDI = new CMIDIPlayer();
+    else pMIDI = new CPDMIDIPlayer();
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{
-	if (CoInitializeEx(NULL, COINIT_MULTITHREADED) == S_OK)
-	{
-		int sw = GetSystemMetrics(SM_CXSCREEN);
-		int sh = GetSystemMetrics(SM_CYSCREEN);
+    CGameController::Init();
+    CAnimationController::Init();
+    CGamepadController::Init(nullptr);
 
-		BOOL uakm = FALSE, pd = FALSE;
-		HICON hIcon = NULL;
-		std::wstring windowTitle = L"";
-		if (CFile::Exists(L"TEX3.EXE"))
-		{
-			uakm = TRUE;
-			isUAKM = TRUE;
-			windowTitle = L"Tex Murphy: Under a Killing Moon v1.0";
-			hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON_UAKM));
-			pConfig = new CConfiguration(L"Under A Killing Moon");
-		}
-		else if (CFile::Exists(L"TEX4.EXE"))
-		{
-			pd = TRUE;
-			isUAKM = FALSE;
-			windowTitle = L"Tex Murphy: The Pandora Directive v0.0";
-			hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON_PD));
-			pConfig = new CConfiguration(L"The Pandora Directive");
-		}
-		else
-		{
-			MessageBox(NULL, L"Original game not found!", L"WinTex error", MB_OK);
-		}
+    CGameBase* pGame = nullptr;
+    if (uakm) pGame = new CUAKMGame();
+    else if (pd) pGame = new CPDGame();
 
-		if (pConfig != NULL)
-		{
-			WNDCLASSEX wc;
-			ZeroMemory(&wc, sizeof(WNDCLASSEX));
-			wc.cbSize = sizeof(WNDCLASSEX);
-			wc.style = CS_HREDRAW | CS_VREDRAW;
-			wc.lpfnWndProc = WindowProc;
-			wc.hInstance = hInstance;
-			wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-			wc.hIcon = hIcon;
-			wc.lpszClassName = L"WinTex";
-			wc.hbrBackground = CreateSolidBrush(RGB(0, 0, 0));
-			RegisterClassEx(&wc);
+	if (pGame)
+    {
+        CGameController::StartGame(pGame);
+        
+        CInputMapping::LoadControlsMap();
+        CModuleController::MainThreadId = 1; // Dummy ID for Linux
 
-			RECT wr = { 0, 0, pConfig->Width, pConfig->Height };
-			AdjustWindowRect(&wr, WS_CAPTION, FALSE);
+        // Game Loop
+        Uint32 lastTime = SDL_GetTicks();
+        SDL_Event event;
 
-			int windowX = (sw - pConfig->Width) / 2 + wr.left;
-			int windowY = (sh - pConfig->Height) / 2 + wr.top;
-			int windowWidth = wr.right - wr.left;
-			int windowHeight = wr.bottom - wr.top;
+        while (_runDXThread)
+        {
+            while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_QUIT) {
+                    _runDXThread = FALSE;
+                }
+                else if (event.type == SDL_WINDOWEVENT) {
+                    if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                        CModuleController::GotFocus();
+                    }
+                    else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                        CModuleController::LostFocus();
+                    }
+                }
+                else if (event.type == SDL_KEYDOWN) {
+                    if (event.key.keysym.sym == SDLK_ESCAPE) {
+                         // _runDXThread = FALSE; // Don't quit on ESC, let the game handle it
+                    } 
+                    
+                    int vk = MapSDLKeyToVK(event.key.keysym.sym);
+                    int scan = MapSDLScancodeToWinScan(event.key.keysym.scancode);
+                    // Construct lParam like Windows: 
+                    // 0-15: Repeat count (1)
+                    // 16-23: Scan code
+                    // 24: Extended key
+                    // 29: Context code
+                    // 30: Previous key state
+                    // 31: Transition state
+                    LPARAM lParam = (scan << 16) | 1; 
+                    if (vk != 0) CModuleController::KeyDown(vk, lParam);
+                }
+                else if (event.type == SDL_KEYUP) {
+                    int vk = MapSDLKeyToVK(event.key.keysym.sym);
+                    int scan = MapSDLScancodeToWinScan(event.key.keysym.scancode);
+                    LPARAM lParam = (scan << 16) | 0xC0000001; // Transition state 1, Previous state 1
+                    if (vk != 0) CModuleController::KeyUp(vk, lParam);
+                }
+                else if (event.type == SDL_MOUSEMOTION) {
+                    POINT pt;
+                    if (SDL_GetRelativeMouseMode()) {
+                        pt.x = (dx.GetWidth() / 2) + event.motion.xrel;
+                        pt.y = (dx.GetHeight() / 2) + event.motion.yrel;
+                    } else {
+                        pt.x = event.motion.x;
+                        pt.y = event.motion.y;
+                    }
+                    CModuleController::MouseMove(pt);
+                }
+                else if (event.type == SDL_MOUSEBUTTONDOWN) {
+                    POINT pt;
+                    pt.x = event.button.x;
+                    pt.y = event.button.y;
+                    int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;
+                    CModuleController::MouseDown(pt, btn);
+                }
+                else if (event.type == SDL_MOUSEBUTTONUP) {
+                    POINT pt;
+                    pt.x = event.button.x;
+                    pt.y = event.button.y;
+                    int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;
+                    CModuleController::MouseUp(pt, btn);
+                }
+                else if (event.type == SDL_MOUSEWHEEL) {
+                    // Windows WM_MOUSEWHEEL uses increments of 120 (WHEEL_DELTA)
+                    // SDL uses steps.
+                    CModuleController::MouseWheel(event.wheel.y * 120);
+                }
+                else if (event.type == SDL_CONTROLLERDEVICEADDED) {
+                    SDL_GameController* pad = SDL_GameControllerOpen(event.cdevice.which);
+                    if (pad) {
+                        _gamepads.push_back(pad);
+                        std::cout << "Gamepad added: " << SDL_GameControllerName(pad) << std::endl;
+                    }
+                }
+                else if (event.type == SDL_CONTROLLERDEVICEREMOVED) {
+                    SDL_GameController* pad = SDL_GameControllerFromInstanceID(event.cdevice.which);
+                    if (pad) {
+                        SDL_GameControllerClose(pad);
+                        for (auto it = _gamepads.begin(); it != _gamepads.end(); ++it) {
+                            if (*it == pad) {
+                                _gamepads.erase(it);
+                                break;
+                            }
+                        }
+                         std::cout << "Gamepad removed" << std::endl;
+                    }
+                }
+                else if (event.type == SDL_CONTROLLERBUTTONDOWN || event.type == SDL_CONTROLLERBUTTONUP) {
+                    InputSource source = InputSource::JoystickButton;
+                    int offset = 48 + event.cbutton.button; // Map SDL buttons starting at DI offset 48
+                    int data = (event.type == SDL_CONTROLLERBUTTONDOWN) ? 0x80 : 0x00;
+                    if (data & 0x80) data = (data & 0x7f) | 0x80000000; // Match Windows behavior for button press
+                    
+                    CModuleController::GamepadInput(source, offset, data);
+                }
+                else if (event.type == SDL_CONTROLLERAXISMOTION) {
+                    InputSource source = InputSource::JoystickAxis;
+                    int offset = -1;
+                    switch (event.caxis.axis) {
+                        case SDL_CONTROLLER_AXIS_LEFTX: offset = 0; break;
+                        case SDL_CONTROLLER_AXIS_LEFTY: offset = 4; break;
+                        case SDL_CONTROLLER_AXIS_RIGHTX: offset = 12; break; // lRx
+                        case SDL_CONTROLLER_AXIS_RIGHTY: offset = 16; break; // lRy
+                        case SDL_CONTROLLER_AXIS_TRIGGERLEFT: offset = 8; break; // lZ
+                        case SDL_CONTROLLER_AXIS_TRIGGERRIGHT: offset = 20; break; // lRz
+                    }
+                    
+                    if (offset != -1) {
+                         // Scale -32768..32767 to -1000..1000
+                         int val = (int)(event.caxis.value * 1000.0f / 32767.0f);
+                         CModuleController::GamepadInput(source, offset, val);
+                    }
+                }
+            }
 
-			// create the window and use the result as the handle
-			_hWnd = CreateWindowEx(0,
-								   L"WinTex",									// name of the window class
-								   windowTitle.c_str(),						// title of the window in release mode
-								   WS_CAPTION,									// window style
-								   windowX,									// x-position of the window
-								   windowY,									// y-position of the window
-								   windowWidth,								// width of the window
-								   windowHeight,								// height of the window
-								   NULL,										// we have no parent window, NULL
-								   NULL,										// we aren't using menus, NULL
-								   hInstance,									// application handle
-								   NULL);										// used with multiple windows, NULL
+            Uint32 currentTime = SDL_GetTicks();
+            Uint32 deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
 
-			ShowWindow(_hWnd, nCmdShow);
-			ShowCursor(FALSE);
-
-			SetCursorPos(windowX + windowWidth / 2, windowY + windowHeight / 2);
-
-			if (InitD3D())
-			{
-				try
-				{
-					if (uakm)
-					{
-						pMIDI = new CMIDIPlayer();
-					}
-					else if (pd)
-					{
-						pMIDI = new CPDMIDIPlayer();
-					}
-
-					CGameController::Init();
-					CAnimationController::Init();
-
-					CGamepadController::Init(_hWnd);
-
-					//MessageBox(NULL, L"Creating game", NULL, 0);
-
-					CGameBase* pGame = NULL;
-
-					// Check which game folder we're in
-					if (uakm)
-					{
-						pGame = new CUAKMGame();
-					}
-					else if (pd)
-					{
-						pGame = new CPDGame();
-					}
-
-					if (pGame != NULL)
-					{
-						CGameController::StartGame(pGame);
-
-						CInputMapping::LoadControlsMap();
-
-						CModuleController::MainThreadId = GetCurrentThreadId();
-
-						HANDLE hThread = CreateThread(NULL, 1048576, Direct3DThread, NULL, 0, &CModuleController::D3DThreadId);
-						HANDLE hTimerThread = CreateThread(NULL, 1048576, TimerThread, NULL, 0, &CModuleController::TimerThreadId);
-
-						MSG msg = { 0 };
-						while (_runDXThread)
-						{
-							if (GetMessage(&msg, NULL, 0, 0))
-							{
-								if (msg.message == WM_CLOSE)
-								{
-									_runDXThread = FALSE;
-									break;
-								}
-								else if (msg.message == WM_ACTIVATEAPP) {
-									if (msg.wParam == TRUE) {
-										CModuleController::GotFocus();
-									}
-									else {
-										CModuleController::LostFocus();
-									}
-								}
-								else if (msg.message == WM_DISPLAYCHANGE);// OutputDebugString(L"Display Change\r\n");
-								else if (msg.message == WM_MOUSEMOVE && GetFocus() == _hWnd)
-								{
-									POINT pt;
-									pt.x = (msg.lParam) & 0xffff;
-									pt.y = (msg.lParam >> 16) & 0xffff;
-									CModuleController::MouseMove(pt);
-								}
-								else if (msg.message == WM_NCMOUSEMOVE);
-								else if (msg.message == WM_NCMOUSELEAVE);
-								else if (msg.message == WM_DWMNCRENDERINGCHANGED);
-								else if (msg.message == WM_PAINT);
-								else if (msg.message == WM_TIMER);
-								else if (msg.message == WM_NCLBUTTONDOWN);
-								else if (msg.message == WM_LBUTTONDOWN || msg.message == WM_MBUTTONDOWN || msg.message == WM_RBUTTONDOWN)
-								{
-									POINT pt;
-									pt.x = (msg.lParam) & 0xffff;
-									pt.y = (msg.lParam >> 16) & 0xffff;
-									CModuleController::MouseDown(pt, (msg.message == WM_LBUTTONDOWN) ? -1 : (msg.message == WM_MBUTTONDOWN) ? 0 : 1);
-								}
-								else if (msg.message == WM_LBUTTONUP || msg.message == WM_MBUTTONUP || msg.message == WM_RBUTTONUP)
-								{
-									POINT pt;
-									pt.x = (msg.lParam) & 0xffff;
-									pt.y = (msg.lParam >> 16) & 0xffff;
-									CModuleController::MouseUp(pt, (msg.message == WM_LBUTTONUP) ? -1 : (msg.message == WM_MBUTTONUP) ? 0 : 1);
-								}
-								else if (msg.message == WM_MOUSEWHEEL)
-								{
-									CModuleController::MouseWheel(static_cast<int>(msg.wParam));
-								}
-								else if (msg.message == WM_KEYDOWN)
-								{
-									CModuleController::KeyDown(msg.wParam, msg.lParam);
-								}
-								else if (msg.message == WM_KEYUP)
-								{
-									CModuleController::KeyUp(msg.wParam, msg.lParam);
-								}
-								else if (msg.message == WM_SIZE)
-								{
-									// Resize buffers
-									dx.Resize(::pConfig->Width, ::pConfig->Height);
-								}
-								else if (msg.message == UM_GAMEPAD)
-								{
-									InputSource source = (InputSource)(msg.wParam >> 16);
-									CModuleController::GamepadInput(source, msg.wParam & 0xffff, static_cast<int>(msg.lParam));
-								}
-								else
-								{
-									//OutputDebugString(L"Message: ");
-									//OutputDebugString(_itow(msg.message, buffer, 16));
-									//OutputDebugString(L"\r\n");
-								}
-
-								TranslateMessage(&msg);
-								DispatchMessage(&msg);
-							}
-						}
-
-						WaitForSingleObject(hThread, INFINITE);
-						CloseHandle(hThread);
-
-						CAnimationController::Clear();
-
-						if (pGame != NULL)
-						{
-							delete pGame;
-							pGame = NULL;
-						}
-					}
-					else if (!uakm && !pd)
-					{
-						MessageBox(NULL, L"Unable to determine game", NULL, 0);
-					}
-					else
-					{
-						MessageBox(NULL, L"Unable to start game", NULL, 0);
-					}
-				}
-				catch (...)
-				{
-					MessageBox(NULL, L"Caught an exception!", NULL, 0);
-				}
-			}
-
-			//MessageBox(NULL, L"Disposing", NULL, 0);
-			Dispose();
-		}
-
-		CoUninitialize();
-	}
-	else
-	{
-		MessageBox(NULL, L"Failed to initialize COM", L"Disaster!", 0);
-	}
-
-	return 0;
-}
-
-DWORD WINAPI Direct3DThread(LPVOID lpParameter)
-{
-	while (_runDXThread)
-	{
-		try
-		{
-			CGamepadController::GamepadController->Update();	// Get joystick events
-			CModuleController::Render();
-		}
-		catch (...)
-		{
-			MessageBox(NULL, L"Exception", L"Exception", 0);
-		}
-	}
-
-	return 0;
-}
-
-DWORD WINAPI TimerThread(LPVOID lpParameter)
-{
-	// All this thread does is check timers
-	ULONGLONG time = GetTickCount64();
-
-	while (_runDXThread)
-	{
-		ULONGLONG now = GetTickCount64();
-		CGameController::Tick((int)(now - time));
-		time = now;
-
-		Sleep(50);
-	}
-
-	return 0;
+            CGameController::Tick(deltaTime);
+			CGamepadController::GamepadController->Update();
+            CModuleController::Render();
+            
+            // Small sleep to prevent 100% CPU usage
+            SDL_Delay(1);
+        }
+        CAnimationController::Clear();
+        if (pGame) delete pGame;
+    }
+    
+    Dispose();
+    return 0;
 }

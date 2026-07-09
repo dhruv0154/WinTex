@@ -4,8 +4,7 @@
 #include "Caption.h"
 #include "GameBase.h"
 #include "ModuleBase.h"
-
-#pragma comment( lib, "dxguid.lib")
+#include "Globals.h"
 
 CDirectX dx;
 
@@ -16,15 +15,12 @@ std::list<CCaption*> captions2;
 std::list<CCaption*>* pDisplayCaptions = &captions1;
 std::list<CCaption*>* pAddCaptions = &captions2;
 
-PWSTR gamePath = NULL;
-#ifdef PLATFORM_LINUX
-std::string gDataPath = "";
-#endif
+std::string gamePath = "";
 
-float twopi = XM_PI * 2;
-HWND _hWnd = NULL;
+float twopi = 6.283185307f;
+void* _hWnd = nullptr;
 
-CConfiguration* pConfig = NULL;
+CConfiguration* pConfig = nullptr;
 
 CMutex _lock;
 
@@ -32,14 +28,14 @@ CDXDialogueOption DialogueOptions[3];
 int DialogueOptionsCount = 0;
 CDXFont TexFont;
 
-CMIDIPlayer* pMIDI = NULL;
+CMIDIPlayer* pMIDI = nullptr;
 
-BOOL isUAKM = TRUE;
+bool isUAKM = true;
 
-COverlay* pOverlay = NULL;
-COverlay* pClimbLadderOverlay = NULL;
-COverlay* pConvertPointsOverlay = NULL;
-COverlay* pElevationModOverlay = NULL;
+COverlay* pOverlay = nullptr;
+COverlay* pClimbLadderOverlay = nullptr;
+COverlay* pConvertPointsOverlay = nullptr;
+COverlay* pElevationModOverlay = nullptr;
 
 int DefaultCaptionColour1 = 0;
 int DefaultCaptionColour2 = -1;
