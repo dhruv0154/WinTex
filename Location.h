@@ -1,11 +1,5 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include "Map.h"
 #include <vector>
 #include "LZ.h"
@@ -30,7 +24,7 @@ public:
 	CLocation();
 	~CLocation();
 
-	BOOL Load(int locationFileIndex);
+	bool Load(int locationFileIndex);
 
 	void Render();
 
@@ -39,18 +33,18 @@ public:
 	void Move(float mx, float my, float mz, float tmx);
 	void DeltaAngles(float angle1, float angle2);
 
-	BOOL PointingChanged;
+	bool PointingChanged;
 
 	int GetPickObject(int& objectId, int& subObjectId);
-	void SetObjectVisibility(int objectId, BOOL visible);
+	void SetObjectVisibility(int objectId, bool visible);
 
 	void StartMappedAnimation(int index);
 	void StartIndexedAnimation(int index);
 	void StartIdAnimation(int index);
 	void StopMappedAnimation(int index);
 	void StopIndexedAnimation(int index);
-	BOOL IsAnimationFinished(int index);
-	BOOL IsIndexedAnimationFinished(int index);
+	bool IsAnimationFinished(int index);
+	bool IsIndexedAnimationFinished(int index);
 	int GetAnimationFrame(int index);
 	int GetIndexedAnimationFrame(int index);
 	void Animate();
@@ -79,7 +73,7 @@ public:
 	static float _y_elevation;
 
 #ifdef DEBUG
-	void MoveObject(float delta, BOOL X, BOOL Y, BOOL Z);
+	void MoveObject(float delta, bool X, bool Y, bool Z);
 #endif
 
 protected:
@@ -113,7 +107,7 @@ protected:
 	Point* _points;
 	ID3D11Buffer* _vertexBuffer;
 
-	static BOOL _loading;
+	static bool _loading;
 
 	CLocationObject* _pLocObjects;
 	CLocationSubObject* _pLocSubObjects;
@@ -189,7 +183,7 @@ protected:
 			SpriteVerticeCount = 0;
 		}
 
-		BOOL Rotated;
+		bool Rotated;
 
 		CTexture* pTexture;
 		std::vector<CTexture*> Textures;
@@ -197,7 +191,7 @@ protected:
 		int AnimatedTextureIndex;
 		LPBYTE SourcePointer;
 
-		BOOL Transparent;
+		bool Transparent;
 		std::vector<Triangle> Triangles;
 		std::vector<Triangle> TransparentTriangles;
 		//int VertexStart;
@@ -224,8 +218,8 @@ protected:
 	{
 		int Id;
 		std::vector<DPoint> Points;
-		BOOL enabled;
-		BOOL allowLeave;
+		bool enabled;
+		bool allowLeave;
 	};
 
 	Path* _paths;
@@ -234,15 +228,15 @@ protected:
 	ID3D11Buffer* _spriteVertexBuffer;
 	int _spriteVerticeCount;
 
-	std::unordered_map<int, BOOL> opaqueTextures;
-	std::unordered_map<int, BOOL> transparentTextures;
-	std::unordered_map<int, BOOL> processedTextures;
+	std::unordered_map<int, bool> opaqueTextures;
+	std::unordered_map<int, bool> transparentTextures;
+	std::unordered_map<int, bool> processedTextures;
 
 	ModelObject** _ppObjects;
 	int _objectCount;
 	int _subObjectCount;
 
-	BOOL Intersect(Box& boundingBox, Point& from, Point& direction);
+	bool Intersect(Box& boundingBox, Point& from, Point& direction);
 
 	int HitObject;
 	int HitSubObject;
@@ -252,8 +246,8 @@ protected:
 	TranslationBufferType _translationBuffer;
 	ObjectMap* _objectMap;
 	int _objectMapCount;
-	BOOL _visibilityChanged;
-	BOOL _translationChanged;
+	bool _visibilityChanged;
+	bool _translationChanged;
 
 	void ModifyLocationPoints(std::wstring file);
 	void ModifyLocationPoints(int startix, int endix, float x, float y, float z);
@@ -267,18 +261,18 @@ protected:
 	std::list<CElevation*> Elevations;
 
 	ObjectVisibilityMapping* _improvedObjectMap;
-	void ChangeVisibility(int id, BOOL visible, BOOL setOnSubObjects, std::wstring header);
+	void ChangeVisibility(int id, bool visible, bool setOnSubObjects, std::wstring header);
 
 #ifdef DEBUG
 	void RenderPoints();
 	void RenderLines();
 	void RenderPath();
 public:
-	static BOOL _renderTextured;
-	static BOOL _renderPoints;
-	static BOOL _renderLines;
-	static BOOL _renderPaths;
-	static BOOL _disableClipping;
+	static bool _renderTextured;
+	static bool _renderPoints;
+	static bool _renderLines;
+	static bool _renderPaths;
+	static bool _disableClipping;
 
 	ID3D11Buffer* _pathVertexBuffer;
 	ID3D11Buffer* _pathIndexBuffer;

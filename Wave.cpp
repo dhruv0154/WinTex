@@ -1,5 +1,6 @@
 #include "Wave.h"
 #include "Utilities.h"
+#include <SDL2/SDL.h>
 
 CWave::CWave()
 {
@@ -10,9 +11,9 @@ CWave::~CWave()
 {
 }
 
-BOOL CWave::Init(LPBYTE pData, int length)
+bool CWave::Init(uint8_t* pData, int length)
 {
-	BOOL ret = CAnimBase::Init(pData, length);
+	bool ret = CAnimBase::Init(pData, length);
 
 	// Validate that the file is a WAVE
 	if (ret && GetInt(pData, 0, 4) == 0x46464952)
@@ -24,41 +25,34 @@ BOOL CWave::Init(LPBYTE pData, int length)
 	return ret;
 }
 
-BOOL CWave::DecodeFrame()
+bool CWave::DecodeFrame()
 {
 	if (_remainingAudioLength > 0)
 	{
 		// This is a new audio buffer
-		if (_sourceVoice == NULL)
+		if (_sourceVoice == nullptr)
 		{
-			char formatBuff[64];
-			WAVEFORMATEX* pwfx = reinterpret_cast<WAVEFORMATEX*>(&formatBuff);
-			pwfx->wFormatTag = GetInt(_pInputBuffer, 0x14, 2);// WAVE_FORMAT_PCM;
-			pwfx->nChannels = GetInt(_pInputBuffer, 0x16, 2);
-			pwfx->nSamplesPerSec = GetInt(_pInputBuffer, 0x18, 4);
-			pwfx->nAvgBytesPerSec = GetInt(_pInputBuffer, 0x1c, 4);
-			pwfx->nBlockAlign = 2;
-			pwfx->wBitsPerSample = GetInt(_pInputBuffer, 0x22, 2);
-			pwfx->cbSize = 0;
-			_sourceVoice = CDXSound::CreateSourceVoice(pwfx, 0, 1.0f, this);
+			AudioFormat fmt;
+            fmt.channels = GetInt(_pInputBuffer, 0x16, 2);
+            fmt.samplesPerSec = GetInt(_pInputBuffer, 0x18, 4);
+            fmt.bitsPerSample = GetInt(_pInputBuffer, 0x22, 2);
+            
+            // Route to our new SDL Audio Engine
+            _sourceVoice = CDXSound::CreateAudioStream(fmt);
 		}
 
-		if (_sourceVoice != NULL)
+		if (_sourceVoice != nullptr)
 		{
-			_sourceVoice->Start(0, 0);
+			_sourceVoice->Start();
 
-			XAUDIO2_BUFFER buf = { 0 };
-			buf.AudioBytes = _remainingAudioLength;
-			buf.pAudioData = _pInputBuffer + 0x2c;
-			_sourceVoice->SubmitSourceBuffer(&buf);
+            _sourceVoice->SubmitBuffer((const uint8_t*)(_pInputBuffer + 0x2c), _remainingAudioLength);
 
-			_audioFramesQueued = 1;
+            _audioFramesQueued = 1;
+            _remainingAudioLength = 0;
 
-			_remainingAudioLength = 0;
-
-			_timeOfStart = GetTickCount64();
+            _timeOfStart = SDL_GetTicks64();
 		}
 	}
 
-	return TRUE;
+	return true;
 }

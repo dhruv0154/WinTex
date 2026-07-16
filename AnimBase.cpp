@@ -2,15 +2,16 @@
 #include "Utilities.h"
 #include "Globals.h"
 #include "ShaderStructs.h"
+#include <cstring>
 
 CAnimBase::CAnimBase()
 {
-	_pInputBuffer = NULL;
-	_pVideoOutputBuffer = NULL;
+	_pInputBuffer = nullptr;
+	_pVideoOutputBuffer = nullptr;
 	_inputBufferLength = 0;
 	_videoFramePointer = 0;
 	_audioFramePointer = 0;
-	_pPalette = NULL;
+	_pPalette = nullptr;
 
 	_width = 0;
 	_height = 0;
@@ -19,9 +20,9 @@ CAnimBase::CAnimBase()
 	_lastFrameUpdate = 0;
 	_frame = 0;
 
-	_vertexBuffer = NULL;
+	_vertexBuffer = nullptr;
 
-	_sourceVoice = NULL;
+	_sourceVoice = nullptr;
 	_remainingAudioLength = 0;
 
 	_audioFramesQueued = 0;
@@ -29,58 +30,58 @@ CAnimBase::CAnimBase()
 	_videoFramesProcessed = 0;
 
 	_framePointer = 0;
-	_done = FALSE;
+	_done = false;
 
 	for (int i = 0; i < 64; i++)
 	{
-		_colourTranslationTable[i] = (BYTE)(4.04762 * i);
+		_colourTranslationTable[i] = (uint8_t)(4.04762 * i);
 	}
 }
 
 CAnimBase::~CAnimBase()
 {
-	if (_sourceVoice != NULL)
+	if (_sourceVoice != nullptr)
 	{
 		_sourceVoice->Stop();
 		_sourceVoice->DestroyVoice();
-		_sourceVoice = NULL;
+		_sourceVoice = nullptr;
 	}
 
-	if (_pInputBuffer != NULL)
+	if (_pInputBuffer != nullptr)
 	{
 		delete[] _pInputBuffer;
-		_pInputBuffer = NULL;
+		_pInputBuffer = nullptr;
 	}
 
-	if (_pPalette != NULL)
+	if (_pPalette != nullptr)
 	{
 		delete[] _pPalette;
-		_pPalette = NULL;
+		_pPalette = nullptr;
 	}
 
-	if (_pVideoOutputBuffer != NULL)
+	if (_pVideoOutputBuffer != nullptr)
 	{
 		delete[] _pVideoOutputBuffer;
-		_pVideoOutputBuffer = NULL;
+		_pVideoOutputBuffer = nullptr;
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
+		_vertexBuffer = nullptr;
 	}
 }
 
-BOOL CAnimBase::Init(LPBYTE pData, int length)
+bool CAnimBase::Init(LPBYTE pData, int length)
 {
 	_pInputBuffer = pData;
 	_inputBufferLength = length;
 	_screenWidth = dx.GetWidth();
 	_screenHeight = dx.GetHeight();
 	_pPalette = new int[256];
-	ZeroMemory(_pPalette, sizeof(int) * 256);
+	memset(_pPalette, 0, sizeof(int) * 256);
 
-	return TRUE;
+	return true;
 }
 
 void CAnimBase::CreateBuffers(int width, int height, int factor)
@@ -89,8 +90,8 @@ void CAnimBase::CreateBuffers(int width, int height, int factor)
 	{
 		int bufferHeight = (((height + 7) / 8) * 8);
 
-		_pVideoOutputBuffer = new BYTE[width * bufferHeight];
-		ZeroMemory(_pVideoOutputBuffer, width * bufferHeight);
+		_pVideoOutputBuffer = new uint8_t[width * bufferHeight];
+		memset(_pVideoOutputBuffer, 0, width * bufferHeight);
 
 		// Setup vertex buffer, keep aspect ratio
 		float sx = (float)_screenWidth / (float)(width * factor);
@@ -109,32 +110,27 @@ void CAnimBase::CreateBuffers(int width, int height, int factor)
 		bottom = floor(top - sh) + 0.5f;
 
 		TEXTURED_VERTEX* vertices = new TEXTURED_VERTEX[4];
-		if (vertices != NULL)
+		if (vertices != nullptr)
 		{
-			vertices[0].position = XMFLOAT3(right, top, 0.0f);
-			vertices[0].texture = XMFLOAT2(1.0f, 0.0f);
+			vertices[0].position = float3{right, top, 0.0f};
+			vertices[0].texture = float2{1.0f, 0.0f};
 
-			vertices[1].position = XMFLOAT3(right, bottom, 0.0f);
-			vertices[1].texture = XMFLOAT2(1.0f, 1.0f);
+			vertices[1].position = float3{right, bottom, 0.0f};
+			vertices[1].texture = float2{1.0f, 1.0f};
 
-			vertices[2].position = XMFLOAT3(left, top, 0.0f);
-			vertices[2].texture = XMFLOAT2(0.0f, 0.0f);
+			vertices[2].position = float3{left, top, 0.0f};
+			vertices[2].texture = float2{0.0f, 0.0f};
 
-			vertices[3].position = XMFLOAT3(left, bottom, 0.0f);
-			vertices[3].texture = XMFLOAT2(0.0f, 1.0f);
+			vertices[3].position = float3{left, bottom, 0.0f};
+			vertices[3].texture = float2{0.0f, 1.0f};
 
 			D3D11_BUFFER_DESC vertexBufferDesc;
 			vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 			vertexBufferDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 4;
 			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vertexBufferDesc.MiscFlags = 0;
-			vertexBufferDesc.StructureByteStride = 0;
 
 			D3D11_SUBRESOURCE_DATA vertexData;
 			vertexData.pSysMem = vertices;
-			vertexData.SysMemPitch = 0;
-			vertexData.SysMemSlicePitch = 0;
 
 			dx.CreateBuffer(&vertexBufferDesc, &vertexData, &_vertexBuffer, "AnimBaseBuffer");
 
@@ -145,17 +141,22 @@ void CAnimBase::CreateBuffers(int width, int height, int factor)
 
 void CAnimBase::Render()
 {
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = {{
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+		}};
 
 		CShaders::SelectOrthoShader();
 		CConstantBuffers::SetWorld(dx, &wm);
@@ -167,19 +168,34 @@ void CAnimBase::Render()
 	}
 }
 
-BOOL CAnimBase::Init(BinaryData bd)
+bool CAnimBase::Init(BinaryData bd)
 {
 	return Init(bd.Data, bd.Length);
 }
 
-BOOL CAnimBase::Update()
+bool CAnimBase::Update()
 {
-	BOOL updated = FALSE;
+	bool updated = false;
 
 	if (!_done)
 	{
-		ULONGLONG tick = GetTickCount64();
-		ULONGLONG diff = tick - _lastFrameUpdate;
+		if (_sourceVoice != nullptr && _audioBuffers.size() > 0) 
+		{
+			if (_lock.Lock())
+			{
+				while (_audioBuffers.size() > 0)
+				{
+					Buffer ab = _audioBuffers.front();
+					_audioBuffers.pop_back();
+					_sourceVoice->SubmitBuffer(ab.pData, ab.Size);
+				}
+				_lock.Release();
+			}
+		}
+
+		uint64_t tick = SDL_GetTicks64();
+		uint64_t diff = tick - _lastFrameUpdate;
+
 		if (diff >= _frameTime)
 		{
 			//wchar_t buffer[10];
@@ -197,10 +213,10 @@ BOOL CAnimBase::Update()
 
 					// Replace texture if new video frame is required (frame time has lapsed, video frame exists)
 					ID3D11Texture2D* pTex = _texture.GetTexture();
-					if (pTex != NULL)
+					if (pTex != nullptr)
 					{
 						D3D11_MAPPED_SUBRESOURCE subRes;
-						if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+						if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 						{
 							int* pScr = (int*)subRes.pData;
 							for (int y = 0; y < _height; y++)
@@ -223,9 +239,16 @@ BOOL CAnimBase::Update()
 				if (_lastFrameUpdate == 0) _lastFrameUpdate = diff - _frameTime;
 				_lastFrameUpdate += _frameTime;
 
+				bool audioFinished = false;
+
+				if (_sourceVoice != nullptr)
+				{
+					audioFinished = (_sourceVoice->GetPendingBufferCount() == 0);
+				}
+
 				if (_framePointer >= _inputBufferLength && _audioFramesProcessed == _audioFramesQueued)
 				{
-					_done = TRUE;
+					_done = true;
 				}
 
 				//if ((_framePointer == 0 || _framePointer >= _inputBufferLength) && _audioFramesProcessed == _audioFramesQueued)
@@ -235,13 +258,13 @@ BOOL CAnimBase::Update()
 				//	{
 				//		return;
 				//	}
-				//	_done = TRUE;
+				//	_done = true;
 				//}
 
 				//_lock.Release();
 			}
 
-			updated = TRUE;
+			updated = true;
 		}
 	}
 
@@ -251,7 +274,7 @@ BOOL CAnimBase::Update()
 void CAnimBase::Skip()
 {
 	// Any audio must be stopped
-	if (_sourceVoice != NULL)
+	if (_sourceVoice != nullptr)
 	{
 		_sourceVoice->Stop();
 		_audioFramesProcessed = _audioFramesQueued;
@@ -259,7 +282,7 @@ void CAnimBase::Skip()
 
 	_audioBuffers.clear();
 
-	_done = TRUE;
+	_done = true;
 }
 
 void CAnimBase::Resize(int width, int height)
@@ -268,10 +291,10 @@ void CAnimBase::Resize(int width, int height)
 
 	if (width > 0 && height > 0)
 	{
-		if (_vertexBuffer != NULL)
+		if (_vertexBuffer != nullptr)
 		{
 			_vertexBuffer->Release();
-			_vertexBuffer = NULL;
+			_vertexBuffer = nullptr;
 		}
 
 		_screenWidth = width;
@@ -294,32 +317,27 @@ void CAnimBase::Resize(int width, int height)
 		bottom = floor(top - sh) + 0.5f;
 
 		TEXTURED_VERTEX* vertices = new TEXTURED_VERTEX[4];
-		if (vertices != NULL)
+		if (vertices != nullptr)
 		{
-			vertices[0].position = XMFLOAT3(right, top, 0.0f);
-			vertices[0].texture = XMFLOAT2(1.0f, 0.0f);
+			vertices[0].position = float3(right, top, 0.0f);
+			vertices[0].texture = float2(1.0f, 0.0f);
 
-			vertices[1].position = XMFLOAT3(right, bottom, 0.0f);
-			vertices[1].texture = XMFLOAT2(1.0f, 1.0f);
+			vertices[1].position = float3(right, bottom, 0.0f);
+			vertices[1].texture = float2(1.0f, 1.0f);
 
-			vertices[2].position = XMFLOAT3(left, top, 0.0f);
-			vertices[2].texture = XMFLOAT2(0.0f, 0.0f);
+			vertices[2].position = float3(left, top, 0.0f);
+			vertices[2].texture = float2(0.0f, 0.0f);
 
-			vertices[3].position = XMFLOAT3(left, bottom, 0.0f);
-			vertices[3].texture = XMFLOAT2(0.0f, 1.0f);
+			vertices[3].position = float3(left, bottom, 0.0f);
+			vertices[3].texture = float2(0.0f, 1.0f);
 
 			D3D11_BUFFER_DESC vertexBufferDesc;
 			vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 			vertexBufferDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 4;
 			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vertexBufferDesc.MiscFlags = 0;
-			vertexBufferDesc.StructureByteStride = 0;
 
 			D3D11_SUBRESOURCE_DATA vertexData;
 			vertexData.pSysMem = vertices;
-			vertexData.SysMemPitch = 0;
-			vertexData.SysMemSlicePitch = 0;
 
 			dx.CreateBuffer(&vertexBufferDesc, &vertexData, &_vertexBuffer, "AnimBaseBuffer");
 

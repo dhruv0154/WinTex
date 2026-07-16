@@ -35,7 +35,8 @@ struct ID3D11Resource {
 
 struct D3D11_BUFFER_DESC { 
 	uint32_t ByteWidth; 
-	uint32_t BindFlags; uint32_t Usage; 
+	uint32_t BindFlags;
+    uint32_t Usage; 
 };
 
 struct D3D11_SUBRESOURCE_DATA { 

@@ -1,70 +1,33 @@
 #pragma once
 
 #include "Globals.h"
-#include "D3D11-NoWarn.h"
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <dsound.h>
-#include <xaudio2.h>
-#else
-#include "Win32Compat.h"
-#endif
+#include "DXSound.h"
 #include "LZ.h"
 #include "DirectX.h"
 #include "Texture.h"
 #include "Mutex.h"
+#include <SDL2/SDL.h>
+#include <cstdint>
+#include <list>
 
-class CAnimBase : public CDXBase, public IXAudio2VoiceCallback
+class CAnimBase : public CDXBase
 {
 public:
 	CAnimBase();
 	~CAnimBase();
 
-	virtual BOOL Init(LPBYTE pData, int length);
-	BOOL Init(BinaryData bd);
+	virtual bool Init(uint8_t* pData, int length);
+	bool Init(BinaryData bd);
 
 	void Render();
-	virtual BOOL Update();
+	virtual bool Update();
 
-	virtual BOOL IsWave() { return FALSE; }
-	virtual BOOL HasVideo() { return TRUE; }
+	virtual bool IsWave() { return false; }
+	virtual bool HasVideo() { return true; }
 
-	virtual BOOL ShouldClearDXBuffer() { return TRUE; }
+	virtual bool ShouldClearDXBuffer() { return true; }
 
-	STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32) { }
-	STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
-	STDMETHOD_(void, OnStreamEnd)() { }
-	STDMETHOD_(void, OnBufferStart)(void*) { }
-	STDMETHOD_(void, OnBufferEnd)(void*)
-	{
-		_audioFramesProcessed++;
-
-		if (_lock.Lock())
-		{
-			if (_sourceVoice != NULL)
-			{
-				if (_audioBuffers.size() > 0)
-				{
-					// Enqueue the next buffer
-					Buffer ab = _audioBuffers.front();
-					_audioBuffers.pop_front();
-
-					XAUDIO2_BUFFER buf = { 0 };
-					buf.AudioBytes = ab.Size;
-					buf.pAudioData = ab.pData;
-					_sourceVoice->SubmitSourceBuffer(&buf);
-
-					_audioFramesQueued++;
-				}
-			}
-
-			_lock.Release();
-		}
-	}
-	STDMETHOD_(void, OnLoopEnd)(void*) { }
-	STDMETHOD_(void, OnVoiceError)(void*, HRESULT) { }
-
-	virtual BOOL IsDone() { return _done; }
+	virtual bool IsDone() { return _done; }
 	virtual void Skip();
 	int Frame() { return _frame; }
 
@@ -75,12 +38,12 @@ public:
 
 protected:
 	std::list<Buffer> _audioBuffers;
-	LPBYTE _pInputBuffer;
-	LPBYTE _pVideoOutputBuffer;
+	uint8_t* _pInputBuffer;
+	uint8_t* _pVideoOutputBuffer;
 	int _inputBufferLength;
 	int _videoFramePointer;
 	int _audioFramePointer;
-	LPINT _pPalette;
+	int* _pPalette;
 
 	int _width;
 	int _height;
@@ -88,16 +51,16 @@ protected:
 	int _frameTime;
 	int _frame;
 
-	ULONGLONG _lastFrameUpdate;
+	uint64_t _lastFrameUpdate;
 
-	virtual BOOL DecodeFrame() { return FALSE; }
+	virtual bool DecodeFrame() { return false; }
 	int _framePointer;
 
 	virtual void CreateBuffers(int width, int height, int factor = 1);
 
 	ID3D11Buffer* _vertexBuffer;
 
-	IXAudio2SourceVoice* _sourceVoice;
+	CAudioStream* _sourceVoice;
 	int _remainingAudioLength;
 
 	int _audioFramesQueued;
@@ -109,9 +72,9 @@ protected:
 
 	CTexture _texture;
 
-	BOOL _done;
+	bool _done;
 
-	BYTE _colourTranslationTable[64];
+	uint8_t _colourTranslationTable[64];
 
 	CMutex _lock;
 };

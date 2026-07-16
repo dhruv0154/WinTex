@@ -1,12 +1,8 @@
 #include "DXSound.h"
-#include "Globals.h"
+#include "Configuration.h"
 #include <iostream>
 #include <algorithm>
 
-IXAudio2* CDXSound::XAudio2 = NULL;
-IXAudio2MasteringVoice* CDXSound::MasteringVoice = NULL;
-
-#ifdef PLATFORM_LINUX
 SDL_AudioDeviceID CDXSound::_audioDevice = 0;
 std::vector<CDXSound*> CDXSound::_activeSounds;
 std::vector<CDXSourceVoice*> _activeVoices; // Global list of active voices
@@ -14,63 +10,41 @@ std::mutex CDXSound::_mutex;
 float CDXSound::_masterVolume = 1.0f;
 int CDXSound::_outputFreq = 44100;
 
-// CDXSourceVoice Implementation
-CDXSourceVoice::CDXSourceVoice(const WAVEFORMATEX* pwfx, IXAudio2VoiceCallback* pCallback) {
+CAudioStream::CAudioStream(const AudioFormat& format) {
     _playing = false;
     _volume = 1.0f;
-    _pCallback = pCallback;
-    if (pwfx) _format = *pwfx;
-    else memset(&_format, 0, sizeof(_format));
-    
+    _format = format
+
     std::lock_guard<std::mutex> lock(CDXSound::_mutex);
-    _activeVoices.push_back(this);
+    CDXSound::_activeStreams.push_back(this);
 }
 
-CDXSourceVoice::~CDXSourceVoice() {
-    DestroyVoice();
+CAudioStream::~CAudioStream() {
+    DestroyStream();
 }
 
-void CDXSourceVoice::DestroyVoice() {
+void CAudioStream::DestroyStream() {
     std::lock_guard<std::mutex> lock(CDXSound::_mutex);
-    auto it = std::find(_activeVoices.begin(), _activeVoices.end(), this);
-    if (it != _activeVoices.end()) {
-        _activeVoices.erase(it);
+    auto it = std::find(CDXSound::_activeStreams.begin(), CDXSound::_activeStreams.end(), this);
+    if (it != CDXSound::_activeStreams.end()) {
+        CDXSound::_activeStreams.erase(it);
     }
 }
 
-HRESULT CDXSourceVoice::SubmitSourceBuffer(const XAUDIO2_BUFFER *pBuffer, const void *pBufferWMA) {
-    if (!pBuffer) return E_FAIL;
+void CAudioStream::SubmitBuffer(const uint8_t *pData, uint32_t size) {
+    if (!pData) return;
     
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     QueuedBuffer qb;
-    qb.data = pBuffer->pAudioData;
-    qb.size = pBuffer->AudioBytes;
+    qb.data = pData;
+    qb.size = size;
     qb.position = 0.0;
-    qb.ownsData = false; // We assume caller keeps data alive as per XAudio2 spec
     _buffers.push_back(qb);
-    return S_OK;
 }
 
-HRESULT CDXSourceVoice::Start(UINT32 Flags, UINT32 OperationSet) {
-    _playing = true;
-    return S_OK;
-}
-
-HRESULT CDXSourceVoice::Stop(UINT32 Flags, UINT32 OperationSet) {
-    _playing = false;
-    return S_OK;
-}
-
-HRESULT CDXSourceVoice::SetVolume(float Volume, UINT32 OperationSet) {
-    _volume = Volume;
-    return S_OK;
-}
-
-HRESULT CDXSourceVoice::FlushSourceBuffers() {
-    std::lock_guard<std::recursive_mutex> lock(_mutex);
-    _buffers.clear();
-    return S_OK;
-}
+void CAudioStream::Start() { _playing = true; }
+void CAudioStream::Stop() { _playing = false; }
+void CAudioStream::SetVolume(float volume) { _volume = volume; }
 
 void CDXSourceVoice::Mix(int32_t* dst, int numSamples) {
     if (!_playing) return;

@@ -1,5 +1,6 @@
 #pragma once
 #include "AnimBase.h"
+#include <cstdint>
 
 class CWave : public CAnimBase
 {
@@ -7,12 +8,12 @@ public:
 	CWave();
 	~CWave();
 
-	virtual BOOL Init(LPBYTE pData, int length);
-	virtual BOOL IsWave() { return TRUE; }
-	virtual BOOL HasVideo() { return FALSE; }
+	virtual bool Init(uint8_t* pData, int length) override;
+	virtual bool IsWave() override { return true; }
+	virtual bool HasVideo() override { return false; }
 
 protected:
-	virtual BOOL DecodeFrame();
+	virtual bool DecodeFrame() override;
 
-	ULONGLONG _timeOfStart;
+	uint64_t _timeOfStart;
 };
