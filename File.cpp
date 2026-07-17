@@ -43,7 +43,7 @@ std::string CFile::Find(std::string path, std::string file)
         for (const auto& entry : fs::recursive_directory_iterator(sPath, fs::directory_options::skip_permission_denied)) {
             if (entry.is_regular_file()) {
                 std::string filename = entry.path().filename().string();
-                if (strcasecmp(filename.c_str(), sFile.c_str()) == 0) {
+                if (strcasecmp(filename.c_str(), file.c_str()) == 0) {
                      std::string foundPath = entry.path().string();
                      return foundPath;
                 }
@@ -96,7 +96,7 @@ bool CFile::Open(const std::string& fileName, Mode mode)
 	if (mode == Mode::Read) openMode |= std::ios::in;
 	if (mode == Mode::Write) openMode |= (std::ios::out | std::ios::trunc);
 
-	_stream.open(realFile, mode);
+	_stream.open(realFile, openMode);
 	return _stream.is_open();
 }
 
@@ -143,10 +143,10 @@ int CFile::Write(uint8_t* pBuffer, int length)
 
 uint32_t CFile::Size()
 {
-	if (!_stream.open()) return 0;
+	if (!_stream.is_open()) return 0;
 	
 	std::streampos currentPos = _stream.tellg();
-	_stream.seekg(0, std::ios:end);
+	_stream.seekg(0, std::ios::end);
 
 	uint32_t size = static_cast<uint32_t>(_stream.tellg());
 	_stream.seekg(currentPos, std::ios::beg);

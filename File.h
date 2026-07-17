@@ -27,8 +27,8 @@ public:
 	bool Open(const std::string& Name, Mode mode = Mode::Read);
 	void Close();
 	uint32_t Seek(uint32_t distance, SeekMethod method = SeekMethod::Begin);
-	int Read(LPBYTE pBuffer, int length);
-	int Write(LPBYTE pBuffer, int length);
+	int Read(uint8_t* pBuffer, int length);
+	int Write(uint8_t* pBuffer, int length);
 	uint32_t Size();
 
 	static bool Exists(const std::string& fileName);
