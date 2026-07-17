@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 typedef struct UAKMExamStruct
 {
 	uint8_t Id;

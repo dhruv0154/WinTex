@@ -10,39 +10,6 @@ struct AudioFormat {
     uint16_t bitsPerSample;
 };
 
-class CDXSound : public IXAudio2VoiceCallback
-{
-public:
-	CDXSound();
-	~CDXSound();
-
-	static void Init();
-	static void Dispose();
-	static CAudioStream* CreateAudioStream(const AudioFormat& format);
-
-	void Stop();
-	void Play(uint8_t* pData, uint32_t size);
-
-	static void SetVolume(float volume);
-
-	struct AudioData {
-		const uint8_t* data;
-		uint32_t length;
-		double position;
-		bool playing;
-	};
-	AudioData _audioData;
-
-protected:
-	static void AudioCallback(void* userdata, Uint8* stream, int len);
-	static SDL_AudioDeviceID _audioDevice;
-	static std::vector<CDXSound*> _activeSounds;
-    static std::vector<CAudioStream*> _activeStreams;
-	static std::mutex _mutex;
-	static float _masterVolume;
-	static int _outputFreq;
-};
-
 class CAudioStream {
 public:
     CAudioStream(const AudioFormat& format);
@@ -72,4 +39,37 @@ private:
     };
     std::vector<QueuedBuffer> _buffers;
     std::recursive_mutex _mutex;
+};
+
+class CDXSound
+{
+public:
+	CDXSound();
+	~CDXSound();
+
+	static void Init();
+	static void Dispose();
+	static CAudioStream* CreateAudioStream(const AudioFormat& format);
+
+	void Stop();
+	void Play(uint8_t* pData, uint32_t size);
+
+	static void SetVolume(float volume);
+
+	struct AudioData {
+		const uint8_t* data;
+		uint32_t length;
+		double position;
+		bool playing;
+	};
+	AudioData _audioData;
+    static std::vector<CAudioStream*> _activeStreams;
+    static std::mutex _mutex;
+    static int _outputFreq;
+
+protected:
+	static void AudioCallback(void* userdata, Uint8* stream, int len);
+	static SDL_AudioDeviceID _audioDevice;
+	static std::vector<CDXSound*> _activeSounds;
+	static float _masterVolume;
 };
