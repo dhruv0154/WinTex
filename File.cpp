@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
-#include <strings.h>
 
 namespace fs = std::filesystem;
 
@@ -18,6 +17,13 @@ static std::string ResolvePath(const std::string& path)
         return p.string();
     }
     return path;
+}
+
+static bool IEquals(const std::string& a, const std::string& b)
+{
+    if (a.size() != b.size()) return false;
+    return std::equal(a.begin(), a.end(), b.begin(),
+        [](char a, char b) { return std::tolower(a) == std::tolower(b); });
 }
 
 CFile::CFile()
@@ -43,9 +49,9 @@ std::string CFile::Find(std::string path, std::string file)
         for (const auto& entry : fs::recursive_directory_iterator(sPath, fs::directory_options::skip_permission_denied)) {
             if (entry.is_regular_file()) {
                 std::string filename = entry.path().filename().string();
-                if (strcasecmp(filename.c_str(), file.c_str()) == 0) {
-                     std::string foundPath = entry.path().string();
-                     return foundPath;
+                if (IEquals(filename, file)) {
+                    std::string foundPath = entry.path().string();
+                    return foundPath;
                 }
             }
         }
@@ -136,7 +142,7 @@ int CFile::Write(uint8_t* pBuffer, int length)
 {
 	if (!_stream.is_open()) return 0;
 
-	_stream.read(reinterpret_cast<char*>(pBuffer), length);
+	_stream.write(reinterpret_cast<char*>(pBuffer), length);
 
 	return _stream.fail() ? 0 : length;
 }

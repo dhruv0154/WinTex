@@ -8,7 +8,7 @@ CSQZ::~CSQZ()
 {
 }
 
-BinaryData CSQZ::Decompress(PBYTE input, int length)
+BinaryData CSQZ::Decompress(uint8_t* input, int length)
 {
 	// Must start with '.SQZ'
 	// Looks like it is always followed by '.bmp'
@@ -19,15 +19,17 @@ BinaryData CSQZ::Decompress(PBYTE input, int length)
 	bd.Data = NULL;
 	bd.Length = 0;
 
-	if (GetInt(input, 0, 4) == 'ZQS.' && GetInt(input, 4, 4) == 'pmb.')
+	if (length >= 16 && 
+        input[0] == '.' && input[1] == 'S' && input[2] == 'Q' && input[3] == 'Z' &&
+        input[4] == '.' && input[5] == 'b' && input[6] == 'm' && input[7] == 'p')
 	{
 		int compressedSize = GetInt(input, 8, 4);
 		int decompressedSize = GetInt(input, 12, 4);
 
-		PBYTE output = new BYTE[decompressedSize];
+		uint8_t* output = new uint8_t[decompressedSize];
 		if (output != NULL)
 		{
-			ZeroMemory(output, decompressedSize);
+			memset(output, 0, decompressedSize);
 
 			bd.Data = output;
 			bd.Length = decompressedSize;

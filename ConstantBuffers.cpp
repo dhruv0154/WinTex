@@ -1,13 +1,13 @@
 #include "ConstantBuffers.h"
 #include <cmath>
-#include <string>
+#include <cstring>
 
 namespace Math {
 	struct vec3 {
 		float x;
 		float y;
 		float z;
-	}
+	};
 
 	vec3 cross(vec3 a, vec3 b) { return {a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x}; }
     float dot(vec3 a, vec3 b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
@@ -83,6 +83,7 @@ void CConstantBuffers::SetVOP(CDirectX& dx, float16* view, float16* ortho, float
     dataPtr->ortho = Math::Transpose(*ortho);
     dataPtr->projection = Math::Transpose(*projection);
     dx.Unmap(_vop, 0);
+	dx.VSSetConstantBuffers(0, 1, &_vop);
 }
 
 void CConstantBuffers::SetWorld(CDirectX& dx, float16* world)
@@ -98,12 +99,14 @@ void CConstantBuffers::SetWorld(CDirectX& dx, float16* world)
 	}
 
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
-	if (dx.Map(_world, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) == S_OK)
+	if (dx.Map(_world, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) == 0)
 	{
 		WorldBufferType* dataPtr = (WorldBufferType*)mappedResource.pData;
 		dataPtr->world = Math::Transpose(*world);
 		dx.Unmap(_world, 0);
 	}
+
+	dx.VSSetConstantBuffers(1, 1, &_world);
 }
 
 void CConstantBuffers::SetMultiColouredFont(CDirectX& dx, float4* colour1, float4* colour2, float4* colour3, float4* colour4, float4* colour5, float4* colour6)
@@ -128,6 +131,8 @@ void CConstantBuffers::SetMultiColouredFont(CDirectX& dx, float4* colour1, float
 	dataPtr->colour5 = *colour5;
 	dataPtr->colour6 = *colour6;
 	dx.Unmap(_multiColouredFont, 0);
+
+	dx.VSSetConstantBuffers(2, 1, &_multiColouredFont);
 }
 
 void CConstantBuffers::SetTexFont(CDirectX& dx, float4* colour1, float4* colour2, float4* colour3, float4* colour4)
@@ -150,6 +155,8 @@ void CConstantBuffers::SetTexFont(CDirectX& dx, float4* colour1, float4* colour2
 	dataPtr->colour3 = *colour3;
 	dataPtr->colour4 = *colour4;
 	dx.Unmap(_texFont, 0);
+
+	dx.VSSetConstantBuffers(4, 1, &_texFont);
 }
 
 void CConstantBuffers::SetVisibility(CDirectX& dx, VisibilityBufferType visibility)
@@ -167,8 +174,10 @@ void CConstantBuffers::SetVisibility(CDirectX& dx, VisibilityBufferType visibili
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
 	dx.Map(_visibility, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 	VisibilityBufferType* dataPtr = (VisibilityBufferType*)mappedResource.pData;
-	std::memcpy(&dataPtr->visibility[0], &visibility.visibility[0], sizeof(visibility.visibility));
+	memcpy(&dataPtr->visibility[0], &visibility.visibility[0], sizeof(visibility.visibility));
 	dx.Unmap(_visibility, 0);
+
+	dx.VSSetConstantBuffers(3, 1, &_visibility);
 }
 
 void CConstantBuffers::SetTranslation(CDirectX& dx, TranslationBufferType translation)
@@ -186,8 +195,10 @@ void CConstantBuffers::SetTranslation(CDirectX& dx, TranslationBufferType transl
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
 	dx.Map(_translation, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 	TranslationBufferType* dataPtr = (TranslationBufferType*)mappedResource.pData;
-	std::memcpy(&dataPtr->translation[0], &translation.translation[0], sizeof(float4) * 256);
+	memcpy(&dataPtr->translation[0], &translation.translation[0], sizeof(float4) * 256);
 	dx.Unmap(_translation, 0);
+
+	dx.VSSetConstantBuffers(5, 1, &_translation);
 }
 
 void CConstantBuffers::Dispose()
@@ -200,7 +211,7 @@ void CConstantBuffers::Dispose()
 
 	if (_world != nullptr)
 	{
-		delete _world
+		delete _world;
 		_world = nullptr;
 	}
 
@@ -235,12 +246,12 @@ void CConstantBuffers::Setup2D(CDirectX& dx)
 	float h = (float)dx.GetHeight();
 
 	SetupVOP(dx, w, h, w / 2, -h / 2, -10.0f);
-	Math::vec3 up = {0.0f, 1.0f, 0.0f, 0.0f};
+	Math::vec3 up = {0.0f, 1.0f, 0.0f};
 	float camera_x = w / 2;
 	float camera_y = -h / 2;
 	float camera_z = -10.0f;
-	Math::vec3 position = {camera_x, camera_y, camera_z, 0.0f};
-	Math::vec3 lookAt = {camera_x, camera_y, 1.0f, 0.0f};
+	Math::vec3 position = {camera_x, camera_y, camera_z};
+	Math::vec3 lookAt = {camera_x, camera_y, 1.0f};
 
 	float16 vm = Math::LookAtLH(position, lookAt, up);
 	float16 om = Math::OrthographicLH(w, h, 0.1f, 1000.0f);

@@ -1,19 +1,17 @@
 #include "LZ.h"
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include "Utilities.h"
 #include "File.h"
+#include <cstring>
+#include <algorithm>
+#include <iostream>
+#include <string>
 
-BinaryData CLZ::Decompress(LPBYTE pInput, int length)
+BinaryData CLZ::Decompress(uint8_t* pInput, int length)
 {
 	return Decompress(pInput, 0, length);
 }
 
-BinaryData CLZ::Decompress(LPBYTE pInput, int offset, int length)
+BinaryData CLZ::Decompress(uint8_t* pInput, int offset, int length)
 {
 	BinaryData ret;
 	ret.Data = NULL;
@@ -26,7 +24,7 @@ BinaryData CLZ::Decompress(LPBYTE pInput, int offset, int length)
 			int decompressedLength = GetInt(pInput, offset + 4, 4);
 			if (decompressedLength > 0)
 			{
-				LPBYTE pOutput = new byte[decompressedLength];
+				uint8_t* pOutput = new uint8_t[decompressedLength];
 				if (pOutput != NULL)
 				{
 					ret.Length = decompressedLength;
@@ -41,8 +39,8 @@ BinaryData CLZ::Decompress(LPBYTE pInput, int offset, int length)
 
 					int codeOffset[8192];	// Points to where to copy from
 					int codeLength[8192];	// Length of code, including "next"
-					ZeroMemory(&codeOffset, sizeof(codeOffset));
-					ZeroMemory(&codeLength, sizeof(codeLength));
+					memset(codeOffset, 0, sizeof(codeOffset));
+                    memset(codeLength, 0, sizeof(codeLength));
 
 					while (outputPtr < decompressedLength)
 					{
@@ -52,7 +50,7 @@ BinaryData CLZ::Decompress(LPBYTE pInput, int offset, int length)
 						int bitShift = bitsRead & 7;
 						int mask = 0x1fff >> (13 - bitsToRead);
 
-						int bytesToRead = min(length - bitOffset, 4);
+						int bytesToRead = std::min(length - bitOffset, 4);
 						if (bytesToRead > 0)
 						{
 							code = GetInt(pInput, offset + bitOffset, bytesToRead);
@@ -97,7 +95,7 @@ BinaryData CLZ::Decompress(LPBYTE pInput, int offset, int length)
 								}
 								else if (code >= 0 && code <= 0xff)
 								{
-									pOutput[outputPtr++] = (byte)code;
+									pOutput[outputPtr++] = (uint8_t)code;
 								}
 							}
 
@@ -129,13 +127,13 @@ BinaryData CLZ::Decompress(LPBYTE pInput, int offset, int length)
 	return ret;
 }
 
-BinaryData CLZ::Decompress(LPWSTR pFileName)
+BinaryData CLZ::Decompress(const char* pFileName)
 {
-	std::wstring path = gamePath;
+	std::string path = gamePath;
 	path += pFileName;
 
 	BinaryData ret;
-	ZeroMemory(&ret, sizeof(ret));
+	memset(&ret, 0, sizeof(ret));
 
 	CFile file;
 	if (file.Open(path.c_str(), CFile::Mode::Read))
@@ -145,7 +143,7 @@ BinaryData CLZ::Decompress(LPWSTR pFileName)
 
 		if (fileSize > 0)
 		{
-			LPBYTE pInput = new byte[fileSize];
+			uint8_t* pInput = new uint8_t[fileSize];
 			if (pInput != NULL)
 			{
 				if (file.Read(pInput, fileSize) == fileSize)
@@ -159,20 +157,18 @@ BinaryData CLZ::Decompress(LPWSTR pFileName)
 	}
 	else
 	{
-		std::wstring err = L"Could not open file ";
-		err += pFileName;
-		MessageBox(NULL, err.c_str(), L"Decompress LZ", MB_OK);
+		std::cerr << "Decompress LZ: Could not open file " << pFileName << std::endl;
 	}
 
 	return ret;
 }
 
-BOOL CLZ::IsCompressed(LPBYTE pInput, int length)
+bool CLZ::IsCompressed(uint8_t* pInput, int length)
 {
 	return IsCompressed(pInput, 0, length);
 }
 
-BOOL CLZ::IsCompressed(LPBYTE pInput, int offset, int length)
+bool CLZ::IsCompressed(uint8_t* pInput, int offset, int length)
 {
 	int type = GetInt(pInput, offset, 4);
 	return (type == 0x01454244 || type == 0x01434341);

@@ -97,7 +97,7 @@ void CDirectX::Present(uint32_t syncInterval, uint32_t flags) {
     }
 }
 
-int CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Buffer** ppBuffer, char* name) { 
+int CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Buffer** ppBuffer, const char* name) { 
     *ppBuffer = new ID3D11Buffer();
     (*ppBuffer)->byteWidth = pDesc->ByteWidth;
     (*ppBuffer)->bindFlags = pDesc->BindFlags;
@@ -179,7 +179,7 @@ void CDirectX::Unmap(ID3D11Resource* pResource, uint32_t subResource) {
 ID3D11Device* CDirectX::GetDevice() { return _dev; }
 ID3D11DeviceContext* CDirectX::GetDeviceContext() { return _devCon; }
 
-int CDirectX::CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D, char* name) { 
+int CDirectX::CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D, const char* name) { 
     *ppTexture2D = new ID3D11Texture2D();
     (*ppTexture2D)->width = pDesc->Width;
     (*ppTexture2D)->height = pDesc->Height;
@@ -201,7 +201,7 @@ int CDirectX::CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DAT
     return 0;
 }
 
-int CDirectX::CreateShaderResourceView(ID3D11Resource* pResource, D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc, ID3D11ShaderResourceView** ppSRView, char* name) { 
+int CDirectX::CreateShaderResourceView(ID3D11Resource* pResource, D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc, ID3D11ShaderResourceView** ppSRView, const char* name) { 
     *ppSRView = new ID3D11ShaderResourceView();
     // In D3D11, SRV is a view of a resource. In GL, we just use the texture ID.
     // We can copy the GL ID from the resource.
@@ -264,15 +264,81 @@ void CDirectX::SetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, ui
     if (pIndexBuffer) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pIndexBuffer->glId);
 }
 
+void CDirectX::VSSetConstantBuffers(uint32_t StartSlot, uint32_t NumBuffers, ID3D11Buffer** ppConstantBuffers) {
+    for (uint32_t i = 0; i < NumBuffers; i++) {
+        if (StartSlot + i < 14) {
+            _vsConstantBuffers[StartSlot + i] = ppConstantBuffers[i];
+        }
+    }
+}
+
 void CDirectX::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology) {
+    _currentTopology = Topology;
+}
+
+void CDirectX::ApplyConstantBuffers() {
+    GLint prog = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+    if (prog == 0) return;
+
+    for (int i = 0; i < 14; i++)
+    {
+        ID3D11Buffer* buf = _vsConstantBuffers[i];
+        if (!buf) continue;
+
+        if (i == 0)
+        {
+            GLint view = glGetUniformLocation(prog, "View");
+            GLint ortho = glGetUniformLocation(prog, "Ortho");
+            GLint proj = glGetUniformLocation(prog, "Projection");
+
+            if (view != -1) glUniformMatrix4fv(view, 1, GL_FALSE, (float*)(buf->cpuData.data()));
+            if (ortho != -1) glUniformMatrix4fv(ortho, 1, GL_FALSE, (float*)(buf->cpuData.data() + 64)); 
+            if (proj != -1) glUniformMatrix4fv(proj, 1, GL_FALSE, (float*)(buf->cpuData.data() + 128));
+        }
+
+        else if (i == 1) 
+        {
+            GLint locWorld = glGetUniformLocation(prog, "World");
+            if (locWorld != -1) {
+                glUniformMatrix4fv(locWorld, 1, GL_FALSE, (float*)(buf->cpuData.data()));
+            }
+        } 
+        else if (i == 3) 
+        {
+            if (buf->glId != 0) glBindBufferBase(GL_UNIFORM_BUFFER, 3, buf->glId);
+        } 
+        else if (i == 4) 
+        {
+            if (buf->glId != 0) glBindBufferBase(GL_UNIFORM_BUFFER, 4, buf->glId);
+        } 
+        else if (i == 5) 
+        {
+            if (buf->glId != 0) glBindBufferBase(GL_UNIFORM_BUFFER, 5, buf->glId);
+        }
+    }
 }
 
 void CDirectX::Draw(uint32_t VertexCount, uint32_t StartVertexLocation) {
-    _devCon->Draw(VertexCount, StartVertexLocation);
+    ApplyConstantBuffers();
+
+    GLuint glTopology = GL_TRIANGLES;
+    if (_currentTopology == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP)
+    {
+        glTopology = GL_TRIANGLE_STRIP;
+    }
+
+    glDrawArrays(glTopology, StartVertexLocation, VertexCount);
 }
 
-void CDirectX::DrawIndexed(uint32_t IndexCount, uint32_t StartIndexLocation, uint32_t BaseVertexLocation) {
-    _devCon->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
+void CDirectX::DrawIndexed(uint32_t IndexCount, uint32_t StartIndexLocation, int32_t BaseVertexLocation) {
+    ApplyConstantBuffers();
+
+    GLenum glTopology = GL_TRIANGLES; 
+    if (_currentTopology == 5) glTopology = GL_TRIANGLE_STRIP;
+
+    void* offset = (void*)(uintptr_t)(StartIndexLocation * sizeof(GLuint));
+    glDrawElementsBaseVertex(glTopology, IndexCount, GL_UNSIGNED_INT, offset, BaseVertexLocation);
 }
 
 void CDirectX::SetShaderResources(uint32_t StartSlot, uint32_t NumViews, ID3D11ShaderResourceView** ppShaderResourceViews) {
@@ -304,6 +370,3 @@ void CDirectX::SetViewport(D3D11_VIEWPORT viewport) {
     glViewport((GLint)viewport.TopLeftX, (GLint)viewport.TopLeftY, (GLsizei)viewport.Width, (GLsizei)viewport.Height);
 }
 void CDirectX::SetScissorRect(D3D11_RECT rect) {}
-
-int CDirectX::ConfigureBackBuffer() { return 0; }
-int CDirectX::ReleaseBackBuffer() { return 0; }

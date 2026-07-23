@@ -1,8 +1,20 @@
 #pragma once
 
-struct float2 { float x, y; };
-struct float3 { float x, y, z; };
-struct float4 { float x, y, z, w; };
+struct float2 { 
+	float x, y;
+	float2() = default;
+	float2(float x, float y) : x(x), y(y) {}
+};
+struct float3 { 
+	float x, y, z;
+	float3() = default;
+	float3(float x, float y, float z) : x(x), y(y), z(z) {}
+};
+struct float4 { 
+	float x, y, z, w;
+	float4() = default;
+	float4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
+};
 struct float16 { float m[16]; };
 
 struct TEXTURED_VERTEX_ORTHO

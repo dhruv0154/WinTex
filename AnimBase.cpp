@@ -43,7 +43,7 @@ CAnimBase::~CAnimBase()
 	if (_sourceVoice != nullptr)
 	{
 		_sourceVoice->Stop();
-		_sourceVoice->DestroyVoice();
+		delete _sourceVoice;
 		_sourceVoice = nullptr;
 	}
 
@@ -67,12 +67,12 @@ CAnimBase::~CAnimBase()
 
 	if (_vertexBuffer != nullptr)
 	{
-		_vertexBuffer->Release();
+		delete _vertexBuffer;
 		_vertexBuffer = nullptr;
 	}
 }
 
-bool CAnimBase::Init(LPBYTE pData, int length)
+bool CAnimBase::Init(uint8_t* pData, int length)
 {
 	_pInputBuffer = pData;
 	_inputBufferLength = length;
@@ -96,7 +96,7 @@ void CAnimBase::CreateBuffers(int width, int height, int factor)
 		// Setup vertex buffer, keep aspect ratio
 		float sx = (float)_screenWidth / (float)(width * factor);
 		float sy = (float)_screenHeight / (float)(height * factor);
-		float scale = min(sx, sy);
+		float scale = std::min(sx, sy);
 		float sw = width * scale;
 		float sh = height * scale;
 		float ox = (_screenWidth - sw);
@@ -104,10 +104,10 @@ void CAnimBase::CreateBuffers(int width, int height, int factor)
 
 		float left, right, top, bottom;
 
-		left = floor((float)(ox / 2.0f)) + 0.5f;
-		right = floor(left + sw) + 0.5f;
-		top = floor((float)(-oy / 2.0f)) + 0.5f;
-		bottom = floor(top - sh) + 0.5f;
+		left = std::floor((float)(ox / 2.0f)) + 0.5f;
+		right = std::floor(left + sw) + 0.5f;
+		top = std::floor((float)(-oy / 2.0f)) + 0.5f;
+		bottom = std::floor(top - sh) + 0.5f;
 
 		TEXTURED_VERTEX* vertices = new TEXTURED_VERTEX[4];
 		if (vertices != nullptr)
@@ -293,7 +293,7 @@ void CAnimBase::Resize(int width, int height)
 	{
 		if (_vertexBuffer != nullptr)
 		{
-			_vertexBuffer->Release();
+			delete _vertexBuffer;
 			_vertexBuffer = nullptr;
 		}
 
@@ -303,7 +303,7 @@ void CAnimBase::Resize(int width, int height)
 		// Recreate vertex buffer
 		float sx = (float)_screenWidth / (float)(_width * factor);
 		float sy = (float)_screenHeight / (float)(_height * factor);
-		float scale = min(sx, sy);
+		float scale = std::min(sx, sy);
 		float sw = _width * scale;
 		float sh = _height * scale;
 		float ox = (_screenWidth - sw);

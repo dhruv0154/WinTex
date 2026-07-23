@@ -1,17 +1,12 @@
 #include "InputMapping.h"
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include "Utilities.h"
 #include "GameController.h"
+#include <fstream>
 
 std::unordered_map<InputAction, InputMap> CInputMapping::ControlsMap;
-BOOL CInputMapping::IgnoreNextMouseInput = FALSE;
+bool CInputMapping::IgnoreNextMouseInput = false;
 
-BOOL IsJoystickSource(InputSource source)
+bool IsJoystickSource(InputSource source)
 {
 	return (source == InputSource::JoystickAxis || source == InputSource::JoystickButton || source == InputSource::JoystickDPad);
 }
@@ -27,32 +22,31 @@ void CInputMapping::ReadConfig(int* pConfig, int ix, InputAction action)
 void CInputMapping::LoadControlsMap()
 {
 	// Setup default controls map
-	ControlsMap[InputAction::Cursor] = { InputSource::Unknown,0,InputSource::Mouse,0,InputSource::Mouse | InputSource::JoystickAxis,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Action] = { InputSource::Unknown,0,InputSource::MouseButton,-1,InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Back] = { InputSource::Unknown,0,InputSource::Key,0x10000,InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Cycle] = { InputSource::Unknown,0,InputSource::MouseButton,1,InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::MoveForward] = { InputSource::Unknown,0,InputSource::Key,0x0110000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::MoveBack] = { InputSource::Unknown,0,InputSource::Key,0x1f0000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::MoveLeft] = { InputSource::Unknown,0,InputSource::Key,0x1e0000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::MoveRight] = { InputSource::Unknown,0,InputSource::Key,0x200000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::MoveUp] = { InputSource::Unknown,0,InputSource::Key,0x120000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::MoveDown] = { InputSource::Unknown,0,InputSource::Key,0x100000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Run] = { InputSource::Unknown,0,InputSource::Key,0x2a0000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Next] = { InputSource::Unknown,0,InputSource::MouseWheel,-1, InputSource::MouseWheel | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Prev] = { InputSource::Unknown,0,InputSource::MouseWheel,1, InputSource::MouseWheel | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Inventory] = { InputSource::Unknown,0,InputSource::Key,0x170000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Travel] = { InputSource::Unknown,0,InputSource::Key,0x140000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
-	ControlsMap[InputAction::Hints] = { InputSource::Unknown,0,InputSource::Key,0x230000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,FALSE,0 };
+	ControlsMap[InputAction::Cursor] = { InputSource::Unknown,0,InputSource::Mouse,0,InputSource::Mouse | InputSource::JoystickAxis,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Action] = { InputSource::Unknown,0,InputSource::MouseButton,-1,InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Back] = { InputSource::Unknown,0,InputSource::Key,0x10000,InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Cycle] = { InputSource::Unknown,0,InputSource::MouseButton,1,InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::MoveForward] = { InputSource::Unknown,0,InputSource::Key,0x0110000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::MoveBack] = { InputSource::Unknown,0,InputSource::Key,0x1f0000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::MoveLeft] = { InputSource::Unknown,0,InputSource::Key,0x1e0000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::MoveRight] = { InputSource::Unknown,0,InputSource::Key,0x200000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::MoveUp] = { InputSource::Unknown,0,InputSource::Key,0x120000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::MoveDown] = { InputSource::Unknown,0,InputSource::Key,0x100000, InputSource::Key | InputSource::JoystickAxis | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Run] = { InputSource::Unknown,0,InputSource::Key,0x2a0000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Next] = { InputSource::Unknown,0,InputSource::MouseWheel,-1, InputSource::MouseWheel | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Prev] = { InputSource::Unknown,0,InputSource::MouseWheel,1, InputSource::MouseWheel | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Inventory] = { InputSource::Unknown,0,InputSource::Key,0x170000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Travel] = { InputSource::Unknown,0,InputSource::Key,0x140000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
+	ControlsMap[InputAction::Hints] = { InputSource::Unknown,0,InputSource::Key,0x230000, InputSource::MouseButton | InputSource::Key | InputSource::JoystickButton,0,InputSource::Unknown,false,0 };
 
-	HKEY hk;
-	std::wstring key = L"SOFTWARE\\Access Software\\" + pConfig->GetGameName();
-	if (RegOpenKeyEx(HKEY_CURRENT_USER, key.c_str(), 0, KEY_READ, &hk) == 0)
+	std::ifstream file("ControlsMap.dat", std::ios::binary);
+	if (file.is_open())
 	{
 		int config[16 * 4];
 		// Load blob from registry
 
-		DWORD size = sizeof(config);
-		if (RegGetValue(hk, L"", L"Controls", RRF_RT_REG_BINARY, NULL, (PVOID)&config, &size) == ERROR_SUCCESS)
+		file.read(reinterpret_cast<char*>(config), sizeof(config));
+		if (file.gcount() > 0)
 		{
 			int ix = 0;
 			ReadConfig(config, ix++, InputAction::Cursor);
@@ -75,8 +69,6 @@ void CInputMapping::LoadControlsMap()
 				ReadConfig(config, ix++, InputAction::Hints);
 			}
 		}
-
-		RegCloseKey(hk);
 	}
 }
 
@@ -90,9 +82,8 @@ void CInputMapping::WriteConfig(int* pConfig, int ix, InputAction action)
 
 void CInputMapping::SaveControlsMap()
 {
-	HKEY hk;
-	std::wstring key = L"SOFTWARE\\Access Software\\" + pConfig->GetGameName();
-	if (RegCreateKeyEx(HKEY_CURRENT_USER, key.c_str(), 0, 0, 0, KEY_WRITE, NULL, &hk, NULL) == 0)
+	std::ofstream file("ControsMap.dat", std::ios::binary | std::ios::trunc);
+	if (file.is_open())
 	{
 		// Save controls map to registry
 		int config[16 * 4];
@@ -115,10 +106,7 @@ void CInputMapping::SaveControlsMap()
 		WriteConfig(config, ix++, InputAction::Hints);
 
 		// Save blob to registry
-		DWORD size = sizeof(config);
-		RegSetValueEx(hk, L"Controls", 0, REG_BINARY, (PBYTE)&config, size);
-
-		RegCloseKey(hk);
+		file.write(reinterpret_cast<char*>(config), sizeof(config));
 	}
 }
 
@@ -127,7 +115,7 @@ void CInputMapping::Input(InputSource source, int identifier, int value)
 	// Workaround for the location module requiring to center the mouse
 	if (source == InputSource::Mouse && IgnoreNextMouseInput)
 	{
-		IgnoreNextMouseInput = FALSE;
+		IgnoreNextMouseInput = false;
 		return;
 	}
 
@@ -194,7 +182,7 @@ void CInputMapping::Input(InputSource source, int identifier, int value)
 				ControlsMap[action].CurrentData = value;
 			}
 
-			ControlsMap[action].IsActive = TRUE;
+			ControlsMap[action].IsActive = true;
 		}
 	}
 }

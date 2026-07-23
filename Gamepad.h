@@ -1,65 +1,37 @@
 #pragma once
 
 #include <list>
-#include "Utilities.h"
 #include <string>
+#include <cstdint>
+#include "Utilities.h"
+#include "Enums.h"
 
-#define UM_GAMEPAD		WM_USER+0x2000
+#define UM_GAMEPAD (0x0400 + 0x2000)
 
 class CControllerData
 {
 public:
-	InputSource Source;
-	DWORD Offset;
-	DWORD Type;
-	DWORD Data;
-};
-
-class CGamepad
-{
-public:
-	CGamepad(IDirectInput8* pInput, HWND hWnd, GUID deviceId);
-
-	void Update();
-
-	std::string GetName(int offset, int data);
-
-private:
-	IDirectInput8* _pInput;
-	HWND _hWnd;
-	GUID _deviceId;
-
-	IDirectInputDevice8* _pDevice;
-
-	static BOOL EnumObjectsCallback(const DIDEVICEOBJECTINSTANCE* instance, void* context);
-
-	DIJOYSTATE2 _state;
-
-	std::list<CControllerData*> _controllerData;
+    InputSource Source;
+    uint32_t Offset;
+    uint32_t Type;
+    uint32_t Data;
 };
 
 class CGamepadController
 {
 public:
-	CGamepadController(HWND hWnd);
-	~CGamepadController();
+    CGamepadController(void* hWnd);
+    ~CGamepadController();
 
-	static void Init(HWND hWnd);
-	static void Dispose();
+    static void Init(void* hWnd);
+    static void Dispose();
 
-	void AddGamepad(GUID deviceId);
+    void Update();
 
-	void Update();
+    static CGamepadController* GamepadController;
 
-	static CGamepadController* GamepadController;
-
-	std::string GetName(int offset, int data);
+    std::string GetName(int offset, int data);
 
 private:
-	static BOOL CALLBACK DeviceEnumCallback(const DIDEVICEINSTANCE* instance, void* context);
-
-	IDirectInput8* _pInput;
-	HWND _hWnd;
-
-	std::list<CGamepad*> _pads;
+    void* _hWnd;
 };

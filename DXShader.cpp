@@ -1,9 +1,8 @@
 #include "DXShader.h"
-#include "Platform.h"
 #include <iostream>
 #include <string>
 
-CDXShader::CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR vsProfileName, LPCSTR psFunctionName, LPCSTR psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors)
+CDXShader::CDXShader(CDirectX* pDX, int resource, const char* vsFunctionName, const char* vsProfileName, const char* psFunctionName, const char* psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors)
 {
 
     std::string vsName = vsFunctionName;
@@ -233,7 +232,7 @@ CDXShader::~CDXShader()
 void CDXShader::Activate(CDirectX* pDX)
 {
     if (_glProgramId != 0)
-        glUseProgram(_vs->glId);
+        glUseProgram(_glProgramId);
 }
 
 void CDXShader::Dispose()

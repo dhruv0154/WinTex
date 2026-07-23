@@ -102,13 +102,19 @@ struct Rect
 	float Right;
 };
 
+struct Point2D 
+{ 
+    int32_t x; 
+    int32_t y; 
+};
+
 struct ListBoxItem
 {
 	int Id = 0;
 	std::string Text = "";
 	int StartVertex = 0;
 	int VerticeCount = 0;
-	bool MouseOver = FALSE;
+	bool MouseOver = false;
 };
 
 struct InventoryItem
@@ -154,8 +160,8 @@ struct FrameData
 
 struct ControlCoordinates
 {
-	byte KeyCode;
-	byte Flags;
+	uint8_t KeyCode;
+	uint8_t Flags;
 	int MinY;
 	int MaxY;
 	int MinX;
@@ -169,5 +175,3 @@ struct ControlTable
 	int X;
 	int Y;
 };
-
-#endif

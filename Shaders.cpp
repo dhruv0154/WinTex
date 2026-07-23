@@ -178,50 +178,56 @@ void CShaders::SelectBasicShader()
 void CShaders::Dispose()
 {
 	if (_orthoShader != nullptr)
-	{
-		_orthoShader->Dispose();
-		_orthoShader = nullptr;
-	}
+    {
+        delete _orthoShader;
+        _orthoShader = nullptr;
+    }
 
-	if (_textureShader != nullptr)
-	{
-		_textureShader->Dispose();
-		_textureShader = nullptr;
-	}
+    if (_textureShader != nullptr)
+    {
+        delete _textureShader;
+        _textureShader = nullptr;
+    }
 
-	if (_texFontShader != nullptr)
-	{
-		_texFontShader->Dispose();
-		_texFontShader = nullptr;
-	}
+    if (_texFontShader != nullptr)
+    {
+        delete _texFontShader;
+        _texFontShader = nullptr;
+    }
+    
+    if (_texFontShader_AA != nullptr)
+    {
+        delete _texFontShader_AA;
+        _texFontShader_AA = nullptr;
+    }
 
-	if (_multiColouredFontShader != nullptr)
-	{
-		_multiColouredFontShader->Dispose();
-		_multiColouredFontShader = nullptr;
-	}
+    if (_multiColouredFontShader != nullptr)
+    {
+        delete _multiColouredFontShader;
+        _multiColouredFontShader = nullptr;
+    }
 
-	if (_colourShader != nullptr)
-	{
-		_colourShader->Dispose();
-		_colourShader = nullptr;
-	}
+    if (_colourShader != nullptr)
+    {
+        delete _colourShader;
+        _colourShader = nullptr;
+    }
 
-	if (_transparentColourShader != nullptr)
-	{
-		_transparentColourShader->Dispose();
-		_transparentColourShader = nullptr;
-	}
+    if (_transparentColourShader != nullptr)
+    {
+        delete _transparentColourShader;
+        _transparentColourShader = nullptr;
+    }
 
-	if (_yuvShader != nullptr)
-	{
-		_yuvShader->Dispose();
-		_yuvShader = nullptr;
-	}
+    if (_yuvShader != nullptr)
+    {
+        delete _yuvShader;
+        _yuvShader = nullptr;
+    }
 
-	if (_basicShader != nullptr)
-	{
-		_basicShader->Dispose();
-		_basicShader = nullptr;
-	}
+    if (_basicShader != nullptr)
+    {
+        delete _basicShader;
+        _basicShader = nullptr;
+    }
 }

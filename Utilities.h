@@ -68,8 +68,6 @@ uint8_t* GetResource(int resource, const char* type, uint32_t pSize);
 
 void ClearCaptions(std::list<CCaption*>* pCap);
 
-#endif // __UTILITIES__
-
 int GetRegistryInt(HKEY key, const char* valueName, int defaultValue);
 void SetRegistryInt(HKEY key, const char* valueName, int value);
 float GetRegistryFloat(HKEY key, const char* valueName, float defaultValue);
@@ -90,3 +88,5 @@ ActionType operator&(ActionType left, ActionType right);
 ActionType operator>>(ActionType left, int amount);
 
 int ReadBits(uint8_t* data, int bitsToRead, int& bitOffset);
+
+#endif // __UTILITIES__

@@ -5,8 +5,8 @@ CPointList::CPointList()
 	First = 0;
 	Count = 0;
 
-	Next = NULL;
-	Prev = NULL;
+	Next = nullptr;
+	Prev = nullptr;
 }
 
 CPointList::CPointList(int first, int count)
@@ -14,8 +14,8 @@ CPointList::CPointList(int first, int count)
 	First = first;
 	Count = count;
 
-	Next = NULL;
-	Prev = NULL;
+	Next = nullptr;
+	Prev = nullptr;
 }
 
 CPointList::~CPointList()
@@ -24,14 +24,14 @@ CPointList::~CPointList()
 
 void CPointList::Add(int first, int count)
 {
-	if (Next == NULL)
+	if (Next == nullptr)
 	{
 		Next = new CPointList(first, count);
 	}
 	else
 	{
 		CPointList* scan = Next;
-		while (scan != NULL)
+		while (scan != nullptr)
 		{
 			int last = first + count;
 			if (scan->First < first && scan->First < last)
@@ -65,7 +65,7 @@ void CPointList::Remove(int first, int count)
 	int last = first + count;
 
 	CPointList* scan = Next;
-	while (scan != NULL)
+	while (scan != nullptr)
 	{
 		int vertexStart = scan->First;
 		int verticeCount = scan->Count;
@@ -112,7 +112,7 @@ void CPointList::Remove(int first, int count)
 
 void CPointList::Clear()
 {
-	while (Next != NULL)
+	while (Next != nullptr)
 	{
 		CPointList* pDel = Next;
 		Next = pDel->Next;

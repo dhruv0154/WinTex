@@ -1,11 +1,5 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include <unordered_map>
 
 enum class InputAction
@@ -40,7 +34,7 @@ enum class InputSource
 	JoystickDPad = 64
 };
 
-BOOL IsJoystickSource(InputSource source);
+bool IsJoystickSource(InputSource source);
 
 inline InputSource operator|(InputSource a, InputSource b)
 {
@@ -61,7 +55,7 @@ struct InputMap
 	InputSource AcceptableSource;
 	int CurrentData;
 	InputSource CurrentSource;
-	BOOL IsActive;
+	bool IsActive;
 	int CurrentJoystickData;
 };
 
@@ -69,7 +63,7 @@ class CInputMapping
 {
 public:
 	static std::unordered_map<InputAction, InputMap> ControlsMap;
-	static BOOL IgnoreNextMouseInput;
+	static bool IgnoreNextMouseInput;
 	static void LoadControlsMap();
 	static void SaveControlsMap();
 

@@ -26,8 +26,39 @@
 
 #include "VideoModule.h"
 
-bool _runDXThread = true;
+#define VK_BACK       0x08
+#define VK_TAB        0x09
+#define VK_RETURN     0x0D
+#define VK_ESCAPE     0x1B
+#define VK_SPACE      0x20
+#define VK_PRIOR      0x21
+#define VK_NEXT       0x22
+#define VK_END        0x23
+#define VK_HOME       0x24
+#define VK_LEFT       0x25
+#define VK_UP         0x26
+#define VK_RIGHT      0x27
+#define VK_DOWN       0x28
+#define VK_INSERT     0x2D
+#define VK_DELETE     0x2E
+#define VK_SHIFT      0x10
+#define VK_CONTROL    0x11
+#define VK_MENU       0x12
+#define VK_F1         0x70
+#define VK_F2         0x71
+#define VK_F3         0x72
+#define VK_F4         0x73
+#define VK_F5         0x74
+#define VK_F6         0x75
+#define VK_F7         0x76
+#define VK_F8         0x77
+#define VK_F9         0x78
+#define VK_F10        0x79
+#define VK_F11        0x7A
+#define VK_F12        0x7B
 
+bool _runDXThread = true;
+std::vector<SDL_GameController*> _gamepads;
 
 int MapSDLKeyToVK(SDL_Keycode sym) {
     if (sym >= SDLK_a && sym <= SDLK_z) return 'A' + (sym - SDLK_a);
@@ -182,7 +213,7 @@ int main(int argc, char** argv)
         {
             while (SDL_PollEvent(&event)) {
                 if (event.type == SDL_QUIT) {
-                    _runDXThread = FALSE;
+                    _runDXThread = false;
                 }
                 else if (event.type == SDL_WINDOWEVENT) {
                     if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
@@ -206,17 +237,17 @@ int main(int argc, char** argv)
                     // 29: Context code
                     // 30: Previous key state
                     // 31: Transition state
-                    LPARAM lParam = (scan << 16) | 1; 
+                    uint32_t lParam = (scan << 16) | 1; 
                     if (vk != 0) CModuleController::KeyDown(vk, lParam);
                 }
                 else if (event.type == SDL_KEYUP) {
                     int vk = MapSDLKeyToVK(event.key.keysym.sym);
                     int scan = MapSDLScancodeToWinScan(event.key.keysym.scancode);
-                    LPARAM lParam = (scan << 16) | 0xC0000001; // Transition state 1, Previous state 1
+                    uint32_t lParam = (scan << 16) | 0xC0000001; // Transition state 1, Previous state 1
                     if (vk != 0) CModuleController::KeyUp(vk, lParam);
                 }
                 else if (event.type == SDL_MOUSEMOTION) {
-                    POINT pt;
+                    Point2D pt;
                     if (SDL_GetRelativeMouseMode()) {
                         pt.x = (dx.GetWidth() / 2) + event.motion.xrel;
                         pt.y = (dx.GetHeight() / 2) + event.motion.yrel;
@@ -227,14 +258,14 @@ int main(int argc, char** argv)
                     CModuleController::MouseMove(pt);
                 }
                 else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                    POINT pt;
+                    Point2D pt;
                     pt.x = event.button.x;
                     pt.y = event.button.y;
                     int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;
                     CModuleController::MouseDown(pt, btn);
                 }
                 else if (event.type == SDL_MOUSEBUTTONUP) {
-                    POINT pt;
+                    Point2D pt;
                     pt.x = event.button.x;
                     pt.y = event.button.y;
                     int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;

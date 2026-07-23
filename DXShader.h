@@ -23,7 +23,7 @@ struct D3D11_INPUT_ELEMENT_DESC {
 class CDXShader : public CDXBase
 {
 public:
-	CDXShader(CDirectX* pDX, int resource, LPCSTR vsFunctionName, LPCSTR vsProfileName, LPCSTR psFunctionName, LPCSTR psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors);
+	CDXShader(CDirectX* pDX, int resource, const char* vsFunctionName, const char* vsProfileName, const char* psFunctionName, const char* psProfileName, D3D11_INPUT_ELEMENT_DESC* ied, int numDescriptors);
 	~CDXShader();
 
 	void Dispose();

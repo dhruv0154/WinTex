@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DXBase.h"
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -8,30 +9,60 @@
 
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES
-#include <GL/gl.h>
+#include <SDL2/SDL_opengl.h>
 
-struct ID3D11Buffer {
-    GLuint glId = 0;
-    uint32_t byteWidth = 0;
-    uint32_t bindFlags = 0;
+#ifndef ULONG
+typedef unsigned long ULONG;
+#endif
+
+struct ID3D11Resource { 
+	GLuint glId = 0;
     std::vector<uint8_t> cpuData;
+    uint32_t rowPitch = 0;
+    virtual ~ID3D11Resource() = default;
+
+    virtual ULONG Release() { 
+        delete this; 
+        return 0; 
+    }
 };
 
-struct ID3D11Texture2D {
-    GLuint glId = 0;
-    int width, height, format;
+struct ID3D11Buffer : public ID3D11Resource {
+    uint32_t byteWidth = 0;
+    uint32_t bindFlags = 0;
+    virtual ~ID3D11Buffer() override {
+        if (glId != 0) {
+            glDeleteBuffers(1, &glId);
+        }
+    }
+};
+
+struct ID3D11Texture2D : public ID3D11Resource {
+    int width = 0, height = 0, format = 0;
+
+    virtual ~ID3D11Texture2D() override {
+        if (glId != 0) {
+            glDeleteTextures(1, &glId);
+        }
+    }
+
+    ULONG Release() { 
+        delete this; 
+        return 0; 
+    }
 };
 
 struct ID3D11ShaderResourceView {
 	GLuint glId = 0;
+
+    ULONG Release() { 
+        delete this; 
+        return 0; 
+    }
 };
 
 struct ID3D11Device {};
 struct ID3D11DeviceContext {};
-
-struct ID3D11Resource { 
-	GLuint glId = 0; 
-};
 
 struct D3D11_BUFFER_DESC { 
 	uint32_t ByteWidth; 
@@ -45,6 +76,8 @@ struct D3D11_SUBRESOURCE_DATA {
 
 struct D3D11_MAPPED_SUBRESOURCE { 
 	void* pData; 
+    uint32_t RowPitch;
+    uint32_t DepthPitch;
 };
 
 struct D3D11_TEXTURE2D_DESC { 
@@ -74,6 +107,9 @@ struct D3D11_RECT {
 typedef int D3D11_MAP;
 typedef int DXGI_FORMAT;
 typedef int D3D11_PRIMITIVE_TOPOLOGY;
+
+#define D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST 4
+#define D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP 5
 
 #define D3D11_BIND_CONSTANT_BUFFER 0x1
 #define D3D11_BIND_VERTEX_BUFFER 0x2
@@ -106,7 +142,7 @@ public:
 
     int CreateTexture2D(D3D11_TEXTURE2D_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D, const char* name = nullptr);
     int CreateShaderResourceView(ID3D11Resource* pResource, D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc, ID3D11ShaderResourceView** ppSRView, const char* name = nullptr);
-
+    void VSSetConstantBuffers(uint32_t StartSlot, uint32_t NumBuffers, ID3D11Buffer** ppConstantBuffers);
     void SetVertexBuffers(uint32_t StartSlot, uint32_t NumBuffers, ID3D11Buffer** ppVertexBuffers, const uint32_t* pStrides, const uint32_t* pOffsets);
     void SetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, uint32_t Offset);
     void SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology);
@@ -134,6 +170,10 @@ public:
 protected:
     int _width;
     int _height;
+    uint32_t _currentTopology = 4;
+
+    ID3D11Buffer* _vsConstantBuffers[14] = {nullptr};
+    void ApplyConstantBuffers();
 
     ID3D11Device* _dev;
     ID3D11DeviceContext* _devCon;
