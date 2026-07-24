@@ -80,10 +80,22 @@ struct D3D11_MAPPED_SUBRESOURCE {
     uint32_t DepthPitch;
 };
 
+struct DXGI_SAMPLE_DESC {
+    int Count = 1;
+    int Quality = 0;
+};
+
 struct D3D11_TEXTURE2D_DESC { 
-	int Width; 
-	int Height; 
-	int Format; 
+	int Width = 0; 
+    int Height = 0; 
+    int MipLevels = 1;
+    int ArraySize = 1;
+    int Format = 0; 
+    DXGI_SAMPLE_DESC SampleDesc;
+    uint32_t Usage = 0;
+    uint32_t BindFlags = 0;
+    uint32_t CPUAccessFlags = 0;
+    uint32_t MiscFlags = 0; 
 };
 
 struct D3D11_SHADER_RESOURCE_VIEW_DESC {};
@@ -114,10 +126,14 @@ typedef int D3D11_PRIMITIVE_TOPOLOGY;
 #define D3D11_BIND_CONSTANT_BUFFER 0x1
 #define D3D11_BIND_VERTEX_BUFFER 0x2
 #define D3D11_BIND_INDEX_BUFFER 0x4
+#define D3D11_BIND_SHADER_RESOURCE 0x8
 #define D3D11_USAGE_DYNAMIC 1
 #define D3D11_USAGE_DEFAULT 0
+#define D3D11_USAGE_STAGING 3
 #define DXGI_FORMAT_B8G8R8A8_UNORM 87
 #define D3D11_MAP_WRITE_DISCARD 4
+#define D3D11_CPU_ACCESS_WRITE 0x10000
+#define D3D11_CPU_ACCESS_READ  0x20000
 
 class CDirectX : public CDXBase
 {

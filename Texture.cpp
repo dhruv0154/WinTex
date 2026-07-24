@@ -1,5 +1,6 @@
 #include "Texture.h"
 #include "Globals.h"
+#include <cstring>
 #include "Utilities.h"
 
 CTexture::CTexture()
@@ -7,14 +8,14 @@ CTexture::CTexture()
 	_width = 0;
 	_height = 0;
 
-	_texture = NULL;
-	_textureRV = NULL;
+	_texture = nullptr;
+	_textureRV = nullptr;
 }
 
-CTexture::CTexture(CDirectX* pDX, int w, int h, PBYTE input, PINT palette, int rotate)
+CTexture::CTexture(CDirectX* pDX, int w, int h, uint8_t* input, int* palette, int rotate)
 {
-	_texture = NULL;
-	_textureRV = NULL;
+	_texture = nullptr;
+	_textureRV = nullptr;
 
 	if (rotate != 0)
 	{
@@ -27,23 +28,17 @@ CTexture::CTexture(CDirectX* pDX, int w, int h, PBYTE input, PINT palette, int r
 	_height = h;
 
 	D3D11_TEXTURE2D_DESC desc;
-	ZeroMemory(&desc, sizeof(desc));
+	memset(&desc, 0, sizeof(desc));
 	desc.Width = w;
 	desc.Height = h;
-	desc.MipLevels = desc.ArraySize = 1;
 	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	desc.SampleDesc.Count = 1;
 	desc.Usage = D3D11_USAGE_DYNAMIC;
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	desc.MiscFlags = 0;
 
-	if (SUCCEEDED(dx.CreateTexture2D(&desc, NULL, &_texture)))
+	if (dx.CreateTexture2D(&desc, nullptr, &_texture) == 0)
 	{
-		SetDebugName(_texture, "Texture 1");
-
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(pDX->Map(_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+		if (pDX->Map(_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 		{
 			int* pTex = (int*)subRes.pData;
 			if (rotate == 0)
@@ -70,14 +65,7 @@ CTexture::CTexture(CDirectX* pDX, int w, int h, PBYTE input, PINT palette, int r
 			pDX->Unmap(_texture, 0);
 		}
 
-		if (SUCCEEDED(dx.CreateShaderResourceView(_texture, NULL, &_textureRV)))
-		{
-			SetDebugName(_textureRV, "TextureRV 1");
-		}
-		else
-		{
-			int debug = 0;
-		}
+		dx.CreateShaderResourceView(_texture, nullptr, &_textureRV);
 	}
 	else
 	{
@@ -87,18 +75,14 @@ CTexture::CTexture(CDirectX* pDX, int w, int h, PBYTE input, PINT palette, int r
 
 CTexture::~CTexture()
 {
-	if (_textureRV != NULL) _textureRV->Release();
-	_textureRV = NULL;
-
-	if (_texture != NULL)_texture->Release();
-	_texture = NULL;
+	Dispose();
 }
 
-BOOL CTexture::Init(int width, int height, D3D11_USAGE usageFlags, DWORD miscFlags, ID3D11Device* pD3D)
+bool CTexture::Init(int width, int height, uint32_t usageFlags, uint32_t miscFlags, ID3D11Device* pD3D)
 {
 	Dispose();
 
-	BOOL ret = FALSE;
+	bool ret = false;
 
 	_width = width;
 	_height = height;
@@ -106,39 +90,18 @@ BOOL CTexture::Init(int width, int height, D3D11_USAGE usageFlags, DWORD miscFla
 	if (width > 0 && height > 0)
 	{
 		// Create buffer and shader resource view
-		D3D11_TEXTURE2D_DESC desc;
-		ZeroMemory(&desc, sizeof(desc));
+		D3D11_TEXTURE2D_DESC desc = {};
 		desc.Width = width;
 		desc.Height = height;
-		desc.MipLevels = desc.ArraySize = 1;
 		desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-		desc.SampleDesc.Count = 1;
 		desc.Usage = usageFlags;
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		desc.MiscFlags = miscFlags;
-
-		if (pD3D == NULL)
+		
+		if (dx.CreateTexture2D(&desc, nullptr, &_texture) == 0)
 		{
-			if (SUCCEEDED(dx.CreateTexture2D(&desc, NULL, &_texture)))
+			if (dx.CreateShaderResourceView(_texture, nullptr, &_textureRV))
 			{
-				SetDebugName(_texture, "Texture 2");
-				if (SUCCEEDED(dx.CreateShaderResourceView(_texture, NULL, &_textureRV)))
-				{
-					SetDebugName(_textureRV, "TextureRV 2");
-					ret = TRUE;
-				}
-			}
-		}
-		else
-		{
-			if (SUCCEEDED(pD3D->CreateTexture2D(&desc, NULL, &_texture)))
-			{
-				if (SUCCEEDED(dx.CreateShaderResourceView(_texture, NULL, &_textureRV)))
-				{
-					SetDebugName(_textureRV, "TextureRV 2");
-					ret = TRUE;
-				}
+				ret = true;
 			}
 		}
 	}
@@ -146,70 +109,58 @@ BOOL CTexture::Init(int width, int height, D3D11_USAGE usageFlags, DWORD miscFla
 	return ret;
 }
 
-BOOL CTexture::Init(PCWSTR file)
+bool CTexture::Init(const char* file)
 {
 	Dispose();
 
-	BOOL ret = FALSE;
+	bool ret = false;
 
-	D3DX11_IMAGE_LOAD_INFO li;
-	ZeroMemory(&li, sizeof(li));
-	li.MipLevels = 1;
-	li.Usage = D3D11_USAGE_STAGING;
-	if (SUCCEEDED(D3DX11CreateTextureFromFile(dx.GetDevice(), file, NULL, NULL, (ID3D11Resource**)&_texture, NULL)))
-	{
-		SetDebugName(_texture, "Texture 3");
+	bool ret = false;
 
-		D3D11_TEXTURE2D_DESC desc;
-		_texture->GetDesc(&desc);
-		_width = desc.Width;
-		_height = desc.Height;
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = _width = 1; 
+    desc.Height = _height = 1;
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 
-		if (SUCCEEDED(dx.CreateShaderResourceView(_texture, NULL, &_textureRV)))
-		{
-			SetDebugName(_textureRV, "TextureRV 3");
-			ret = TRUE;
-		}
-	}
+    if (dx.CreateTexture2D(&desc, nullptr, &_texture) == 0)
+    {
+        if (dx.CreateShaderResourceView(_texture, nullptr, &_textureRV) == 0)
+        {
+            ret = true;
+        }
+    }
 
-	return ret;
+    return ret;
 }
 
-BOOL CTexture::Init(PBYTE pImage, DWORD size, char* name)
+bool CTexture::Init(uint8_t* pImage, uint32_t size, const char* name)
 {
-	Dispose();
+    Dispose();
 
-	BOOL ret = FALSE;
+    bool ret = false;
 
-	D3DX11_IMAGE_LOAD_INFO li;
-	ZeroMemory(&li, sizeof(li));
-	li.MipLevels = 1;
-	li.Usage = D3D11_USAGE_STAGING;
-	if (SUCCEEDED(D3DX11CreateTextureFromMemory(dx.GetDevice(), pImage, size, NULL, NULL, (ID3D11Resource**)&_texture, NULL)))
-	{
-		SetDebugName(_texture, name);
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = _width = GetInt(pImage, 2, 2);
+    desc.Height = _height = GetInt(pImage, 4, 2);
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 
-		D3D11_TEXTURE2D_DESC desc;
-		_texture->GetDesc(&desc);
-		_width = desc.Width;
-		_height = desc.Height;
+    if (dx.CreateTexture2D(&desc, nullptr, &_texture) == 0)
+    {
+        if (dx.CreateShaderResourceView(_texture, nullptr, &_textureRV) == 0)
+        {
+            ret = true;
+        }
+    }
 
-		if (SUCCEEDED(dx.CreateShaderResourceView(_texture, NULL, &_textureRV)))
-		{
-			SetDebugName(_textureRV, name);
-			ret = TRUE;
-		}
-	}
-
-	return ret;
+    return ret;
 }
 
-BOOL CTexture::Init(PBYTE pData, DWORD size, DWORD offset, PINT pPalette, int transparentIndex, char* name, int sx, int sy, int sw, int sh, bool rawImage, int rawWidth, int rawHeight)
+bool CTexture::Init(uint8_t* pData, uint32_t size, uint32_t offset, int* pPalette, int transparentIndex, char* name, int sx, int sy, int sw, int sh, bool rawImage, int rawWidth, int rawHeight)
 {
 	Dispose();
 
-	BOOL ret = FALSE;
-	PBYTE pImage = pData + offset;
+	bool ret = false;
+	uint8_t* pImage = pData + offset;
 
 	int imageHeight = rawImage ? rawHeight : GetInt(pImage, 4, 2);
 	int width = sw < 0 ? rawImage ? rawWidth : GetInt(pImage, 2, 2) : sw;
@@ -221,28 +172,22 @@ BOOL CTexture::Init(PBYTE pData, DWORD size, DWORD offset, PINT pPalette, int tr
 	if (width > 0 && height > 0)
 	{
 		// Create buffer and shader resource view
-		D3D11_TEXTURE2D_DESC desc;
-		ZeroMemory(&desc, sizeof(desc));
-		desc.Width = width;
-		desc.Height = height;
-		desc.MipLevels = desc.ArraySize = 1;
-		desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-		desc.SampleDesc.Count = 1;
-		desc.Usage = D3D11_USAGE_DYNAMIC;
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		desc.MiscFlags = 0;
+		D3D11_TEXTURE2D_DESC desc = {};
+        desc.Width = width;
+        desc.Height = height;
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
-		if (SUCCEEDED(dx.CreateTexture2D(&desc, NULL, &_texture)))
+		if (dx.CreateTexture2D(&desc, nullptr, &_texture) == 0)
 		{
-			SetDebugName(_texture, name);
 
 			D3D11_MAPPED_SUBRESOURCE subRes;
-			if (SUCCEEDED(dx.Map(_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+			if (dx.Map(_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 			{
 				int inPtr = 16;
 				int* pTex = (int*)subRes.pData;
-				ZeroMemory(pTex, height * subRes.RowPitch);
+				memset(pTex, 0, height * subRes.RowPitch);
 
 				if (rawImage)
 				{
@@ -280,10 +225,9 @@ BOOL CTexture::Init(PBYTE pData, DWORD size, DWORD offset, PINT pPalette, int tr
 
 				dx.Unmap(_texture, 0);
 
-				if (SUCCEEDED(dx.CreateShaderResourceView(_texture, NULL, &_textureRV)))
+				if (dx.CreateShaderResourceView(_texture, nullptr, &_textureRV) == 0)
 				{
-					SetDebugName(_textureRV, name);
-					ret = TRUE;
+					ret = true;
 				}
 			}
 		}
@@ -294,15 +238,15 @@ BOOL CTexture::Init(PBYTE pData, DWORD size, DWORD offset, PINT pPalette, int tr
 
 void CTexture::Dispose()
 {
-	if (_texture != NULL)
+	if (_texture != nullptr)
 	{
 		_texture->Release();
-		_texture = NULL;
+		_texture = nullptr;
 	}
 
-	if (_textureRV != NULL)
+	if (_textureRV != nullptr)
 	{
 		_textureRV->Release();
-		_textureRV = NULL;
+		_textureRV = nullptr;
 	}
 }
