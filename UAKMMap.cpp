@@ -3,21 +3,22 @@
 #include "LZ.h"
 #include "MapData.h"
 #include "Utilities.h"
+#include <cstdint>
 
-BOOL CUAKMMap::Init()
+bool CUAKMMap::Init()
 {
-	BinaryData map = CLZ::Decompress(L"MAP.LZ");
+	BinaryData map = CLZ::Decompress("MAP.LZ");
 
 	//CFile file;
-	//if (file.Open(L"D:\\UAKM.MAP", CFile::Mode::Write))
+	//if (file.Open("D:/UAKM.MAP", CFile::Mode::Write))
 	//{
 	//	file.Write(map.Data, map.Length);
 	//	file.Close();
 	//}
 
-	if (map.Data != NULL && map.Length > 0)
+	if (map.Data != nullptr && map.Length > 0)
 	{
-		LPBYTE data = map.Data;
+		uint8_t* data = map.Data;
 
 		for (int i = 0; i < 64; i++)
 		{
@@ -41,7 +42,7 @@ BOOL CUAKMMap::Init()
 					if (w == 0xffff) break;
 				}
 
-				ptr += 6;	// Skip unknown word and file index/entry pair
+				ptr += 6;   // Skip unknown word and file index/entry pair
 
 				pMD->ScriptFileIndex = GetInt(data, ptr, 2);
 				ptr += 2;
@@ -140,10 +141,10 @@ BOOL CUAKMMap::Init()
 			_entries.push_back(pMD);
 		}
 
-		delete map.Data;
+		delete[] map.Data;
 
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }

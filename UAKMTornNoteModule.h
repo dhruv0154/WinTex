@@ -2,12 +2,13 @@
 
 #include "ModuleBase.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
+#include <cstdint>
 #include "Texture.h"
 #include <vector>
 #include "DXText.h"
 #include "DXButton.h"
 #include "PuzzlePiece.h"
+#include "Structs.h"
 
 class CUAKMTornNoteModule : public CModuleBase
 {
@@ -21,7 +22,7 @@ public:
 	virtual void Render();
 
 	CDXButton* _pBtnResume;
-	static void OnResume(LPVOID data);
+	static void OnResume(void* data);
 
 protected:
 	virtual void Initialize();
@@ -35,24 +36,24 @@ protected:
 	ID3D11Buffer* _vertexBuffer;
 
 	int _numberOfImages;
-	LPBYTE _pImageData;
+	uint8_t* _pImageData;
 
 	int _positionOffset;
 	float _scale;
 	float _screenHeight;
 
 	CPuzzlePiece* _selectedScrap;
-	POINT _pt;
+	Point _pt;
 
-	BOOL _completed;
-	BOOL CheckCompleted();
+	bool _completed;
+	bool CheckCompleted();
 
-	ULONGLONG _timeToExit;
+	uint64_t _timeToExit;
 
 	CDXText _caption;
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void EndAction();
 	virtual void Back();

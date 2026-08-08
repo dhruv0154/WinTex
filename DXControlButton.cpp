@@ -2,6 +2,7 @@
 #include "Globals.h"
 #include "DXFont.h"
 #include "Gamepad.h"
+#include <algorithm>
 
 std::string CDXControlButton::GetMapText(CControllerData* pControllerData)
 {
@@ -9,10 +10,7 @@ std::string CDXControlButton::GetMapText(CControllerData* pControllerData)
 	{
 		case InputSource::Key:
 		{
-			CHAR keyName[256];
-			int charCount = GetKeyNameTextA(pControllerData->Offset, keyName, 255);
-			return keyName;
-			break;
+			return "Key " + std::to_string(pControllerData->Offset);
 		}
 		case InputSource::Mouse:
 		{
@@ -66,9 +64,9 @@ std::string CDXControlButton::GetMapText(CControllerData* pControllerData)
 	return "";
 }
 
-CDXControlButton::CDXControlButton(LPSTR function, std::unordered_map<InputAction, InputMap>* pMapping, BOOL isJoystick, float w, float h, float textX, void(*onClick)(InputAction), InputAction action)
+CDXControlButton::CDXControlButton(const char* function, std::unordered_map<InputAction, InputMap>* pMapping, bool isJoystick, float w, float h, float textX, void(*onClick)(InputAction), InputAction action)
 {
-	_isBeingConfigured = FALSE;
+	_isBeingConfigured = false;
 	_controlClicked = onClick;
 	_action = action;
 	_isJoystick = isJoystick;
@@ -87,13 +85,15 @@ CDXControlButton::CDXControlButton(LPSTR function, std::unordered_map<InputActio
 		cdata.Source = map.MouseKeySource;
 		cdata.Offset = cdata.Data = map.MouseKeyIdentifier;
 	}
-	_binding.SetText((LPSTR)GetMapText(&cdata).c_str());
+	
+	std::string bindText = GetMapText(&cdata);
+	_binding.SetText(bindText.c_str());
 
 	float textW = _binding.PixelWidth(function);
 
 	_x = 0.0f;
 	_y = 0.0f;
-	_w = max(w, textW);
+	_w = std::max(w, textW);
 	_h = TexFont.Height() * pConfig->FontScale;
 
 	_textX = textX;
@@ -119,18 +119,18 @@ void CDXControlButton::Render()
 
 CDXControl* CDXControlButton::HitTest(float x, float y)
 {
-	return (x >= _x && x < (_x + 500) && y >= (_y + _h) && y <= (_y + 2 * _h)) ? this : NULL;
+	return (x >= _x && x < (_x + 500) && y >= (_y + _h) && y <= (_y + 2 * _h)) ? this : nullptr;
 }
 
-void CDXControlButton::SetMouseOver(BOOL mouseOver)
+void CDXControlButton::SetMouseOver(bool mouseOver)
 {
-	BOOL oldMouseOver = _mouseOver;
 	_mouseOver = mouseOver;
 }
 
 void CDXControlButton::UpdateControlText(CControllerData* pControllerData)
 {
-	_binding.SetText((LPSTR)GetMapText(pControllerData).c_str());
+	std::string bindText = GetMapText(pControllerData);
+	_binding.SetText(bindText.c_str());
 }
 
 void CDXControlButton::Click()
@@ -166,7 +166,8 @@ void CDXControlButton::UpdateControlText(std::unordered_map<InputAction, InputMa
 		data.Data = data.Offset = map.CurrentData;
 	}
 
-	_binding.SetText((LPSTR)GetMapText(&data).c_str());
+	std::string bindText = GetMapText(&data);
+	_binding.SetText(bindText.c_str());
 }
 
 void CDXControlButton::SetColours(int colour1, int colour2, int colour3, int colour4)

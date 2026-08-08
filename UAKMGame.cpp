@@ -3,7 +3,6 @@
 #include "DXText.h"
 #include "Globals.h"
 #include "DXControls.h"
-#include "resource.h"
 #include "DXImageButton.h"
 #include "DXCheckBox.h"
 #include "Configuration.h"
@@ -17,26 +16,28 @@
 #include "InputMapping.h"
 #include "UAKMMap.h"
 #include "UAKMDMap.h"
+#include <cstring>
+#include <ctime>
+#include <algorithm>
 
-BOOL CUAKMGame::Init()
+bool CUAKMGame::Init()
 {
 	if (CModuleController::Init(new CUAKMMap(), new CUAKMDMap()) && LoadIcons() && CItems::Init())
 	{
-		// Make sure Tex player exists
-		if (!CFile::Exists(L"PLAYERS\\TEX___00.PLR"))
+		if (!CFile::Exists("PLAYERS/TEX___00.PLR"))
 		{
 			CFile file;
-			if (file.Open(L"PLAYERS\\TEX___00.PLR", CFile::Mode::Write))
+			if (file.Open("PLAYERS/TEX___00.PLR", CFile::Mode::Write))
 			{
-				BYTE buffer[256];
-				ZeroMemory(buffer, 256);
+				uint8_t buffer[256];
+				memset(buffer, 0, 256);
 				buffer[1] = 1;
 				buffer[2] = 'T';
 				buffer[3] = 'E';
 				buffer[4] = 'X';
 				memset(buffer + 5, ' ', 21);
-				buffer[26] = 0;		// Player has died?
-				buffer[27] = 1;		// Watched intro?
+				buffer[26] = 0;		
+				buffer[27] = 1;		
 
 				file.Write(buffer, 256);
 				file.Close();
@@ -45,33 +46,30 @@ BOOL CUAKMGame::Init()
 
 		CModuleController::Push(new CUAKMMainMenuModule());
 
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }
 
 CUAKMGame::CUAKMGame()
 {
-	_gameData = new BYTE[UAKM_SAVE_SIZE];
-	ZeroMemory(_gameData, UAKM_SAVE_SIZE);
+	_gameData = new uint8_t[UAKM_SAVE_SIZE];
+	memset(_gameData, 0, UAKM_SAVE_SIZE);
 
 	_lastDialoguePoint = -1;
 	_frameTrigger = -1;
 
 	ReadGameXMLInfo(IDR_XML_UAKM);
 
-	SetGamePath(L".\\");
+	SetGamePath("./");
 }
 
 CUAKMGame::~CUAKMGame()
 {
-	// Get rid of items, cursors and anim
 	CItems::Dispose();
-
 	CAnimationController::Clear();
 
-	// DialogueOptions
 	for (int i = 0; i < 3; i++)
 	{
 		DialogueOptions[i].Clear();
@@ -80,28 +78,25 @@ CUAKMGame::~CUAKMGame()
 
 void CUAKMGame::Render()
 {
-	// Call Render on active module
 	CModuleController::Render();
 }
 
-void CUAKMGame::MouseDown(POINT pt, int btn)
+void CUAKMGame::MouseDown(Point pt, int btn)
 {
 	CModuleController::MouseDown(pt, btn);
 }
 
-// TODO: Perhaps these should be in the base class?
-
-void CUAKMGame::MouseMove(POINT pt)
+void CUAKMGame::MouseMove(Point pt)
 {
 	CModuleController::MouseMove(pt);
 }
 
-void CUAKMGame::KeyDown(WPARAM key, LPARAM lParam)
+void CUAKMGame::KeyDown(uint32_t key, uint32_t lParam)
 {
 	CModuleController::KeyDown(key, lParam);
 }
 
-void CUAKMGame::KeyUp(WPARAM key, LPARAM lParam)
+void CUAKMGame::KeyUp(uint32_t key, uint32_t lParam)
 {
 	CModuleController::KeyUp(key, lParam);
 }
@@ -110,48 +105,47 @@ void CUAKMGame::NewGame()
 {
 	CMainMenuModule::SetPlayerNameAndEnableButtons();
 
-	// Reset game buffer
-	ZeroMemory(_gameData, UAKM_SAVE_SIZE);
-	FillMemory(_gameData + 2, UAKM_SAVE_PADDING1 - 2, ' ');
+	memset(_gameData, 0, UAKM_SAVE_SIZE);
+	memset(_gameData + 2, ' ', UAKM_SAVE_PADDING1 - 2);
 
 	_gameData[UAKM_SAVE_UNKNOWN1 + 1] = 1;
 	SetData(UAKM_SAVE_PLAYER, "TEX");
 
 	_gameData[UAKM_SAVE_GAME_DAY] = 1;
 
-	SetData(UAKM_SAVE_CODED_MESSAGE, "YE UANE CIAFWBHED RIPB AEEIWALHEAL  YWLU CUAXLWLR AL  LUE XPWLE WA LUE  GIODEA GALE UILEO AL LUE PXPAO LWHE.LUE EAXXYIBD LIDARWX XWOWCIA.       ");
+	SetData(UAKM_SAVE_CODED_MESSAGE, "YE UANE CIAFWBHED RIPB AEEIWALHEAL  YWLU CUAXLWLR AL  LUE XPWLE WA LUE  GIODEA GALE UILEO AL LUE PXPAO LWHE.LUE EAXXYIBD LIDARWX XWOWCIA.        ");
 
-	SetAskAboutState(0, 1);							// Rook Garner
-	SetAskAboutState(1, 1);							// Chelsee Bando
-	SetAskAboutState(2, 1);							// Louie Lamintz
-	SetAskAboutState(3, 1);							// Francesca Lucido
-	SetAskAboutState(4, 1);							// Sal Lucido
-	SetAskAboutState(5, 1);							// Ardo Newpop
-	SetAskAboutState(17, 1);						// Colonel
+	SetAskAboutState(0, 1);							
+	SetAskAboutState(1, 1);							
+	SetAskAboutState(2, 1);							
+	SetAskAboutState(3, 1);							
+	SetAskAboutState(4, 1);							
+	SetAskAboutState(5, 1);							
+	SetAskAboutState(17, 1);						
 
-	SetData(UAKM_SAVE_TRAVEL + 5, 1);				// Allow travel to Tex's Office
+	SetData(UAKM_SAVE_TRAVEL + 5, 1);				
 
-	_gameData[UAKM_SAVE_CURRENT_ASK] = -1;			// No ask about selected
-	_gameData[UAKM_SAVE_CURRENT_ITEM] = -1;			// No selected item
+	_gameData[UAKM_SAVE_CURRENT_ASK] = -1;			
+	_gameData[UAKM_SAVE_CURRENT_ITEM] = -1;			
 	_gameData[UAKM_SAVE_CHAPTER] = 1;
 	_gameData[UAKM_SAVE_PARAMETERS + 99] = -1;
 	_gameData[UAKM_SAVE_PARAMETERS + 251] = 2;
-	_gameData[UAKM_SAVE_PARAMETERS + 250] = 1;		// Game day
+	_gameData[UAKM_SAVE_PARAMETERS + 250] = 1;		
 	_gameData[UAKM_SAVE_HINT_CATEGORY_STATES + 1] = 1;
 
-	BinaryData bd = LoadEntry(L"GRAPHICS.AP", 23);
-	if (bd.Data != NULL && bd.Length == 0x1fe)
+	BinaryData bd = LoadEntry("GRAPHICS.AP", 23);
+	if (bd.Data != nullptr && bd.Length == 0x1fe)
 	{
-		CopyMemory(_gameData + UAKM_SAVE_PUZZLE_DATA, bd.Data, bd.Length);
+		memcpy(_gameData + UAKM_SAVE_PUZZLE_DATA, bd.Data, bd.Length);
 		delete[] bd.Data;
 	}
 
 	LoadFromDMap(0);
 }
 
-void CUAKMGame::LoadGame(LPWSTR fileName)
+void CUAKMGame::LoadGame(const char* fileName)
 {
-	BYTE data[UAKM_SAVE_SIZE];
+	uint8_t data[UAKM_SAVE_SIZE];
 	CFile file;
 	if (file.Open(fileName))
 	{
@@ -160,9 +154,8 @@ void CUAKMGame::LoadGame(LPWSTR fileName)
 
 		if (read == UAKM_SAVE_SIZE)
 		{
-			CopyMemory(_gameData, data, UAKM_SAVE_SIZE);
+			memcpy(_gameData, data, UAKM_SAVE_SIZE);
 
-			// Validate inventory, check current item
 			int currentItem = _gameData[UAKM_SAVE_CURRENT_ITEM];
 			if (currentItem != 0xff)
 			{
@@ -183,7 +176,6 @@ void CUAKMGame::LoadGame(LPWSTR fileName)
 				}
 			}
 
-			// Should now load location or dialogue
 			if (_gameData[UAKM_SAVE_DMAP_FLAG])
 			{
 				CModuleController::Push(new CVideoModule(VideoType::Scripted, _gameData[UAKM_SAVE_DMAP_ENTRY], GetWord(UAKM_SAVE_SCRIPT_ID)));
@@ -196,21 +188,18 @@ void CUAKMGame::LoadGame(LPWSTR fileName)
 	}
 }
 
-void CUAKMGame::SaveGame(LPWSTR fileName)
+void CUAKMGame::SaveGame(const char* fileName)
 {
 	CFile file;
 	if (file.Open(fileName, CFile::Mode::Write))
 	{
-		// Populate situation description
-		std::wstring sit;
+		std::string sit;
 		if (_gameData[UAKM_SAVE_DMAP_FLAG] == 0)
 		{
-			// Location
 			sit = CGameController::GetSituationDescriptionL(_gameData[UAKM_SAVE_MAP_ENTRY]);
 		}
 		else
 		{
-			// Dialogue
 			sit = CGameController::GetSituationDescriptionD(_gameData[UAKM_SAVE_DMAP_ENTRY]);
 		}
 
@@ -220,28 +209,29 @@ void CUAKMGame::SaveGame(LPWSTR fileName)
 			_gameData[UAKM_SAVE_LOCATION + i] = sit[i] & 0xFF;
 		}
 
-		SYSTEMTIME time;
-		GetLocalTime(&time);
-		_gameData[UAKM_SAVE_GAME_DAY] = min(7, max(1, _gameData[UAKM_SAVE_PARAMETERS + 250]));
-		_gameData[UAKM_SAVE_YEAR] = (BYTE)(time.wYear & 0xff);
-		_gameData[UAKM_SAVE_YEAR + 1] = (BYTE)((time.wYear >> 8) & 0xff);
-		_gameData[UAKM_SAVE_MONTH] = (BYTE)time.wMonth;
-		_gameData[UAKM_SAVE_DAY] = (BYTE)time.wDay;
-		_gameData[UAKM_SAVE_HOUR] = (BYTE)time.wHour;
-		_gameData[UAKM_SAVE_MINUTE] = (BYTE)time.wMinute;
-		_gameData[UAKM_SAVE_SECOND] = (BYTE)time.wSecond;
+		std::time_t t = std::time(nullptr);
+		std::tm* time = std::localtime(&t);
+		int year = time->tm_year + 1900;
+		_gameData[UAKM_SAVE_GAME_DAY] = std::min((uint8_t)7, std::max((uint8_t)1, _gameData[UAKM_SAVE_PARAMETERS + 250]));
+		_gameData[UAKM_SAVE_YEAR] = (uint8_t)(year & 0xff);
+		_gameData[UAKM_SAVE_YEAR + 1] = (uint8_t)((year >> 8) & 0xff);
+		_gameData[UAKM_SAVE_MONTH] = (uint8_t)(time->tm_mon + 1);
+		_gameData[UAKM_SAVE_DAY] = (uint8_t)time->tm_mday;
+		_gameData[UAKM_SAVE_HOUR] = (uint8_t)time->tm_hour;
+		_gameData[UAKM_SAVE_MINUTE] = (uint8_t)time->tm_min;
+		_gameData[UAKM_SAVE_SECOND] = (uint8_t)time->tm_sec;
 
 		file.Write(_gameData, UAKM_SAVE_SIZE);
 		file.Close();
 	}
 }
 
-BYTE CUAKMGame::GetParameter(int index)
+uint8_t CUAKMGame::GetParameter(int index)
 {
 	return (index >= 0 && index < 256) ? _gameData[UAKM_SAVE_PARAMETERS + index] : 0;
 }
 
-void CUAKMGame::SetParameter(int index, BYTE value)
+void CUAKMGame::SetParameter(int index, uint8_t value)
 {
 	if (index >= 0 && index < 256)
 	{
@@ -249,7 +239,7 @@ void CUAKMGame::SetParameter(int index, BYTE value)
 	}
 }
 
-int CUAKMGame::GetWord(int offset, BOOL signExtend)
+int CUAKMGame::GetWord(int offset, bool signExtend)
 {
 	int result = (offset >= 0 && offset < (UAKM_SAVE_SIZE - 1)) ? (_gameData[offset + 1] << 8) | _gameData[offset] : 0;
 	if (signExtend && result & 0x8000)
@@ -264,21 +254,20 @@ void CUAKMGame::SetWord(int offset, int value)
 {
 	if (offset >= 0 && offset < (UAKM_SAVE_SIZE - 1))
 	{
-		_gameData[offset] = value;
-		_gameData[offset + 1] = value >> 8;
+		_gameData[offset] = value & 0xff;
+		_gameData[offset + 1] = (value >> 8) & 0xff;
 	}
 }
 
-BYTE CUAKMGame::GetAskAboutState(int index)
+uint8_t CUAKMGame::GetAskAboutState(int index)
 {
 	return (index >= 0 && index < 45) ? _gameData[UAKM_SAVE_ASK_ABOUT_STATES + index] : 0;
 }
 
-void CUAKMGame::SetAskAboutState(int index, BYTE state)
+void CUAKMGame::SetAskAboutState(int index, uint8_t state)
 {
 	if (index >= 0 && index <= 45)
 	{
-		// Add or remove from list
 		int count = GetAskAboutCount();
 		if (state == 0 || state == 2)
 		{
@@ -291,7 +280,7 @@ void CUAKMGame::SetAskAboutState(int index, BYTE state)
 					{
 						_gameData[UAKM_SAVE_ASK_ABOUTS + i] = _gameData[UAKM_SAVE_ASK_ABOUTS + i + 1];
 					}
-					_gameData[UAKM_SAVE_ASK_ABOUTS + count] = -1;
+					_gameData[UAKM_SAVE_ASK_ABOUTS + count] = 0xff;
 
 					_gameData[UAKM_SAVE_ASK_ABOUT_COUNT]--;
 
@@ -301,7 +290,6 @@ void CUAKMGame::SetAskAboutState(int index, BYTE state)
 		}
 		else if (state == 1)
 		{
-			// Check if state already set
 			for (int i = 0; i < count; i++)
 			{
 				if (_gameData[UAKM_SAVE_ASK_ABOUTS + i] == index)
@@ -330,7 +318,7 @@ int CUAKMGame::GetAskAboutId(int index)
 
 int CUAKMGame::GetScore()
 {
-	return GetWord(UAKM_SAVE_SCORE, TRUE);
+	return GetWord(UAKM_SAVE_SCORE, true);
 }
 
 void CUAKMGame::AddScore(int value)
@@ -361,7 +349,6 @@ void CUAKMGame::SetItemState(int item, int state)
 
 		int count = _gameData[UAKM_SAVE_ITEM_COUNT];
 
-		// Add or remove from list
 		if (state == 0 || state == 2)
 		{
 			for (int i = 0; i < count && i < UAKM_MAX_ITEM_COUNT; i++)
@@ -381,17 +368,17 @@ void CUAKMGame::SetItemState(int item, int state)
 
 			if (_gameData[UAKM_SAVE_CURRENT_ITEM] == item)
 			{
-				_gameData[UAKM_SAVE_CURRENT_ITEM] = -1;
+				_gameData[UAKM_SAVE_CURRENT_ITEM] = 0xff;
 			}
 		}
 		else if (state == 1)
 		{
-			BOOL alreadyInInventory = FALSE;
+			bool alreadyInInventory = false;
 			for (int i = 0; i < count; i++)
 			{
 				if (_gameData[UAKM_SAVE_INVENTORY + i] == item)
 				{
-					alreadyInInventory = TRUE;
+					alreadyInInventory = true;
 					break;
 				}
 			}
@@ -426,7 +413,7 @@ int CUAKMGame::SelectNextItem()
 		newIndex = -1;
 	}
 
-	_gameData[UAKM_SAVE_CURRENT_ITEM] = newIndex < 0 ? -1 : _gameData[UAKM_SAVE_INVENTORY + newIndex];
+	_gameData[UAKM_SAVE_CURRENT_ITEM] = newIndex < 0 ? 0xff : _gameData[UAKM_SAVE_INVENTORY + newIndex];
 
 	return _gameData[UAKM_SAVE_CURRENT_ITEM];
 }
@@ -441,7 +428,7 @@ int CUAKMGame::SelectPreviousItem()
 		newIndex = count - 1;
 	}
 
-	_gameData[UAKM_SAVE_CURRENT_ITEM] = newIndex < 0 ? -1 : _gameData[UAKM_SAVE_INVENTORY + newIndex];
+	_gameData[UAKM_SAVE_CURRENT_ITEM] = newIndex < 0 ? 0xff : _gameData[UAKM_SAVE_INVENTORY + newIndex];
 
 	return _gameData[UAKM_SAVE_CURRENT_ITEM];
 }
@@ -460,7 +447,7 @@ int CUAKMGame::IndexOfItemId(int item)
 	return -1;
 }
 
-BYTE CUAKMGame::GetHintState(int index)
+uint8_t CUAKMGame::GetHintState(int index)
 {
 	int val = 0;
 	if (index >= 0 && index < 1352)
@@ -474,7 +461,7 @@ BYTE CUAKMGame::GetHintState(int index)
 }
 
 int HintStatePairs[] = { 3, 21, 56, 61, 263, 289, 12, 11, 264, 290, 434, 440, 434, 446, 234, 186, 343, 342 };
-void CUAKMGame::SetHintState(int index, BYTE state, int score)
+void CUAKMGame::SetHintState(int index, uint8_t state, int score)
 {
 	if (index >= 0 && index < 1352)
 	{
@@ -505,12 +492,12 @@ void CUAKMGame::SetHintState(int index, BYTE state, int score)
 	}
 }
 
-BYTE CUAKMGame::GetHintCategoryState(int index)
+uint8_t CUAKMGame::GetHintCategoryState(int index)
 {
 	return (index >= 0 && index < 86) ? _gameData[UAKM_SAVE_HINT_CATEGORY_STATES + index] : 0;
 }
 
-void CUAKMGame::SetHintCategoryState(int index, BYTE state)
+void CUAKMGame::SetHintCategoryState(int index, uint8_t state)
 {
 	if (index >= 0 && index < 86)
 	{
@@ -528,49 +515,27 @@ void CUAKMGame::SetTimer(int timer, int duration)
 		SetWord(UAKM_SAVE_TIMERS_CURRENT + timer * 2, duration);
 		Timers[timer] = static_cast<int>(duration * TIMER_SCALE);
 	}
-
-	//Trace(L"Setting timer ");
-	//Trace(timer);
-	//Trace(L" to ");
-	//Trace(Timers[timer]);
-	//TraceLine(L" ms");
 }
 
 int CUAKMGame::GetTimerState(int timer)
 {
 	int state = (timer >= 0 && timer < 32) ? _gameData[UAKM_SAVE_TIMERS + timer] : 0;
-
-	//Trace(L"State of timer ");
-	//Trace(timer);
-	//Trace(L" is ");
-	//Trace(state);
-	//Trace(L", time left ");
-	//Trace(Timers[timer]);
-	//TraceLine(L" ms");
-
 	return state;
 }
 
 void CUAKMGame::ResetTimers()
 {
-	// TODO: Disable timers
-	ZeroMemory(Timers, sizeof(Timers));
-	ZeroMemory(_gameData + UAKM_SAVE_TIMERS_INITIAL, 32 * 5);
+	memset(Timers, 0, sizeof(Timers));
+	memset(_gameData + UAKM_SAVE_TIMERS_INITIAL, 0, 32 * 5);
 }
 
 void CUAKMGame::Tick(int ticks)
 {
-	// TODO: Timer 9 can be interrupted (showing picture of beaten Tex)
-	// Timer 11 looks like MIDI
-	// Timer 12, 13 & 14 are used for car sounds in main street
-
-	// Check timers
 	for (int i = 0; i < 32; i++)
 	{
 		if (_gameData[UAKM_SAVE_TIMERS + i] > 0)
 		{
-			// Timer is active, reduce by ticks
-			Timers[i] = max(0, Timers[i] - ticks);
+			Timers[i] = std::max(0, Timers[i] - ticks);
 			if (Timers[i] == 0)
 			{
 				_gameData[UAKM_SAVE_TIMERS + i] = 0;
@@ -580,12 +545,12 @@ void CUAKMGame::Tick(int ticks)
 	}
 }
 
-BYTE CUAKMGame::GetData(int offset)
+uint8_t CUAKMGame::GetData(int offset)
 {
 	return (offset >= 0 && offset < UAKM_SAVE_SIZE) ? _gameData[offset] : 0;
 }
 
-void CUAKMGame::SetData(int offset, BYTE value)
+void CUAKMGame::SetData(int offset, uint8_t value)
 {
 	if (offset >= 0 && offset < UAKM_SAVE_SIZE)
 	{
@@ -593,7 +558,7 @@ void CUAKMGame::SetData(int offset, BYTE value)
 	}
 }
 
-void CUAKMGame::SetData(int offset, char* text)
+void CUAKMGame::SetData(int offset, const char* text)
 {
 	if (offset >= 0)
 	{
@@ -621,11 +586,11 @@ void CUAKMGame::SetItemExamined(int itemId, int conditionalScore)
 	}
 }
 
-BOOL CUAKMGame::LoadIcons()
+bool CUAKMGame::LoadIcons()
 {
-	BOOL result = FALSE;
-	BinaryData bd = CLZ::Decompress(L"ICONS.LZ");
-	if (bd.Data != NULL && bd.Length > 0)
+	bool result = false;
+	BinaryData bd = CLZ::Decompress("ICONS.LZ");
+	if (bd.Data != nullptr && bd.Length > 0)
 	{
 		result = CGameBase::LoadIcons(bd);
 		delete[] bd.Data;

@@ -1,65 +1,52 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
-#include "Utilities.h"
+#include <cstdint>
 
 struct AreaData_Table1b
 {
-	short Y1;
-	short Y2;
-	short X1;
-	short X2;
+    int16_t Y1;
+    int16_t Y2;
+    int16_t X1;
+    int16_t X2;
 };
 
 struct AreaData_Table3
 {
-	short X;
-	short Y;
-	BYTE unk1;	// ID fields?
-	BYTE unk2;
-	BYTE unk3;
-	BYTE unk4;
+    int16_t X;
+    int16_t Y;
+    uint8_t unk1;
+    uint8_t unk2;
+    uint8_t unk3;
+    uint8_t unk4;
 };
 
 struct AreaData_Table4
 {
-	BYTE unk1;
-	BYTE unk2;
-	short Y1;
-	short Y2;
-	short X1;
-	short X2;
-	BYTE WidthIndex;
-	BYTE unk4;
-	BYTE unk5;
-	BYTE unk6;
+    uint8_t unk1;
+    uint8_t unk2;
+    int16_t Y1;
+    int16_t Y2;
+    int16_t X1;
+    int16_t X2;
+    uint8_t WidthIndex;
+    uint8_t unk4;
+    uint8_t unk5;
+    uint8_t unk6;
 };
 
 class CAreaData
 {
 public:
-	CAreaData();
-	~CAreaData();
+    CAreaData();
+    ~CAreaData();
 
-	void Init(LPBYTE data);
+    void Init(uint8_t* data);
 
-	// Table 1
-	LPBYTE CategoryOptionOffsets;
-	// Table 1b
-	LPBYTE CategoryOptionCounts;
-	AreaData_Table1b* CategoryAreas;
+    uint8_t* CategoryOptionOffsets{nullptr};
+    uint8_t* CategoryOptionCounts{nullptr};
+    AreaData_Table1b* CategoryAreas{nullptr};
 
-	// Table 2
-	LPBYTE Table2;
-
-	// Table 3
-	AreaData_Table3* Table3;
-
-	// Table 4
-	AreaData_Table4* Table4;
+    uint8_t* Table2{nullptr};
+    AreaData_Table3* Table3{nullptr};
+    AreaData_Table4* Table4{nullptr};
 };

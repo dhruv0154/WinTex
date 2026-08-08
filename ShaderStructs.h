@@ -15,7 +15,21 @@ struct float4 {
 	float4() = default;
 	float4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
 };
-struct float16 { float m[16]; };
+struct float16 { 
+	float m[16]; 
+	float16 operator*(const float16& a) {
+    	float16 R;
+    	for(int i=0; i<4; i++) {
+    	    for(int j=0; j<4; j++) {
+    	       R.m[i*4+j] = this->m[i*4+0]*a.m[0*4+j] +
+                             this->m[i*4+1]*a.m[1*4+j] +
+                             this->m[i*4+2]*a.m[2*4+j] +
+                             this->m[i*4+3]*a.m[3*4+j];
+    	    }
+    	}
+    	return R;
+	}
+};
 
 struct TEXTURED_VERTEX_ORTHO
 {

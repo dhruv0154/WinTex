@@ -3,19 +3,19 @@
 class CCaption
 {
 public:
-	CCaption() { _frame = -1; _text = NULL; _tex = FALSE; _processed = FALSE; }
-	CCaption(int frame, char* text, BOOL tex) { _frame = frame; _text = text; _tex = tex; _processed = FALSE; }
+	CCaption() { _frame = -1; _text = nullptr; _tex = false; _processed = false; }
+	CCaption(int frame, const char* text, bool tex) { _frame = frame; _text = text; _tex = tex; _processed = false; }
 	~CCaption() { }
 
 	int Frame() { return _frame; }
-	char* Text() { return _text; }
-	BOOL Tex() { return _tex; }
-	BOOL Processed() { return _processed; }
-	void SetProcessed(BOOL processed) { _processed = processed; }
+	const char* Text() { return _text; }
+	bool Tex() { return _tex; }
+	bool Processed() { return _processed; }
+	void SetProcessed(bool processed) { _processed = processed; }
 
 protected:
 	int _frame;
-	char* _text;
-	BOOL _tex;
-	BOOL _processed;
+	const char* _text;
+	bool _tex;
+	bool _processed;
 };

@@ -1,82 +1,66 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_LINUX
-#include "Win32Compat.h"
-#else
-#include <xaudio2.h>
-#endif
-#include <unordered_map>
-#include "Utilities.h"
-#ifndef PLATFORM_LINUX
-#include <Windows.h>
-#endif
+#include "BinaryData.h"
 #include "Map.h"
 #include "Mutex.h"
+#include "DXSound.h"
+#include <cstdint>
+#include <string>
 #include <list>
+#include <unordered_map>
 
-class CAmbientAudio : public IXAudio2VoiceCallback
+class CAmbientAudio
 {
 public:
-	CAmbientAudio(BinaryData bd);
-	CAmbientAudio()
-	{
-		_pData = NULL;
-		_length = 0;
-		_sourceVoice = NULL;
-		_finished = TRUE;
-	};
-	~CAmbientAudio();
+    CAmbientAudio(BinaryData bd);
+    CAmbientAudio()
+    {
+        _pData = nullptr;
+        _length = 0;
+        _sourceVoice = nullptr;
+        _finished = true;
+        _isLooping = false;
+        TimeDisposed = 0;
+    }
+    ~CAmbientAudio();
 
-	STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32) { }
-	STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
-	STDMETHOD_(void, OnStreamEnd)() { }
-	STDMETHOD_(void, OnBufferStart)(void*) { }
-	STDMETHOD_(void, OnBufferEnd)(void*)
-	{
-		Stop();
-		_finished = TRUE;
-	}
-	STDMETHOD_(void, OnLoopEnd)(void*) { }
-	STDMETHOD_(void, OnVoiceError)(void*, HRESULT) { }
+    static void Clear();
+    static void Loop(CMapData* mapEntry, int entry1, int entry2);
+    static void LoadPD(CMapData* mapEntry, int entry1, int entry2);
+    static void LoopPD(int entry);
+    static void Play(CMapData* mapEntry, int entry, bool playAlways);
+    static void Stop(int entry);
+    static void StopAll();
+    void Loop();
+    void Play();
+    void Play(uint8_t* pData);
+    void Stop();
 
-	static void Clear();
-	static void Loop(CMapData* mapEntry, int entry1, int entry2);
-	static void LoadPD(CMapData* mapEntry, int entry1, int entry2);
-	static void LoopPD(int entry);
-	static void Play(CMapData* mapEntry, int entry, BOOL playAlways);
-	static void Stop(int entry);
-	static void StopAll();
-	void Loop();
-	void Play();
-	void Play(LPBYTE pData);
-	void Stop();
+    static void SetVolume(int entry, float volume);
+    void SetVolume(float volume);
 
-	void static SetVolume(int entry, float volume);
-	void SetVolume(float volume);
+    static void SetPan(int entry, float pan);
+    void SetPan(float pan);
 
-	void static SetPan(int entry, float pan);
-	void SetPan(float pan);
-
-	ULONGLONG TimeDisposed;
+    uint64_t TimeDisposed;
 
 protected:
-	static BOOL Load(CMapData* mapEntry, int entry);
-	static BOOL LoadPD(CMapData* mapEntry, int entry);
+    static bool Load(CMapData* mapEntry, int entry);
+    static bool LoadPD(CMapData* mapEntry, int entry);
 
-	static CAmbientAudio* Find(int entry);
-	BOOL Finished() { return _finished; }
-	BOOL _finished;
+    static CAmbientAudio* Find(int entry);
+    bool Finished();
+    bool _finished;
+    bool _isLooping;
 
-	void Play(BOOL loop);
+    void Play(bool loop);
 
-	LPBYTE _pData;
-	int _length;
-	IXAudio2SourceVoice* _sourceVoice;
+    uint8_t* _pData;
+    int _length;
+    CAudioStream* _sourceVoice;
 
-	static std::unordered_map<int, CAmbientAudio*> Sounds;
+    static std::unordered_map<int, CAmbientAudio*> Sounds;
+    static std::list<CAmbientAudio*> SoundsToDelete;
 
-	static std::list<CAmbientAudio*> SoundsToDelete;
-
-	static void GC();
+    static void GC();
 };

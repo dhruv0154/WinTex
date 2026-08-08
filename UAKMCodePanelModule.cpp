@@ -3,21 +3,27 @@
 #include "LZ.h"
 #include "GameBase.h"
 #include "GameController.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
+#include <cstring>
 
-#define IMG_HAND		0
-#define IMG_ENTER_PW	1
-#define IMG_PATRONAGE	2
-#define IMG_INCORRECT	3
-#define IMG_DOT			4
-#define DAT_COORDS1		5
-#define DAT_COORDS2		6
-#define SND_1			7
-#define SND_2			8
-#define SND_3			9
-#define SND_4			10
-#define SND_5			11
-#define SND_6			12
-#define SND_7			13
+#define IMG_HAND        0
+#define IMG_ENTER_PW    1
+#define IMG_PATRONAGE   2
+#define IMG_INCORRECT   3
+#define IMG_DOT         4
+#define DAT_COORDS1     5
+#define DAT_COORDS2     6
+#define SND_1           7
+#define SND_2           8
+#define SND_3           9
+#define SND_4           10
+#define SND_5           11
+#define SND_6           12
+#define SND_7           13
+
+#define VK_RETURN       0x0D
 
 signed char CodePanelCorrectCode[] = { 18, 8, 11, 8, 2, 14, 13, -1 };
 
@@ -38,16 +44,18 @@ CUAKMCodePanelModule::~CUAKMCodePanelModule()
 
 void CUAKMCodePanelModule::Render()
 {
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
 	if (_correctFrame > 0)
 	{
-		auto diff = GetTickCount64() - _correctFrameTime;
+		auto diff = now - _correctFrameTime;
 		if (_correctFrame == 2 && diff > 500)
 		{
 			Render(IMG_PATRONAGE, 207, 121);
 			_sound.Play(_files[SND_7]);
 			UpdateTexture();
 			_correctFrame--;
-			_correctFrameTime = GetTickCount64();
+			_correctFrameTime = now;
 		}
 		else if (_correctFrame == 1 && diff >= 1000)
 		{
@@ -56,14 +64,11 @@ void CUAKMCodePanelModule::Render()
 	}
 	else if (_wrongFrame > 0)
 	{
-		if ((GetTickCount64() - _wrongFrameTime) > 166)
+		if ((now - _wrongFrameTime) > 166)
 		{
 			if ((_wrongFrame & 1) == 0)
 			{
-				// Play sound
 				_sound.Play(_files[SND_7]);
-
-				// Render message
 				Render(IMG_INCORRECT, 243, 121);
 			}
 			else
@@ -74,29 +79,29 @@ void CUAKMCodePanelModule::Render()
 			UpdateTexture();
 
 			_wrongFrame--;
-			_wrongFrameTime = GetTickCount64();
+			_wrongFrameTime = now;
 
 			if (_wrongFrame == 0)
 			{
-				_inputEnabled = TRUE;
+				_inputEnabled = true;
 				ResetCode();
 			}
 		}
 	}
 	else if (_inputEnabled && _enteredCode[0] == 0xff)
 	{
-		int offset = static_cast<int>((GetTickCount64() - _passwordMessageTime) / 200);
+		int offset = static_cast<int>((now - _passwordMessageTime) / 200);
 		if (offset > _lastMessageOffset)
 		{
 			if (offset == 70)
 			{
-				_passwordMessageTime = GetTickCount64();
+				_passwordMessageTime = now;
 				offset = 0;
 			}
 
 			_lastMessageOffset = offset;
 
-			LPBYTE pImg = _files[IMG_ENTER_PW];
+			uint8_t* pImg = _files[IMG_ENTER_PW];
 
 			int w = GetInt(pImg, 2, 2);
 			int h = GetInt(pImg, 4, 2);
@@ -131,16 +136,16 @@ void CUAKMCodePanelModule::Render()
 		}
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -148,7 +153,7 @@ void CUAKMCodePanelModule::Render()
 
 		dx.SetVertexBuffers(0, 1, &_iconVertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-		wm = XMMatrixTranslation(_cursorPosX, -_cursorPosY, -0.5f);
+		wm = Math::Translation(_cursorPosX, -_cursorPosY, -0.5f);
 		CConstantBuffers::SetWorld(dx, &wm);
 		pRV = _iconTexture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -173,18 +178,16 @@ void CUAKMCodePanelModule::Render()
 	}
 }
 
-void CUAKMCodePanelModule::KeyDown(WPARAM key, LPARAM lParam)
+void CUAKMCodePanelModule::KeyDown(int key, int lParam)
 {
 	if (_inputEnabled)
 	{
 		if (key >= 'A' && key <= 'Z')
 		{
-			// Enter code
 			Key(static_cast<int>(key - 'A'));
 		}
 		else if (key == VK_RETURN)
 		{
-			// Try code
 			Key(27);
 		}
 	}
@@ -196,18 +199,17 @@ void CUAKMCodePanelModule::Initialize()
 
 	CGameController::SetParameter(_parameter, 0);
 
-	DoubleData dd = LoadDoubleEntry(L"SPECIAL.AP", 59);
-	if (dd.File1.Data != NULL)
+	DoubleData dd = LoadDoubleEntry("SPECIAL.AP", 59);
+	if (dd.File1.Data != nullptr)
 	{
 		_screen = dd.File2.Data;
 
-		LPBYTE pPal = dd.File1.Data;
+		uint8_t* pPal = dd.File1.Data;
 		ReadPalette(pPal);
 
 		delete[] pPal;
 	}
 
-	// Update palette (all keys black)
 	for (int i = 0xe0; i < 0xfc; i++)
 	{
 		_palette[i] = 0xff000000;
@@ -220,9 +222,8 @@ void CUAKMCodePanelModule::Initialize()
 
 	UpdateTexture();
 
-	// Load extra files
-	BinaryData bd = LoadEntry(L"SPECIAL.AP", 61);
-	if (bd.Data != NULL)
+	BinaryData bd = LoadEntry("SPECIAL.AP", 61);
+	if (bd.Data != nullptr)
 	{
 		_data = bd.Data;
 		int count = GetInt(_data, 0, 2) - 1;
@@ -282,21 +283,20 @@ void CUAKMCodePanelModule::Key(int key)
 			}
 		}
 
-		_inputEnabled = FALSE;
+		_inputEnabled = false;
 		if (correct)
 		{
 			CGameController::SetParameter(_parameter, 1);
 			_correctFrame = 2;
-			_correctFrameTime = GetTickCount64();
+			_correctFrameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		}
 		else
 		{
 			_wrongFrame = 13;
-			_wrongFrameTime = GetTickCount64();
+			_wrongFrameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		}
 	}
 
-	// Play sound
 	_sound.Play(_files[7 + (key % 6)]);
 }
 
@@ -311,13 +311,13 @@ void CUAKMCodePanelModule::ResetCode()
 
 	ClearArea(160, 183, 476, 193);
 
-	_passwordMessageTime = GetTickCount64();
+	_passwordMessageTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	_lastMessageOffset = -1;
 }
 
 void CUAKMCodePanelModule::Render(int entry, int offset_x, int offset_y)
 {
-	LPBYTE pImg = _files[entry];
+	uint8_t* pImg = _files[entry];
 
 	int w = GetInt(pImg, 2, 2);
 	int h = GetInt(pImg, 4, 2);
@@ -342,14 +342,12 @@ void CUAKMCodePanelModule::BeginAction()
 {
 	if (_inputEnabled)
 	{
-		// Check if key is hit
-		//LPBYTE pTest1 = _files[DAT_COORDS1];
-		LPBYTE pButtonCoordinates = _files[DAT_COORDS2];
+		uint8_t* pButtonCoordinates = _files[DAT_COORDS2];
 
 		int x = static_cast<int>((_cursorPosX - _left) / _scale);
 		int y = static_cast<int>((_cursorPosY - _top) / _scale);
 
-		LPBYTE scan = pButtonCoordinates;
+		uint8_t* scan = pButtonCoordinates;
 		int i = 0;
 		int hit = -1;
 		while (*scan != 0xff)
@@ -361,11 +359,7 @@ void CUAKMCodePanelModule::BeginAction()
 
 			if (x >= x1 && x < x2 && y >= y1 && y < y2)
 			{
-				//Trace(L"Clicked on button ");
-				//Trace(i);
-				//Trace(L" with ID ");
 				hit = GetInt(scan, 10, 4);
-				//TraceLine(hit);
 				break;
 			}
 
@@ -388,12 +382,10 @@ void CUAKMCodePanelModule::BeginAction()
 			{
 				if (hit < 29)
 				{
-					// Cancel
 					Key(26);
 				}
 				else
 				{
-					// Enter
 					Key(27);
 				}
 			}

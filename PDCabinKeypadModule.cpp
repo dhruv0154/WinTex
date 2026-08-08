@@ -1,26 +1,28 @@
 #include "PDCabinKeypadModule.h"
 #include "Utilities.h"
 #include "GameController.h"
-#include "resource.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
 
-#define CABIN_KEYPAD_MODE_DEFAULT			0
-#define CABIN_KEYPAD_MODE_INCORRECT			1
-#define CABIN_KEYPAD_MODE_CORRECT			2
-#define CABIN_KEYPAD_MODE_CORRECT_CLOSE		3
+#define CABIN_KEYPAD_MODE_DEFAULT           0
+#define CABIN_KEYPAD_MODE_INCORRECT         1
+#define CABIN_KEYPAD_MODE_CORRECT           2
+#define CABIN_KEYPAD_MODE_CORRECT_CLOSE     3
 
-#define CABIN_KEYPAD						42
-#define CABIN_KEYPAD_FILES					44
+#define CABIN_KEYPAD                        42
+#define CABIN_KEYPAD_FILES                  44
 
-#define CABIN_KEYPAD_SOUND_BUTTON			68
-#define CABIN_KEYPAD_SOUND_INVALID			69
-#define CABIN_KEYPAD_SOUND_CORRECT			70
+#define CABIN_KEYPAD_SOUND_BUTTON           68
+#define CABIN_KEYPAD_SOUND_INVALID          69
+#define CABIN_KEYPAD_SOUND_CORRECT          70
 
-#define CABIN_KEYPAD_KEY_DELAY				100
-#define CABIN_KEYPAD_FLASH_DELAY			350
-#define CABIN_KEYPAD_CORRECT_DELAY			500
-#define CABIN_KEYPAD_CORRECT_CLOSE_DELAY	2000
+#define CABIN_KEYPAD_KEY_DELAY              100
+#define CABIN_KEYPAD_FLASH_DELAY            350
+#define CABIN_KEYPAD_CORRECT_DELAY          500
+#define CABIN_KEYPAD_CORRECT_CLOSE_DELAY    2000
 
-#define CABIN_KEYPAD_CORRECT_CODE		0x1482
+#define CABIN_KEYPAD_CORRECT_CODE           0x1482
 
 int CPDCabinKeypadModule::CabinKeyPositions[] = { 183, 111, 250, 111, 313, 111, 377, 111, 183, 175, 250, 175, 313, 175, 377, 175, 183, 238, 250, 238, 313, 238, 377, 238, 183, 302, 250, 302, 313, 302, 377, 302 };
 
@@ -50,9 +52,9 @@ void CPDCabinKeypadModule::Dispose()
 
 void CPDCabinKeypadModule::Render()
 {
-	BOOL updateTexture = FALSE;
+	bool updateTexture = false;
 
-	ULONGLONG now = GetTickCount64();
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 	for (int i = 0; i < 16; i++)
 	{
@@ -60,9 +62,8 @@ void CPDCabinKeypadModule::Render()
 		{
 			_keyStates[i] += _keyStateDirections[i] < 0 ? -1 : 1;
 
-			// Render button transition
 			RenderItem(_files[4 + i * 4 + _keyStates[i]], CabinKeyPositions[i * 2], CabinKeyPositions[i * 2 + 1]);
-			updateTexture = TRUE;
+			updateTexture = true;
 
 			_keyStateUpdateTime[i] += CABIN_KEYPAD_KEY_DELAY;
 
@@ -76,14 +77,12 @@ void CPDCabinKeypadModule::Render()
 
 	if (_mode == CABIN_KEYPAD_MODE_INCORRECT)
 	{
-		// Should flash and beep 6 times, then clear code and re-enable input
 		if ((now - _flashtime) > CABIN_KEYPAD_FLASH_DELAY)
 		{
 			_flashtime += CABIN_KEYPAD_FLASH_DELAY;
 			_flashCount--;
 			if (_flashCount == 0)
 			{
-				// Clear all buttons
 				for (int i = 0; i < 16; i++)
 				{
 					_keyStates[i] = 0;
@@ -92,13 +91,13 @@ void CPDCabinKeypadModule::Render()
 				}
 
 				_mode = CABIN_KEYPAD_MODE_DEFAULT;
-				_inputEnabled = TRUE;
+				_inputEnabled = true;
 				_enteredCode = 0;
 			}
 
 			_palette[9] = _flashCount & 1 ? _redBackup : 0;
 
-			updateTexture = TRUE;
+			updateTexture = true;
 
 			if (_flashCount & 1)
 			{
@@ -108,14 +107,13 @@ void CPDCabinKeypadModule::Render()
 	}
 	else if (_mode == CABIN_KEYPAD_MODE_CORRECT)
 	{
-		// Show message for x seconds, then close
 		if ((now - _flashtime) >= CABIN_KEYPAD_CORRECT_DELAY)
 		{
 			RenderMessage("Code Accepted", 13);
 			_sound.Play(_files[CABIN_KEYPAD_SOUND_CORRECT]);
 			_mode = CABIN_KEYPAD_MODE_CORRECT_CLOSE;
 			_flashtime += CABIN_KEYPAD_CORRECT_DELAY;
-			updateTexture = TRUE;
+			updateTexture = true;
 		}
 	}
 	else if (_mode == CABIN_KEYPAD_MODE_CORRECT_CLOSE)
@@ -139,7 +137,7 @@ void CPDCabinKeypadModule::Initialize()
 {
 	CFullScreenModule::Initialize();
 
-	DoubleData dd = LoadDoubleEntry(L"SPECIAL.AP", CABIN_KEYPAD);
+	DoubleData dd = LoadDoubleEntry("SPECIAL.AP", CABIN_KEYPAD);
 	ReadPalette(dd.File1.Data);
 
 	_redBackup = _originalPalette[9];
@@ -150,7 +148,7 @@ void CPDCabinKeypadModule::Initialize()
 
 	UpdateTexture();
 
-	BinaryData bd = LoadEntry(L"SPECIAL.AP", CABIN_KEYPAD_FILES);
+	BinaryData bd = LoadEntry("SPECIAL.AP", CABIN_KEYPAD_FILES);
 	if (bd.Data != NULL)
 	{
 		_data = bd.Data;
@@ -177,7 +175,7 @@ void CPDCabinKeypadModule::Initialize()
 	CGameController::SetParameter(205, 0);
 }
 
-void CPDCabinKeypadModule::Cursor(float x, float y, BOOL relative)
+void CPDCabinKeypadModule::Cursor(float x, float y, bool relative)
 {
 	if (_inputEnabled)
 	{
@@ -192,20 +190,16 @@ void CPDCabinKeypadModule::BeginAction()
 		int x = static_cast<int>((_cursorPosX - _left) / _scale);
 		int y = static_cast<int>((_cursorPosY - _top) / _scale);
 
-		// Check buttons
 		if (x >= 580 && x <= 639 && y >= 420 && y <= 449)
 		{
-			// Exit
 			CModuleController::Pop(this);
 		}
 		else if (y >= 417 && y <= 443)
 		{
 			if (x >= 173 && x <= 260)
 			{
-				// Clear
 				_enteredCode = 0;
 
-				// Clear all buttons
 				for (int i = 0; i < 16; i++)
 				{
 					_keyStates[i] = 0;
@@ -219,7 +213,6 @@ void CPDCabinKeypadModule::BeginAction()
 			}
 			else if (x >= 368 && x <= 455)
 			{
-				// Enter
 				_sound.Play(_files[CABIN_KEYPAD_SOUND_BUTTON]);
 
 				if (_enteredCode == CABIN_KEYPAD_CORRECT_CODE)
@@ -235,13 +228,12 @@ void CPDCabinKeypadModule::BeginAction()
 				}
 
 				UpdateTexture();
-				_flashtime = GetTickCount64();
-				_inputEnabled = FALSE;
+				_flashtime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+				_inputEnabled = false;
 			}
 		}
 		else if (x >= 192 && x <= 439 && y >= 111 && y <= 356)
 		{
-			// Key-pad area
 			int kx = (x - 192) / 64;
 			int ky = ((y - 111) / 64);
 			int keyIndex = ky * 4 + kx;
@@ -249,7 +241,7 @@ void CPDCabinKeypadModule::BeginAction()
 			_enteredCode ^= (1 << keyIndex);
 
 			_keyStateDirections[keyIndex] = (_keyStates[keyIndex] == 0) ? 1 : -1;
-			_keyStateUpdateTime[keyIndex] = GetTickCount64();
+			_keyStateUpdateTime[keyIndex] = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		}
 	}
 }
@@ -268,12 +260,12 @@ void CPDCabinKeypadModule::RenderScreen()
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -289,7 +281,7 @@ void CPDCabinKeypadModule::RenderScreen()
 	}
 }
 
-void CPDCabinKeypadModule::RenderMessage(char* message, int colour)
+void CPDCabinKeypadModule::RenderMessage(const char* message, int colour)
 {
 	std::unordered_map<int, int> colourMap;
 	colourMap[2] = colour;

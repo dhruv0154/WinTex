@@ -1,11 +1,14 @@
 #include "PDMainMenuModule.h"
 #include "GameController.h"
-#include "resource.h"
 #include "Utilities.h"
 #include "ResumeGameModule.h"
 #include "PDGame.h"
-#include <codecvt>
 #include <algorithm>
+#include <cmath>
+#include <chrono>
+#include <ctime>
+#include <filesystem>
+#include <string>
 
 CPDMainMenuModule::CPDMainMenuModule() : CMainMenuModule()
 {
@@ -16,13 +19,13 @@ CPDMainMenuModule::~CPDMainMenuModule()
 {
 }
 
-void CPDMainMenuModule::Intro(LPVOID data)
+void CPDMainMenuModule::Intro(void* data)
 {
 	pMIDI->Stop();
 	CGameController::LoadFromDMap(30);
 }
 
-void CPDMainMenuModule::Credits(LPVOID data)
+void CPDMainMenuModule::Credits(void* data)
 {
 	pMIDI->Stop();
 	CGameController::LoadFromDMap(57);
@@ -30,31 +33,32 @@ void CPDMainMenuModule::Credits(LPVOID data)
 
 void CPDMainMenuModule::SetupScreen()
 {
-	DWORD s;
-	PBYTE pImg = GetResource(IDB_JPG_PD_TITLE, L"JPG", &s);
+	uint32_t s = 0;
+	uint8_t* pImg = GetResource(IDB_JPG_PD_TITLE, "JPG", &s);
 	CDXBitmap* pBmp = _pScreen->AddBitmap(pImg, s, Alignment::CenterX | Alignment::CenterY | Alignment::Scale | Alignment::Crop);
 
-	// TODO: Use string resources, or read from configuration file
-	char* pNG = "New game";
-	char* pLG = "Load";
-	char* pSG = "Save";
-	char* pCf = "Config";
-	char* pIn = "Intro";
-	char* pCr = "Credits";
-	char* pRe = "Resume";
-	char* pQu = "Quit";
+	const char* pNG = "New game";
+	const char* pLG = "Load";
+	const char* pSG = "Save";
+	const char* pCf = "Config";
+	const char* pIn = "Intro";
+	const char* pCr = "Credits";
+	const char* pRe = "Resume";
+	const char* pQu = "Quit";
 
-	// Should calculate sizes of buttons, so all can be same size and properly aligned...
-	float maxw = max(max(max(max(max(max(max(TexFont.PixelWidth(pNG), TexFont.PixelWidth(pLG)), TexFont.PixelWidth(pSG)), TexFont.PixelWidth(pCf)), TexFont.PixelWidth(pIn)), TexFont.PixelWidth(pCr)), TexFont.PixelWidth(pRe)), TexFont.PixelWidth(pQu));
+	float maxw = std::max({
+		TexFont.PixelWidth(pNG), TexFont.PixelWidth(pLG), TexFont.PixelWidth(pSG), 
+		TexFont.PixelWidth(pCf), TexFont.PixelWidth(pIn), TexFont.PixelWidth(pCr), 
+		TexFont.PixelWidth(pRe), TexFont.PixelWidth(pQu)
+	});
 
 	float iw = pBmp->GetWidth();
 	float ih = pBmp->GetHeight();
 	float w = static_cast<float>(dx.GetWidth());
 	float h = static_cast<float>(dx.GetHeight());
 
-	// Center image
-	float imageTop = (h - ih) / 2;
-	float imageLeft = (w - iw) / 2;
+	float imageTop = (h - ih) / 2.0f;
+	float imageLeft = (w - iw) / 2.0f;
 	pBmp->SetPosition(imageLeft, imageTop);
 
 	// Buttons should be inside moon (need to find different reference point for pd)
@@ -74,8 +78,9 @@ void CPDMainMenuModule::SetupScreen()
 	CDXButton* pNewGameBtn = _pScreen->AddButton(pNG, btnLeft, btnTop, maxw, 32.0f * pConfig->FontScale, NewGame);
 	CDXButton* pLoadBtn = new CDXButton(pLG, maxw, 32.0f * pConfig->FontScale, Load);
 	_pScreen->AddChild(pLoadBtn, btnLeft, btnMiddle);
+	
 	_btnMainSave = new CDXButton(pSG, maxw, 32.0f * pConfig->FontScale, Save);
-	_btnMainSave->SetEnabled(FALSE);
+	_btnMainSave->SetEnabled(false);
 	_pScreen->AddChild(_btnMainSave, btnLeft, btnBottom);
 
 	CDXButton* pConfigBtn = _pScreen->AddButton(pCf, btnRight, btnTop, maxw, 32.0f * pConfig->FontScale, Config);
@@ -85,7 +90,7 @@ void CPDMainMenuModule::SetupScreen()
 
 	// Add resume (only visible when game is in progress) and quit (always visible, but ask if game in progress)
 	_btnMainResume = _pScreen->AddButton(pRe, moonCenterX - (maxw + 32.0f * pConfig->FontScale) / 2.0f, btnTop - 64.0f * pConfig->FontScale, maxw, 32.0f * pConfig->FontScale, Resume);
-	_btnMainResume->SetVisible(FALSE);
+	_btnMainResume->SetVisible(false);
 
 	_pScreen->AddButton(pQu, moonCenterX - (maxw + 32.0f * pConfig->FontScale) / 2.0f, btnBottom + 64.0f * pConfig->FontScale, maxw, 32.0f * pConfig->FontScale, Quit);
 
@@ -97,7 +102,9 @@ void CPDMainMenuModule::Render()
 	CDXFont::SelectBlackFont();
 	_pScreen->Render();
 
-	if (CurrentSaveMode != SaveMode::Load && (GetTickCount64() / 500) % 2)
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+	if (CurrentSaveMode != SaveMode::Load && (now / 500) % 2)
 	{
 		if (CurrentSaveMode == SaveMode::Extension)
 		{
@@ -107,9 +114,9 @@ void CPDMainMenuModule::Render()
 			memset(buffer, 0, 32);
 			for (int i = 0; i < 32 && i < info.FileName.length(); i++)
 			{
-				buffer[i] = static_cast<char>(info.FileName.at(i));
+				buffer[i] = info.FileName[i];
 			}
-			float x = _saveControl->GetX() + 21 * pConfig->FontScale + ceil(TexFont.PixelWidth(buffer));
+			float x = _saveControl->GetX() + 21 * pConfig->FontScale + std::ceil(TexFont.PixelWidth(buffer));
 			float y = _saveControl->GetY() + 8 * pConfig->FontScale;
 			_saveCursor.Render(x, y);
 		}
@@ -153,7 +160,7 @@ void CPDMainMenuModule::SetupSave()
 	memset(_commentBuffer, 0, 256);
 
 	SaveGameInfo info;
-	info.FileName = L"GAMES\\";
+	info.FileName = "GAMES\\";
 	auto nameLength = CurrentGameInfo.Player.length();
 	while (nameLength > 0 && CurrentGameInfo.Player.at(nameLength - 1) == ' ')
 	{
@@ -162,24 +169,25 @@ void CPDMainMenuModule::SetupSave()
 
 	for (int i = 0; i < 6; i++)
 	{
-		info.FileName += (WCHAR)((i < nameLength) ? CurrentGameInfo.Player.at(i) : '_');
+		info.FileName += (char)((i < nameLength) ? CurrentGameInfo.Player.at(i) : '_');
 	}
-	info.FileName += L"00.";
-	// Append 3 digit number (from current savegame)
+	info.FileName += "00.";
+	
 	auto lastDot = CurrentGameInfo.FileName.find_last_of('.');
-	int fileIndex = lastDot > 0 ? min(999, std::stoi(CurrentGameInfo.FileName.c_str() + lastDot + 1)) : 1;
+	int fileIndex = lastDot > 0 ? std::min(999, std::stoi(CurrentGameInfo.FileName.c_str() + lastDot + 1)) : 1;
+	
 	if (fileIndex < 100)
 	{
-		info.FileName += L"0";
+		info.FileName += "0";
 	}
 	if (fileIndex < 10)
 	{
-		info.FileName += L"0";
+		info.FileName += "0";
 	}
-	info.FileName += std::to_wstring(fileIndex);
+	info.FileName += std::to_string(fileIndex);
 
 	info.Player = CurrentGameInfo.Player;
-	std::wstring sit;
+	std::string sit;
 	if (CGameController::GetParameter(252) == 0)
 	{
 		// Dialogue
@@ -190,12 +198,21 @@ void CPDMainMenuModule::SetupSave()
 		// Location
 		sit = CGameController::GetSituationDescriptionL(CGameController::GetData(PD_SAVE_MAP_ID) + 1);
 	}
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
-	info.Location = conv.to_bytes(sit);
-	info.DayInGame = "Day " + std::to_string(max(1, min(10, CGameController::GetData(PD_SAVE_PARAMETERS_DAY_IN_GAME))));
-	SYSTEMTIME st;
-	GetLocalTime(&st);
-	info.DateTime = IntToString(st.wYear, 4) + "-" + IntToString(st.wMonth, 2) + +"-" + IntToString(st.wDay, 2) + " " + IntToString(st.wHour, 2) + ":" + IntToString(st.wMinute, 2) + ":" + IntToString(st.wSecond, 2);
+	
+	info.Location = sit;
+	info.DayInGame = "Day " + std::to_string(std::max(1, std::min(10, static_cast<int>(CGameController::GetData(PD_SAVE_PARAMETERS_DAY_IN_GAME)))));
+	
+	std::time_t t = std::time(nullptr);
+	std::tm* tm = std::localtime(&t);
+	int year = tm->tm_year + 1900;
+	int month = tm->tm_mon + 1;
+	int day = tm->tm_mday;
+	int hour = tm->tm_hour;
+	int minute = tm->tm_min;
+	int second = tm->tm_sec;
+	
+	info.DateTime = IntToString(year, 4) + "-" + IntToString(month, 2) + "-" + IntToString(day, 2) + " " + IntToString(hour, 2) + ":" + IntToString(minute, 2) + ":" + IntToString(second, 2);
+	
 	_saveControl->SetInfo(info);
 	_saveControl->SetPDColours();
 }
@@ -204,30 +221,32 @@ void CPDMainMenuModule::SetupLoad()
 {
 	// Get list of current save games
 	_savedGames.clear();
-	WIN32_FIND_DATA fd;
-	HANDLE hFF = FindFirstFile(L"GAMES\\*.*", &fd);
-	BYTE buffer[0xd8];
-	if (hFF != INVALID_HANDLE_VALUE)
+	std::string gamesPath = "GAMES";
+
+	if (std::filesystem::exists(gamesPath) && std::filesystem::is_directory(gamesPath))
 	{
-		do
+		for (const auto& entry : std::filesystem::directory_iterator(gamesPath))
 		{
-			if (fd.nFileSizeLow > 0)
+			if (entry.is_regular_file())
 			{
-				std::wstring name = std::wstring(fd.cFileName);
-				if (name != L"SAVEGAME.000")
+				std::string name = entry.path().filename().string();
+				
+				if (name != "SAVEGAME.000")
 				{
 					// Real file, load header and extract info
 					CFile file;
-					std::wstring fileName = L"GAMES\\" + name;
-					if (file.Open((LPWSTR)fileName.c_str()))
+					std::string fileName = "GAMES\\" + name;
+					
+					if (file.Open(fileName.c_str()))
 					{
+						uint8_t buffer[0xd8];
 						if (file.Read(buffer, 0xd8) == 0xd8)
 						{
 							SaveGameInfo info;
 							info.FileName = fileName;
 							info.Player = std::string((const char*)(buffer + PD_SAVE_HEADER_PLAYER), 10);
-							//info.Location = std::string((const char*)(buffer + UAKM_SAVE_LOCATION), UAKM_SAVE_GAME_DAY - UAKM_SAVE_LOCATION);
-							std::wstring sit;
+							
+							std::string sit;
 							if (buffer[PD_SAVE_PARAMETERS + 252] == 0)
 							{
 								// Dialogue
@@ -238,11 +257,10 @@ void CPDMainMenuModule::SetupLoad()
 								// Location
 								sit = CGameController::GetSituationDescriptionL(buffer[PD_SAVE_MAP_ID] + 1);
 							}
-							std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
-							info.Location = conv.to_bytes(sit);
+							info.Location = sit;
 
 							info.DayInGame = std::string("Day ") + std::to_string(buffer[PD_SAVE_HEADER_GAME_DAY]);
-							info.DateTime = IntToString(buffer[PD_SAVE_HEADER_YEAR] | (buffer[PD_SAVE_HEADER_YEAR + 1] << 8), 4) + "-" + IntToString(buffer[PD_SAVE_HEADER_MONTH], 2) + +"-" + IntToString(buffer[PD_SAVE_HEADER_DAY], 2) + " " + IntToString(buffer[PD_SAVE_HEADER_HOUR], 2) + ":" + IntToString(buffer[PD_SAVE_HEADER_MINUTE], 2) + ":" + IntToString(buffer[PD_SAVE_HEADER_SECOND], 2);
+							info.DateTime = IntToString(buffer[PD_SAVE_HEADER_YEAR] | (buffer[PD_SAVE_HEADER_YEAR + 1] << 8), 4) + "-" + IntToString(buffer[PD_SAVE_HEADER_MONTH], 2) + "-" + IntToString(buffer[PD_SAVE_HEADER_DAY], 2) + " " + IntToString(buffer[PD_SAVE_HEADER_HOUR], 2) + ":" + IntToString(buffer[PD_SAVE_HEADER_MINUTE], 2) + ":" + IntToString(buffer[PD_SAVE_HEADER_SECOND], 2);
 							info.Comment = std::string((const char*)(buffer + PD_SAVE_HEADER_COMMENT), PD_SAVE_HEADER_PADDING - PD_SAVE_HEADER_COMMENT);
 
 							_savedGames.push_back(info);
@@ -252,10 +270,7 @@ void CPDMainMenuModule::SetupLoad()
 					}
 				}
 			}
-
-		} while (FindNextFile(hFF, &fd));
-
-		FindClose(hFF);
+		}
 	}
 
 	// Sort list (by last written or by save game date?)

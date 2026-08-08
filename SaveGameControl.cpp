@@ -2,7 +2,6 @@
 #include "Globals.h"
 #include "Utilities.h"
 #include "DXScreen.h"
-#include "resource.h"
 
 CTexture CSaveGameControl::_texBackground;
 CTexture CSaveGameControl::_texMouseOver;
@@ -74,7 +73,6 @@ CSaveGameControl::CSaveGameControl(void(*onClick)(SaveGameInfo), bool isSave)
 		vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 54;
 		vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		vbDesc.MiscFlags = 0;
 		vbDesc.StructureByteStride = 0;
 
 		D3D11_SUBRESOURCE_DATA vData;
@@ -102,11 +100,11 @@ void CSaveGameControl::Render()
 
 	if (_lock.Lock())
 	{
-		UINT stride = sizeof(TEXTURED_VERTEX_ORTHO);
-		UINT offset = 0;
+		unsigned int stride = sizeof(TEXTURED_VERTEX_ORTHO);
+		unsigned int offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 
-		XMMATRIX wm = XMMatrixTranslation(_x, -_y, 0.0f);
+		float16 wm = Math::Translation(_x, -_y, 0.0f);
 		CConstantBuffers::SetWorld(dx, &wm);
 
 		ID3D11ShaderResourceView* pRV = (_mouseOver || _isSave) ? _texMouseOver.GetTextureRV() : _texBackground.GetTextureRV();
@@ -174,9 +172,9 @@ void CSaveGameControl::LostFocus()
 
 void CSaveGameControl::Init()
 {
-	DWORD s1, s2;
-	PBYTE p1 = GetResource(IDB_SAVEGAMEBOX, L"PNG", &s1);
-	PBYTE p2 = GetResource(IDB_BUTTON_MOUSEOVER, L"PNG", &s2);
+	uint32_t s1, s2;
+	uint8_t* p1 = GetResource(IDB_SAVEGAMEBOX, "PNG", &s1);
+	uint8_t* p2 = GetResource(IDB_BUTTON_MOUSEOVER, "PNG", &s2);
 
 	_texBackground.Init(p1, s1, "BUTTON1");
 	_texMouseOver.Init(p2, s2, "BUTTON2");
@@ -188,9 +186,9 @@ void CSaveGameControl::Dispose()
 	_texMouseOver.Dispose();
 }
 
-void CSaveGameControl::SetMouseOver(BOOL mouseOver)
+void CSaveGameControl::SetMouseOver(bool mouseOver)
 {
-	BOOL oldMouseOver = _mouseOver;
+	bool oldMouseOver = _mouseOver;
 	_mouseOver = mouseOver;
 }
 
@@ -198,8 +196,7 @@ void CSaveGameControl::SetInfo(SaveGameInfo info)
 {
 	_info = info;
 
-	// Reinitialize texts
-	_tFileName2.SetText((WCHAR*)info.FileName.c_str() + 6);
+	_tFileName2.SetText(info.FileName.c_str() + 6);
 	_tPlayer2.SetText((char*)info.Player.c_str());
 	_tDay2.SetText((char*)info.DayInGame.c_str());
 	_tDateTime2.SetText((char*)info.DateTime.c_str());
@@ -220,10 +217,10 @@ SaveGameInfo CSaveGameControl::GetInfo()
 	return _info;
 }
 
-void CSaveGameControl::SetFileName(std::wstring fileName)
+void CSaveGameControl::SetFileName(std::string fileName)
 {
 	_info.FileName = fileName;
-	_tFileName2.SetText((WCHAR*)fileName.c_str() + 6);
+	_tFileName2.SetText(fileName.c_str() + 6);
 }
 
 void CSaveGameControl::SetComment(std::string comment)
@@ -254,10 +251,10 @@ void CSaveGameControl::SetPDColours()
 
 float CSaveGameControl::GetColumn2()
 {
-	return _x + max(max(max(_tFileName1.Width(), _tPlayer1.Width()), _tLocation1.Width()), _tComment1.Width()) + 10 * pConfig->FontScale;
+	return _x + std::max(std::max(std::max(_tFileName1.Width(), _tPlayer1.Width()), _tLocation1.Width()), _tComment1.Width()) + 10 * pConfig->FontScale;
 }
 
 float CSaveGameControl::GetColumn4()
 {
-	return _w / 2 + max(_tDateTime1.Width(), _tDay1.Width()) + 10 * pConfig->FontScale;
+	return _w / 2 + std::max(_tDateTime1.Width(), _tDay1.Width()) + 10 * pConfig->FontScale;
 }

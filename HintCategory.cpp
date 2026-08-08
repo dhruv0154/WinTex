@@ -1,7 +1,7 @@
 #include "HintCategory.h"
 #include "GameController.h"
 
-CHintCategory::CHintCategory(int categoryIndex, std::wstring title)
+CHintCategory::CHintCategory(int categoryIndex, std::string title)
 {
 	_hintCategoryIndex = categoryIndex;
 	_title = title;
@@ -9,11 +9,14 @@ CHintCategory::CHintCategory(int categoryIndex, std::wstring title)
 
 CHintCategory::~CHintCategory()
 {
-	// TODO: Clear items from hint list
-	//std::list<CHint*> _hints;
+	for (auto hint : Hints)
+	{
+		delete hint;
+	}
+	Hints.clear();
 }
 
-void CHintCategory::AddHint(int hintIndex, std::wstring text)
+void CHintCategory::AddHint(int hintIndex, std::string text)
 {
 	Hints.push_back(new CHint(hintIndex, text));
 }

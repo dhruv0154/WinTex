@@ -1,6 +1,6 @@
 #include "Hint.h"
 
-CHint::CHint(int hintIndex, std::wstring text)
+CHint::CHint(int hintIndex, std::string text)
 {
 	_hintIndex = hintIndex;
 	_text = text;

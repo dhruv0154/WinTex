@@ -4,6 +4,18 @@
 #include "Utilities.h"
 #include "UAKMGame.h"
 #include "AmbientAudio.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
+#include <cstring>
+#include <algorithm>
+
+#define VK_RETURN       0x0D
+#define VK_MULTIPLY     0x6A
+#define VK_NUMPAD0      0x60
+#define VK_NUMPAD1      0x61
+#define VK_NUMPAD9      0x69
+#define VK_HOME         0x24
 
 int startupAnimOffsets[] = { 450, 450, 468, 487, 501, 517, 527 };
 
@@ -14,7 +26,7 @@ int keyLocations[] = { 493, 280, 461, 200, 493, 200, 524, 200, 461, 226, 493, 22
 signed char eddieChingsSafeCode[] = { 1, 0, 1, 4, 1, 2, -1, -1 };
 signed char grsSafeCode[] = { 1, 4, 2, 2, 3, 5, -1, -1 };
 
-BYTE safeLightColours[] = { 161, 171, 150, 178, 188, 150, 195, 205, 150, 211, 222, 179, 227, 238, 160 };
+uint8_t safeLightColours[] = { 161, 171, 150, 178, 188, 150, 195, 205, 150, 211, 222, 179, 227, 238, 160 };
 
 int keyCoordinates[] = {
 335,358,592,639,
@@ -33,7 +45,7 @@ int keyCoordinates[] = {
 307,331,494,553,
 334,358,494,553 };
 
-CUAKMSafeModule::CUAKMSafeModule(int parameter, BOOL alternatePalette) : CModuleBase(ModuleType::UltraSafe)
+CUAKMSafeModule::CUAKMSafeModule(int parameter, bool alternatePalette) : CModuleBase(ModuleType::UltraSafe)
 {
 	_rollingLightTime = 0;
 	_openSafeSequence = -1;
@@ -41,7 +53,7 @@ CUAKMSafeModule::CUAKMSafeModule(int parameter, BOOL alternatePalette) : CModule
 	_parameter = parameter;
 	_alternatePalette = alternatePalette;
 
-	_screen = NULL;
+	_screen = nullptr;
 
 	float width = 640.0f, height = 400.0f;
 	float screenWidth = (float)dx.GetWidth();
@@ -49,7 +61,7 @@ CUAKMSafeModule::CUAKMSafeModule(int parameter, BOOL alternatePalette) : CModule
 
 	float sx = screenWidth / width;
 	float sy = screenHeight / height;
-	_scale = min(sx, sy);
+	_scale = std::min(sx, sy);
 	float sw = width * _scale;
 	float sh = height * _scale;
 	float ox = (screenWidth - sw);
@@ -65,17 +77,17 @@ CUAKMSafeModule::CUAKMSafeModule(int parameter, BOOL alternatePalette) : CModule
 	_cursorMinY = static_cast<int>(-_top + 171 * _scale);
 	_cursorMaxY = static_cast<int>(-_top + 317 * _scale);
 
-	_vertexBuffer = NULL;
-	_handVertexBuffer = NULL;
+	_vertexBuffer = nullptr;
+	_handVertexBuffer = nullptr;
 
-	_pImages = NULL;
-	_pSounds = NULL;
+	_pImages = nullptr;
+	_pSounds = nullptr;
 
-	_ready = FALSE;
+	_ready = false;
 	_frameDelay = 0;
 	_frameTime = 0;
 
-	_flashingLightOn = FALSE;
+	_flashingLightOn = false;
 	_rollingLightPosition = 0;
 
 	_textureDirty = true;
@@ -101,18 +113,17 @@ void CUAKMSafeModule::Initialize()
 
 	CGameController::SetParameter(_parameter, 0);
 
-	// Load palette
-	BinaryData bdPal = LoadEntry(L"SPECIAL.AP", _alternatePalette ? 57 : 53);
-	if (bdPal.Data != NULL)
+	BinaryData bdPal = LoadEntry("SPECIAL.AP", _alternatePalette ? 57 : 53);
+	if (bdPal.Data != nullptr)
 	{
 		for (int c = 0; c < 256; c++)
 		{
 			double r = bdPal.Data[c * 3 + 0];
 			double g = bdPal.Data[c * 3 + 1];
 			double b = bdPal.Data[c * 3 + 2];
-			int ri = (byte)((r * 255.0) / 63.0);
-			int gi = (byte)((g * 255.0) / 63.0);
-			int bi = (byte)((b * 255.0) / 63.0);
+			int ri = (uint8_t)((r * 255.0) / 63.0);
+			int gi = (uint8_t)((g * 255.0) / 63.0);
+			int bi = (uint8_t)((b * 255.0) / 63.0);
 			int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
 			_palette[c] = col;
 		}
@@ -120,12 +131,10 @@ void CUAKMSafeModule::Initialize()
 		delete[] bdPal.Data;
 	}
 
-	// Load screen
-	BinaryData bdScr = LoadEntry(L"SPECIAL.AP", 54);
+	BinaryData bdScr = LoadEntry("SPECIAL.AP", 54);
 	_screen = bdScr.Data;
 
-	// Load keys and handle images (AP inside AP)
-	BinaryData buttons = LoadEntry(L"SPECIAL.AP", 55);
+	BinaryData buttons = LoadEntry("SPECIAL.AP", 55);
 	_pImages = buttons.Data;
 	int count = GetInt(_pImages, 0, 2) - 1;
 	for (int i = 0; i < count; i++)
@@ -133,8 +142,7 @@ void CUAKMSafeModule::Initialize()
 		_safeImageOffsets[i] = _pImages + GetInt(_pImages, 2 + i * 4, 4);
 	}
 
-	// Load sounds
-	BinaryData soundsAP = LoadEntry(L"SPECIAL.AP", 56);
+	BinaryData soundsAP = LoadEntry("SPECIAL.AP", 56);
 	_pSounds = soundsAP.Data;
 	count = GetInt(_pSounds, 0, 2) - 1;
 	for (int i = 0; i < count; i++)
@@ -142,10 +150,8 @@ void CUAKMSafeModule::Initialize()
 		_safeSoundOffsets[i] = _pSounds + GetInt(_pSounds, 2 + i * 4, 4);
 	}
 
-	// Create texture
 	_texture.Init(640, 400);
 
-	// Create vertex buffer
 	CreateTexturedRectangle(_top, _left, _bottom, _right, &_vertexBuffer, "SafeVertexBuffer");
 
 	_handTexture.Init(_safeImageOffsets[47], 0, 0, &_palette[0], 0, "SafeHandTexture");
@@ -153,79 +159,76 @@ void CUAKMSafeModule::Initialize()
 
 	if (_alternatePalette)
 	{
-		// Apply '8' image
-		PartialRender(48, 307, 41, FALSE);
+		PartialRender(48, 307, 41, false);
 	}
 
 	_textureDirty = true;
 
-	_frameDelay = (DWORD)(30 * TIMER_SCALE);
-	_frameTime = GetTickCount64();
+	_frameDelay = (uint64_t)(30 * TIMER_SCALE);
+	_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	_startupFrame = 2;
 }
 
 void CUAKMSafeModule::Dispose()
 {
-	if (_screen != NULL)
+	if (_screen != nullptr)
 	{
 		delete[] _screen;
-		_screen = NULL;
+		_screen = nullptr;
 	}
 
 	_safeImageOffsets.clear();
 	_safeSoundOffsets.clear();
 
-	if (_pImages != NULL)
+	if (_pImages != nullptr)
 	{
 		delete[] _pImages;
-		_pImages = NULL;
+		_pImages = nullptr;
 	}
 
-	if (_pSounds != NULL)
+	if (_pSounds != nullptr)
 	{
 		delete[] _pSounds;
-		_pImages = NULL;
+		_pSounds = nullptr;
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
+		_vertexBuffer = nullptr;
 	}
 
-	if (_handVertexBuffer != NULL)
+	if (_handVertexBuffer != nullptr)
 	{
 		_handVertexBuffer->Release();
-		_handVertexBuffer = NULL;
+		_handVertexBuffer = nullptr;
 	}
 }
 
 void CUAKMSafeModule::Render()
 {
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
 		CConstantBuffers::Setup2D(dx);
 
-		ULONGLONG tick = GetTickCount64();
+		uint64_t tick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 		if (_startupFrame < 9)
 		{
-			ULONGLONG diff = tick - _frameTime;
+			uint64_t diff = tick - _frameTime;
 			if (diff >= _frameDelay)
 			{
-				// Render next frame
-				PartialRender(_startupFrame, startupAnimOffsets[_startupFrame - 2], 150, TRUE);
+				PartialRender(_startupFrame, startupAnimOffsets[_startupFrame - 2], 150, true);
 				_startupFrame++;
 				_frameTime = tick;
-				_frameDelay = (DWORD)(2 * TIMER_SCALE);
+				_frameDelay = (uint64_t)(2 * TIMER_SCALE);
 			}
 		}
 		else if (_openSafeSequence >= 0)
 		{
-			// Flash lights (red red red yellow green)
-			ULONGLONG diff = tick - _frameTime;
+			uint64_t diff = tick - _frameTime;
 			if (diff >= _frameDelay)
 			{
 				_frameTime = tick;
@@ -233,17 +236,16 @@ void CUAKMSafeModule::Render()
 
 				if (_openSafeSequence >= 1 && _openSafeSequence <= 5)
 				{
-					// Always show red, red, red, only show yellow, green on correct code
 					if (_openSafeSequence == 4 && !_codeCorrect)
 					{
 						return Exit();
 					}
 
-					_frameDelay = (DWORD)(20 * TIMER_SCALE);
+					_frameDelay = (uint64_t)(20 * TIMER_SCALE);
 
 					int y1 = safeLightColours[(_openSafeSequence - 1) * 3] - 30;
 					int y2 = safeLightColours[(_openSafeSequence - 1) * 3 + 1] - 30;
-					BYTE colour = safeLightColours[(_openSafeSequence - 1) * 3 + 2];
+					uint8_t colour = safeLightColours[(_openSafeSequence - 1) * 3 + 2];
 					int x1 = 344;
 					int x2 = 365;
 					for (int y = y1; y < y2; y++)
@@ -264,24 +266,22 @@ void CUAKMSafeModule::Render()
 					int frame = _openSafeSequence - 6;
 					int x = handleAnimOffsets[frame * 2] + 290;
 					int y = handleAnimOffsets[frame * 2 + 1] + 235;
-					PartialRender(9 + frame, x, y, TRUE);
-					_frameDelay = (DWORD)(2 * TIMER_SCALE);
+					PartialRender(9 + frame, x, y, true);
+					_frameDelay = (uint64_t)(2 * TIMER_SCALE);
 				}
 			}
 		}
 		else
 		{
-			BOOL keyWasDown = FALSE;
+			bool keyWasDown = false;
 			for (int i = 0; i < 14; i++)
 			{
 				if (_keyDown[i] == 1)
 				{
-					// Check delay, should render unpressed key?
 					auto duration = tick - _frameTimes[i];
-					if (duration >= (DWORD)(12 * TIMER_SCALE))
+					if (duration >= (uint64_t)(12 * TIMER_SCALE))
 					{
-						// Render key pressed
-						PartialRender(19 + i * 2, keyLocations[i * 2], keyLocations[i * 2 + 1] - 30, TRUE);
+						PartialRender(19 + i * 2, keyLocations[i * 2], keyLocations[i * 2 + 1] - 30, true);
 
 						if (i >= 0 && i < 12)
 						{
@@ -299,28 +299,27 @@ void CUAKMSafeModule::Render()
 						}
 					}
 
-					keyWasDown = TRUE;
+					keyWasDown = true;
 				}
 			}
 
 			if (!keyWasDown && !_ready)
 			{
-				_ready = TRUE;
+				_ready = true;
 			}
 		}
 
 		if (_startupFrame == 9)
 		{
-			BOOL newState = (tick / 250) & 1;
+			bool newState = (tick / 250) & 1;
 			if (newState != _flashingLightOn)
 			{
-				// Change render state of light
-				PartialRender(newState ? 1 : 0, 461, 84, FALSE);
+				PartialRender(newState ? 1 : 0, 461, 84, false);
 				_flashingLightOn = newState;
-				_textureDirty = TRUE;
+				_textureDirty = true;
 			}
 
-			if (tick - _rollingLightTime >= (DWORD)TIMER_SCALE)
+			if (tick - _rollingLightTime >= (uint64_t)TIMER_SCALE)
 			{
 				_rollingLightTime = tick;
 
@@ -346,7 +345,7 @@ void CUAKMSafeModule::Render()
 					}
 				}
 
-				_textureDirty = TRUE;
+				_textureDirty = true;
 			}
 		}
 
@@ -355,12 +354,12 @@ void CUAKMSafeModule::Render()
 			UpdateTexture();
 		}
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -368,9 +367,8 @@ void CUAKMSafeModule::Render()
 
 		if (_ready || _openSafeSequence >= 0)
 		{
-			// Render hand
 			dx.SetVertexBuffers(0, 1, &_handVertexBuffer, &stride, &offset);
-			wm = XMMatrixTranslation(_cursorPosX, -_cursorPosY, 0.0f);
+			wm = Math::Translation(_cursorPosX, -_cursorPosY, 0.0f);
 			CConstantBuffers::SetWorld(dx, &wm);
 			pRV = _handTexture.GetTextureRV();
 			dx.SetShaderResources(0, 1, &pRV);
@@ -381,9 +379,8 @@ void CUAKMSafeModule::Render()
 	}
 }
 
-void CUAKMSafeModule::KeyDown(WPARAM key, LPARAM lParam)
+void CUAKMSafeModule::KeyDown(int key, int lParam)
 {
-	// TODO: Check type of key
 	if (key == '0' || key == VK_NUMPAD0)
 	{
 		Press(0, 11);
@@ -413,10 +410,10 @@ void CUAKMSafeModule::KeyDown(WPARAM key, LPARAM lParam)
 void CUAKMSafeModule::UpdateTexture()
 {
 	ID3D11Texture2D* pTex = _texture.GetTexture();
-	if (pTex != NULL)
+	if (pTex != nullptr)
 	{
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+		if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 		{
 			int width = _texture.Width();
 			int height = _texture.Height();
@@ -435,10 +432,10 @@ void CUAKMSafeModule::UpdateTexture()
 	}
 }
 
-void CUAKMSafeModule::PartialRender(int entry, int offsetX, int offsetY, BOOL updateTexture)
+void CUAKMSafeModule::PartialRender(int entry, int offsetX, int offsetY, bool updateTexture)
 {
-	LPBYTE data = _safeImageOffsets[entry];
-	if (data != NULL && GetInt(data, 0, 2) == 0x100)
+	uint8_t* data = _safeImageOffsets[entry];
+	if (data != nullptr && GetInt(data, 0, 2) == 0x100)
 	{
 		int width = GetInt(data, 2, 2);
 		int height = GetInt(data, 4, 2);
@@ -458,7 +455,7 @@ void CUAKMSafeModule::PartialRender(int entry, int offsetX, int offsetY, BOOL up
 
 void CUAKMSafeModule::Start()
 {
-	_codeCorrect = FALSE;
+	_codeCorrect = false;
 
 	for (int i = 0; i < 8; i++)
 	{
@@ -470,31 +467,29 @@ void CUAKMSafeModule::Start()
 
 void CUAKMSafeModule::Enter()
 {
-	// Check entered code versus safe code
-	LPBYTE pCorrectCode = reinterpret_cast<LPBYTE>(_alternatePalette ? eddieChingsSafeCode : grsSafeCode);
-	_codeCorrect = TRUE;
+	uint8_t* pCorrectCode = reinterpret_cast<uint8_t*>(_alternatePalette ? eddieChingsSafeCode : grsSafeCode);
+	_codeCorrect = true;
 	for (int i = 0; i < 8; i++)
 	{
 		if (pCorrectCode[i] != _enteredCode[i])
 		{
-			_codeCorrect = FALSE;
+			_codeCorrect = false;
 			break;
 		}
 	}
 
-	// Start sequence
 	_openSafeSequence = 0;
-	_frameDelay = (DWORD)(60 * TIMER_SCALE);
-	_frameTime = GetTickCount64();
+	_frameDelay = (uint64_t)(60 * TIMER_SCALE);
+	_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
-	_ready = FALSE;
+	_ready = false;
 }
 
 void CUAKMSafeModule::Number(int number)
 {
 	if (_keyPos < 8)
 	{
-		_enteredCode[_keyPos++] = (BYTE)number;
+		_enteredCode[_keyPos++] = (uint8_t)number;
 	}
 }
 
@@ -507,14 +502,11 @@ void CUAKMSafeModule::Press(int key, int sound)
 {
 	_keyDown[key] = 1;
 
-	// Render key pressed
-	PartialRender(19 + key * 2 + 1, keyLocations[key * 2 + 0], keyLocations[key * 2 + 1] - 30, TRUE);
+	PartialRender(19 + key * 2 + 1, keyLocations[key * 2 + 0], keyLocations[key * 2 + 1] - 30, true);
 
-	// Set delay
-	_frameDelay = (DWORD)(12 * TIMER_SCALE);
-	_frameTimes[key] = static_cast<DWORD>(GetTickCount64());
+	_frameDelay = (uint64_t)(12 * TIMER_SCALE);
+	_frameTimes[key] = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 
-	// Play sound
 	_sound.Play(_safeSoundOffsets[sound % 12]);
 }
 

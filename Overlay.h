@@ -1,34 +1,29 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include "DXControl.h"
 #include <list>
 
 class COverlay
 {
 public:
-	COverlay();
+    COverlay();
+    virtual ~COverlay() = default;
 
-	virtual void KeyDown(WPARAM key, LPARAM lParam) { }
-	virtual void Render() = 0;
-	virtual void BeginAction() = 0;
-	virtual void SetData(int p1, int p2) {}
+    virtual void KeyDown(int key, int lParam) { }
+    virtual void Render() = 0;
+    virtual void BeginAction() = 0;
+    virtual void SetData(int p1, int p2) {}
 
-	virtual void Cursor(float x, float y, BOOL relative);
+    virtual void Cursor(float x, float y, bool relative);
 
-	int GetDecision() { return _decision; }
-	void ClearDecision() { _decision = 0; }
+    int GetDecision() const { return _decision; }
+    void ClearDecision() { _decision = 0; }
 
 protected:
-	float _x;
-	float _y;
+    float _x;
+    float _y;
 
-	int _decision;
+    int _decision;
 
-	std::list<CDXControl*> _hitTestControls;
+    std::list<CDXControl*> _hitTestControls;
 };

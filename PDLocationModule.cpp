@@ -17,7 +17,7 @@ CPDLocationModule::CPDLocationModule(int locationId, int startupPosition) : CLoc
 	_unavailableActionColour3 = 0xff808080;
 	_unavailableActionColour4 = 0xff000000;
 
-	_abductorMode = FALSE;
+    _abductorMode = false;
 }
 
 void CPDLocationModule::Inventory()

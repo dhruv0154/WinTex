@@ -6,6 +6,11 @@
 #include "Utilities.h"
 #include "UAKMGame.h"
 #include "UAKMHintModule.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
+#include <algorithm>
+#include <cmath>
 
 int ProgressLightsXOffsets[] = { 108, 130, 152, 174, 241, 263, 285, 307, 377, 399, 421, 443 };
 
@@ -32,12 +37,12 @@ ControlCoordinates StasisControlCoordinates[] = {
 	{ KEYCODE_NONE, 0, 47, 91, 385, 482, ACTION_STASIS_SHOCK },
 	{ KEYCODE_NONE, 0, 142, 269, 446, 478, ACTION_STASIS_OXYGEN },
 	{ KEYCODE_H, 0, 113, 137, 210, 258, ACTION_STASIS_HINT },
-	{ KEYCODE_NONE, 0, 0, 479, 0, 639, ACTION_STASIS_OTHER_CLICK}}; // This must be the final entry
+	{ KEYCODE_NONE, 0, 0, 479, 0, 639, ACTION_STASIS_OTHER_CLICK}};
 
-char* Entry = "I've seen consoles like this before.  The four buttons along the top must administer injections.  The two slider controls look like they regulate the air temperature and oxygen level inside the cryonic tube.  I seem to remember that slider mechanisms like these are really sensitive and need to be moved slowly.  Well, first things first, I'll need to turn this thing on.";
-char* SliderWarning = "\nHmmm ... that yellow warning light doesn't look good ... maybe I should move the slider back to where it was and try again.";
-char* ButtonWarning = "\nHmmm ... that yellow warning light doesn't look good ... maybe I should wait a few seconds and see if it goes off before I try anything else.";
-char* GoodAction = "\nAha!  A red light went off in one of those Phase 1 boxes.  I must've done something right.  Now I've got to get those other boxes to light up.";
+const char* Entry = "I've seen consoles like this before.  The four buttons along the top must administer injections.  The two slider controls look like they regulate the air temperature and oxygen level inside the cryonic tube.  I seem to remember that slider mechanisms like these are really sensitive and need to be moved slowly.  Well, first things first, I'll need to turn this thing on.";
+const char* SliderWarning = "\nHmmm ... that yellow warning light doesn't look good ... maybe I should move the slider back to where it was and try again.";
+const char* ButtonWarning = "\nHmmm ... that yellow warning light doesn't look good ... maybe I should wait a few seconds and see if it goes off before I try anything else.";
+const char* GoodAction = "\nAha!  A red light went off in one of those Phase 1 boxes.  I must've done something right.  Now I've got to get those other boxes to light up.";
 
 StasisProgression Progression[] = {
 	{ 0, 238, 236, 253, 249, 253, 0, 0, 422 },
@@ -55,7 +60,6 @@ StasisProgression Progression[] = {
 
 CUAKMStasisModule::CUAKMStasisModule(int parameter) : CFullScreenModule(ModuleType::Stasis)
 {
-	// A[parameter] will be set to 1 if success, 2 if exit, 3 if fail
 	_parameter = parameter;
 
 	_currentPage = 0;
@@ -68,7 +72,7 @@ CUAKMStasisModule::CUAKMStasisModule(int parameter) : CFullScreenModule(ModuleTy
 
 	_nextPulseChange = 0;
 	_nextAudio = 0;
-	_badPlayed = FALSE;
+	_badPlayed = false;
 	_exitAfterTime = 0;
 	_nextWarningChange = 0;
 	_badSlider = 0;
@@ -83,16 +87,16 @@ void CUAKMStasisModule::Dispose()
 {
 	CFullScreenModule::Dispose();
 
-	if (_anim1 != NULL)
+	if (_anim1 != nullptr)
 	{
 		delete[] _anim1;
-		_anim1 = NULL;
+		_anim1 = nullptr;
 	}
 
-	if (_anim2 != NULL)
+	if (_anim2 != nullptr)
 	{
 		delete[] _anim2;
-		_anim2 = NULL;
+		_anim2 = nullptr;
 	}
 }
 
@@ -107,32 +111,30 @@ void CUAKMStasisModule::Render()
 	{
 		if (_nextAudio > 0)
 		{
-			CAnimationController::Load(L"STASISW.AP", _nextAudio);
+			CAnimationController::Load("STASISW.AP", _nextAudio);
 			_caption.SetText(_nextAudio == 2 ? SliderWarning : ButtonWarning);
 			_nextAudio = 0;
 		}
 		else
 		{
-			_inputEnabled = TRUE;
-			_caption.SetText(L"");
+			_inputEnabled = true;
+			_caption.SetText("");
 		}
 	}
 
 	if (_currentPage == 1)
 	{
-		// Sliding chamber panel out
 		SlideOut();
 	}
 	else if (_movingSlider > 0)
 	{
-		int y = max(min(static_cast<int>((_cursorPosY / _scale) - _top) - 9, 252), 142);
+		int y = std::max(std::min(static_cast<int>((_cursorPosY / _scale) - _top) - 9, 252), 142);
 		int* pSliderValue = (_movingSlider == 1) ? &_temperature : &_oxygen;
 		int moved = (*pSliderValue - y);
 		if (moved != 0)
 		{
 			*pSliderValue = y;
 
-			// Render slider background, then render slider at correct position
 			int area, x, s, upper, lower;
 			if (_movingSlider == 1)
 			{
@@ -160,28 +162,29 @@ void CUAKMStasisModule::Render()
 		}
 	}
 
-	if ((_stasisSettings & (STASIS_SETTINGS_STATE_POWER | STASIS_SETTINGS_STATE_DYING_2)) == STASIS_SETTINGS_STATE_POWER && GetTickCount64() > _nextPulseChange)
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+	if ((_stasisSettings & (STASIS_SETTINGS_STATE_POWER | STASIS_SETTINGS_STATE_DYING_2)) == STASIS_SETTINGS_STATE_POWER && now > _nextPulseChange)
 	{
 		_stasisSettings ^= STASIS_SETTINGS_PULSE;
 		RenderControl(STASIS_CONTROL_PULSE, _stasisSettings & 1);
 
 		UpdateTexture();
-		// TODO: check if idiv here is desired
-		_nextPulseChange = GetTickCount64() + 30 * static_cast<ULONGLONG>((3 - _stage / 4) * TIMER_SCALE);
+		_nextPulseChange = now + 30 * static_cast<uint64_t>((3 - _stage / 4) * TIMER_SCALE);
 	}
 
-	if ((_stasisSettings & (STASIS_SETTINGS_STATE_DYING_1 | STASIS_SETTINGS_STATE_DYING_2)) != 0 && GetTickCount64() > _nextWarningChange && _exitAfterTime == 0)
+	if ((_stasisSettings & (STASIS_SETTINGS_STATE_DYING_1 | STASIS_SETTINGS_STATE_DYING_2)) != 0 && now > _nextWarningChange && _exitAfterTime == 0)
 	{
 		_stasisSettings ^= STASIS_SETTINGS_WARNING_ON;
 		RenderControl(STASIS_CONTROL_WARNING, (_stasisSettings & STASIS_SETTINGS_WARNING_ON) ? 0 : 1);
 
 		UpdateTexture();
 
-		_nextWarningChange = GetTickCount64() + 500;
+		_nextWarningChange = now + 500;
 	}
 
 
-	if (_anim != NULL && GetTickCount64() >= _nextAnimFrameTime)
+	if (_anim != nullptr && now >= _nextAnimFrameTime)
 	{
 		if (!_animPlayer.DecodeFrame(_screen, 510, 133, 640))
 		{
@@ -190,7 +193,6 @@ void CUAKMStasisModule::Render()
 			{
 				if (_badAnimCounter < 6 && (_stasisSettings & (STASIS_SETTINGS_STATE_DYING_1 | STASIS_SETTINGS_STATE_DYING_2)))
 				{
-					// If status is NOT OK, play anim again, otherwise stop
 					_animPlayer.Init(_anim1);
 				}
 				else
@@ -198,36 +200,35 @@ void CUAKMStasisModule::Render()
 					_stasisSettings &= ~STASIS_SETTINGS_STATE_DYING_1;
 					_nextWarningChange = 0;
 					RenderControl(STASIS_CONTROL_WARNING, 0);
-					_anim = NULL;
+					_anim = nullptr;
 				}
 			}
 			else if (_anim == _anim2)
 			{
-				// Death, exit
 				_stasisSettings |= (STASIS_SETTINGS_FAILED_ON | STASIS_SETTINGS_STATE_FAILURE);
 				RenderControl(STASIS_CONTROL_FAILED, 1);
 				RenderControl(STASIS_CONTROL_PULSE, 0);
-				_exitAfterTime = GetTickCount64() + 2000;
-				_inputEnabled = FALSE;
-				_anim = NULL;
+				_exitAfterTime = now + 2000;
+				_inputEnabled = false;
+				_anim = nullptr;
 			}
 		}
 
 		UpdateTexture();
 
-		_nextAnimFrameTime = GetTickCount64() + 100;
+		_nextAnimFrameTime = now + 100;
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -240,7 +241,7 @@ void CUAKMStasisModule::Render()
 			CShaders::SelectOrthoShader();
 			dx.SetVertexBuffers(0, 1, &_iconVertexBuffer, &stride, &offset);
 			dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-			wm = XMMatrixTranslation(_cursorPosX + 2.0f, -_cursorPosY + 2.0f, -0.5f);
+			wm = Math::Translation(_cursorPosX + 2.0f, -_cursorPosY + 2.0f, -0.5f);
 			CConstantBuffers::SetWorld(dx, &wm);
 			pRV = _iconTexture.GetTextureRV();
 			dx.SetShaderResources(0, 1, &pRV);
@@ -250,13 +251,13 @@ void CUAKMStasisModule::Render()
 		dx.EnableZBuffer();
 	}
 
-	if (_exitAfterTime > 0 && GetTickCount64() >= _exitAfterTime)
+	if (_exitAfterTime > 0 && now >= _exitAfterTime)
 	{
 		Exit();
 	}
 }
 
-void CUAKMStasisModule::KeyDown(WPARAM key, LPARAM lParam)
+void CUAKMStasisModule::KeyDown(int key, int lParam)
 {
 	if (_inputEnabled)
 	{
@@ -271,23 +272,20 @@ void CUAKMStasisModule::Initialize()
 	_cursorPosX = dx.GetWidth() / 2.0f;
 	_cursorPosY = dx.GetHeight() / 2.0f;
 
-	// Load items from STASIS.AP (palette & images, animation?) and STASISW.AP (sound)
-
 	_cursorMinX = static_cast<int>(_left + 87 * _scale);
 	_cursorMaxX = static_cast<int>(_left + 478 * _scale);
 	_cursorMinY = static_cast<int>(_top + 47 * _scale);
 	_cursorMaxY = static_cast<int>(_top + 269 * _scale);
 
-	// Load palette and compressed image
-	DoubleData dd = LoadDoubleEntry(L"STASIS.AP", 0);
-	if (dd.File1.Data != NULL)
+	DoubleData dd = LoadDoubleEntry("STASIS.AP", 0);
+	if (dd.File1.Data != nullptr)
 	{
 		_screen = dd.File2.Data;
 
-		LPBYTE pPal = dd.File1.Data;
+		uint8_t* pPal = dd.File1.Data;
 		ReadPalette(pPal);
 
-		CopyMemory(_originalPalette, _palette, sizeof(int) * 256);
+		memcpy(_originalPalette, _palette, sizeof(int) * 256);
 
 		delete[] pPal;
 	}
@@ -295,8 +293,8 @@ void CUAKMStasisModule::Initialize()
 	_stasisSettings = (CGameController::GetData(UAKM_SAVE_STASIS_SETTINGS) | CGameController::GetData(UAKM_SAVE_STASIS_SETTINGS + 1) << 8) & 0xc03e;
 	_stasisStages = (CGameController::GetData(UAKM_SAVE_STASIS_STAGES) | CGameController::GetData(UAKM_SAVE_STASIS_STAGES + 1) << 8);
 
-	BinaryData bd = LoadEntry(L"STASIS.AP", 2);
-	if (bd.Data != NULL)
+	BinaryData bd = LoadEntry("STASIS.AP", 2);
+	if (bd.Data != nullptr)
 	{
 		_data = bd.Data;
 		int count = GetInt(_data, 0, 2) - 1;
@@ -306,9 +304,9 @@ void CUAKMStasisModule::Initialize()
 		}
 	}
 
-	BinaryData ad = LoadEntry(L"STASIS.AP", 3);
+	BinaryData ad = LoadEntry("STASIS.AP", 3);
 	_anim1 = ad.Data;
-	ad = LoadEntry(L"STASIS.AP", 4);
+	ad = LoadEntry("STASIS.AP", 4);
 	_anim2 = ad.Data;
 
 	CreateTexturedRectangle(0.0f, 0.0f, -16.0f, 16.0f, &_iconVertexBuffer, "CodePanelIconVertexBuffer");
@@ -328,7 +326,7 @@ void CUAKMStasisModule::Initialize()
 	{
 		_caption.SetText(Entry);
 
-		CAnimationController::Load(L"STASISW.AP", 0);
+		CAnimationController::Load("STASISW.AP", 0);
 		CAnimationController::UpdateAndRender();
 	}
 
@@ -343,7 +341,7 @@ void CUAKMStasisModule::PowerOn()
 
 		_currentPage = 1;
 		_currentFrame = 0;
-		_frameTime = GetTickCount64();
+		_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 		int stage = _stasisStages;
 		_stage = 0;
@@ -355,10 +353,8 @@ void CUAKMStasisModule::PowerOn()
 			stage >>= 1;
 		}
 
-		// TODO: Another idiv to check
-		_nextPulseChange = GetTickCount64() + 30 * static_cast<ULONGLONG>((3 - _stage / 4) * TIMER_SCALE);
+		_nextPulseChange = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + 30 * static_cast<uint64_t>((3 - _stage / 4) * TIMER_SCALE);
 
-		// Render sliders at correct positions for current stage
 		RenderItem(IMG_LEFT_SLIDER_AREA, 108, 142);
 		RenderItem(IMG_RIGHT_SLIDER_AREA, 446, 142);
 
@@ -391,45 +387,24 @@ void CUAKMStasisModule::PowerOn()
 void CUAKMStasisModule::PowerOnContinue()
 {
 	RenderChamber();
-
-	if ((_stasisSettings & STASIS_SETTINGS_STATE_FAILURE) == 0)
-	{
-		// TODO: Update blink rate
-	}
-
 	UpdateTexture();
 }
 
 void CUAKMStasisModule::PowerOff()
 {
-	//_stasisSettings &= 0xfffe;
-	//RenderChamber();
-
-	//if ((_stasisSettings & STASIS_SETTINGS_UNKNOWN2) != 0)
-	//{
-	//	// Same as last OR
-	//}
-
-	//_stasisSettings &= 0xccff;
-	//_stasisSettings |= (STASIS_SETTINGS_STATE_FAILURE | STASIS_SETTINGS_FAILED_ON);
-
-	//RenderControl(STASIS_CONTROL_ONOFF, 0);
-
-	//UpdateTexture();
-
-	// Set progress back on save game
 	CGameController::SetData(UAKM_SAVE_STASIS_SETTINGS, _stasisSettings & 0xff);
 	CGameController::SetData(UAKM_SAVE_STASIS_SETTINGS + 1, (_stasisSettings >> 8) & 0xff);
 	CGameController::SetData(UAKM_SAVE_STASIS_STAGES, _stasisStages & 0xff);
 	CGameController::SetData(UAKM_SAVE_STASIS_STAGES + 1, (_stasisStages >> 8) & 0xff);
 
-	CGameController::SetParameter(_parameter, 3);	// Death, not supposed to turn it off
+	CGameController::SetParameter(_parameter, 3);
 	CModuleController::Pop(this);
 }
 
 void CUAKMStasisModule::SlideOut()
 {
-	ULONGLONG delta = GetTickCount64() - _frameTime;
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	uint64_t delta = now - _frameTime;
 
 	if (delta > TIMER_SCALE)
 	{
@@ -443,14 +418,8 @@ void CUAKMStasisModule::SlideOut()
 			PowerOnContinue();
 		}
 
-		_frameTime += GetTickCount64();
+		_frameTime += now;
 	}
-
-	/*
-	Slide out chamber
-	StasisSettings|=0x80 (both current and savegame)
-	CGameController::SetHintState(920,1,1)	// Not sure if this should be halved...
-	*/
 }
 
 void CUAKMStasisModule::RenderChamber()
@@ -458,10 +427,8 @@ void CUAKMStasisModule::RenderChamber()
 	int img = IMG_BED_EMPTY;
 	if ((_stasisSettings & STASIS_SETTINGS_STATE_POWER) != 0)
 	{
-		// Power is on
 		if ((_stasisSettings & (STASIS_SETTINGS_STATE_FAILURE | STASIS_SETTINGS_FAILED_ON)) != 0)
 		{
-			// Dead
 			img = IMG_BED_HEAD_SIDE;
 		}
 		else
@@ -480,14 +447,12 @@ void CUAKMStasisModule::RenderControl(int index, int state)
 
 void CUAKMStasisModule::OnAction(int action)
 {
-	if (_stasisStages == 0 && CAnimationController::IsDone() == FALSE) {
-		// Skip opening dialogue
+	if (_stasisStages == 0 && CAnimationController::IsDone() == false) {
 		CAnimationController::Skip();
 		return;
 	}
 	if (action == ACTION_STASIS_POWER)
 	{
-		// Clear caption
 		_caption.SetText("");
 
 		_stasisSettings ^= STASIS_SETTINGS_STATE_POWER;
@@ -517,7 +482,7 @@ void CUAKMStasisModule::OnAction(int action)
 			_cursorMinY = static_cast<int>(_top + 142 * _scale);
 			_cursorMaxY = static_cast<int>(_top + 269 * _scale);
 
-			_inputEnabled = FALSE;
+			_inputEnabled = false;
 			_movingSlider = 1;
 		}
 		else if (action == ACTION_STASIS_PENTAHOL)
@@ -542,7 +507,7 @@ void CUAKMStasisModule::OnAction(int action)
 			_cursorMaxX = static_cast<int>(_left + 463 * _scale);
 			_cursorMinY = static_cast<int>(_top + 142 * _scale);
 			_cursorMaxY = static_cast<int>(_top + 269 * _scale);
-			_inputEnabled = FALSE;
+			_inputEnabled = false;
 			_movingSlider = 2;
 		}
 	}
@@ -553,13 +518,11 @@ void CUAKMStasisModule::Button(int btn)
 	_badSlider = 0;
 	if (Progression[_stage].ControlToChange == btn)
 	{
-		// Good
 		Progress();
 	}
 	else
 	{
-		// Bad
-		Bad(FALSE);
+		Bad(false);
 	}
 }
 
@@ -575,7 +538,6 @@ void CUAKMStasisModule::Exit()
 		result = 3;
 	}
 
-	// Set progress back on save game
 	CGameController::SetData(UAKM_SAVE_STASIS_SETTINGS, _stasisSettings & 0xff);
 	CGameController::SetData(UAKM_SAVE_STASIS_SETTINGS + 1, (_stasisSettings >> 8) & 0xff);
 	CGameController::SetData(UAKM_SAVE_STASIS_STAGES, _stasisStages & 0xff);
@@ -594,15 +556,14 @@ void CUAKMStasisModule::CheckStatus(int y, int lower, int upper)
 			_stasisSettings &= ~STASIS_SETTINGS_STATE_DYING_1;
 		}
 
-		if ((Progression[_stage].ControlToChange == 0 && abs(_temperature - Progression[_stage].SliderCheckPosition) <= 2) || (Progression[_stage].ControlToChange == 5 && abs(_oxygen - Progression[_stage].SliderCheckPosition) <= 2))
+		if ((Progression[_stage].ControlToChange == 0 && std::abs(_temperature - Progression[_stage].SliderCheckPosition) <= 2) || (Progression[_stage].ControlToChange == 5 && std::abs(_oxygen - Progression[_stage].SliderCheckPosition) <= 2))
 		{
-			// Progress to next stage, check if text/sound should be output
 			Progress();
 		}
 		else if (_badSlider != _movingSlider && ((y + 9) < lower || (y - 9) > upper))
 		{
 			_badSlider = _movingSlider;
-			Bad(TRUE);
+			Bad(true);
 		}
 	}
 }
@@ -610,7 +571,7 @@ void CUAKMStasisModule::CheckStatus(int y, int lower, int upper)
 void CUAKMStasisModule::Progress()
 {
 	_badEventCount = 0;
-	_stasisSettings &= ~STASIS_SETTINGS_STATE_DYING_1;	// Warning off
+	_stasisSettings &= ~STASIS_SETTINGS_STATE_DYING_1;
 	_badSlider = 0;
 
 	int mask = 1 << Progression[_stage].Stage;
@@ -620,11 +581,10 @@ void CUAKMStasisModule::Progress()
 
 		if (_stasisStages == 1)
 		{
-			// Set caption and play sample
 			_caption.SetText(GoodAction);
-			CAnimationController::Load(L"STASISW.AP", 4);
+			CAnimationController::Load("STASISW.AP", 4);
 			CAnimationController::UpdateAndRender();
-			_inputEnabled = FALSE;
+			_inputEnabled = false;
 			_movingSlider = 0;
 			_cursorMinX = static_cast<int>(_left + 87 * _scale);
 			_cursorMaxX = static_cast<int>(_left + 478 * _scale);
@@ -649,48 +609,46 @@ void CUAKMStasisModule::Progress()
 		else if (_stage == 12)
 		{
 			RenderControl(STASIS_CONTROL_PHASE3, 1);
-			_exitAfterTime = GetTickCount64() + 2000;
+			_exitAfterTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + 2000;
 		}
 
 		UpdateTexture();
 	}
 }
 
-void CUAKMStasisModule::Bad(BOOL slider)
+void CUAKMStasisModule::Bad(bool slider)
 {
-	LPBYTE pAnim = NULL;
+	uint8_t* pAnim = nullptr;
 	if (_badEventCount == 0)
 	{
 		pAnim = _anim1;
 		_stasisSettings |= (STASIS_SETTINGS_WARNING_ON | STASIS_SETTINGS_STATE_DYING_1);
-		_nextWarningChange = GetTickCount64() + 500;
+		_nextWarningChange = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + 500;
 
 		if (!_badPlayed)
 		{
-			_inputEnabled = FALSE;
-			CAnimationController::Load(L"STASISW.AP", 1);
+			_inputEnabled = false;
+			CAnimationController::Load("STASISW.AP", 1);
 
 			if (slider)
 			{
-				// Play 2 sounds
 				_caption.SetText(SliderWarning);
 				_nextAudio = 2;
 			}
 			else
 			{
-				// Button, play only one sound
 				_caption.SetText(ButtonWarning);
 				_nextAudio = 3;
 			}
 
 			CAnimationController::UpdateAndRender();
-			_badPlayed = TRUE;
-			MouseUp({ 0,0 }, -1);
+			_badPlayed = true;
+			MouseUp({0, 0}, -1);
 		}
 	}
 	else
 	{
-		if (_anim != NULL)
+		if (_anim != nullptr)
 		{
 			_animPlayer.Merge(_anim2);
 			_anim = _anim2;
@@ -699,26 +657,21 @@ void CUAKMStasisModule::Bad(BOOL slider)
 		{
 			pAnim = _anim2;
 		}
-		_inputEnabled = FALSE;
+		_inputEnabled = false;
 
 		_stasisSettings |= (STASIS_SETTINGS_WARNING_ON | STASIS_SETTINGS_STATE_DYING_1 | STASIS_SETTINGS_FAILED_ON | STASIS_SETTINGS_STATE_DYING_2);
-		_nextWarningChange = GetTickCount64() + 500;
+		_nextWarningChange = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + 500;
 	}
 
 	_badEventCount++;
 
-	//_stasisSettings |= STASIS_SETTINGS_WARNING_ON;	// Warning on
-	// TODO: Start animation (could be dying)
-
-	if (pAnim != NULL)
+	if (pAnim != nullptr)
 	{
 		_anim = pAnim;
 		_badAnimCounter = 0;
 		_animPlayer.Init(pAnim);
-		_nextAnimFrameTime = GetTickCount64() + 100;
+		_nextAnimFrameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + 100;
 	}
-
-	// 2 bad events in a row causes death
 }
 
 void CUAKMStasisModule::BeginAction()

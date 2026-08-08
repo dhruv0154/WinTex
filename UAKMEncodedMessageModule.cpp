@@ -3,14 +3,17 @@
 #include "GameController.h"
 #include "Utilities.h"
 #include "UAKMGame.h"
-#include "resource.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <cstring>
+#include <cmath>
 
-char* pMsg = "YV UZNV SIAKWBHVG RIPB ZEEIWALHVAL  YWLU SUZXLWLR ZL  LUV XPWLV WA LUV  CIOGVA CZLV UILVO ZL LUV PXPZO LWHV.LUV EZXXYIBG LIGZRWX XWOWSIA.";
-char* pDec = "WE HAVE CONFIRMED YOUR APPOINTMENT  WITH CHASTITY AT  THE SUITE IN THE  GOLDEN GATE HOTEL AT THE USUAL TIME.THE PASSWORD TODAYIS SILICON.";
+const char* pMsg = "YV UZNV SIAKWBHVG RIPB ZEEIWALHVAL  YWLU SUZXLWLR ZL  LUV XPWLV WA LUV  CIOGVA CZLV UILVO ZL LUV PXPZO LWHV.LUV EZXXYIBG LIGZRWX XWOWSIA.";
+const char* pDec = "WE HAVE CONFIRMED YOUR APPOINTMENT  WITH CHASTITY AT  THE SUITE IN THE  GOLDEN GATE HOTEL AT THE USUAL TIME.THE PASSWORD TODAYIS SILICON.";
 
 int LineOffsets[] = { 35, 70, 104, 139, 173, 209, 243, 278 };
 
-CUAKMEncodedMessageModule* CUAKMEncodedMessageModule::pUAKMEMM = NULL;
+CUAKMEncodedMessageModule* CUAKMEncodedMessageModule::pUAKMEMM = nullptr;
 
 CUAKMEncodedMessageModule::CUAKMEncodedMessageModule() : CModuleBase(ModuleType::EncodedMessage)
 {
@@ -21,7 +24,7 @@ CUAKMEncodedMessageModule::CUAKMEncodedMessageModule() : CModuleBase(ModuleType:
 	_cursorMinY = 0;
 	_cursorMaxY = dx.GetHeight() - 1;
 
-	_screen = NULL;
+	_screen = nullptr;
 
 	_col1 = 0x1f;
 	_col2 = 0x10;
@@ -37,10 +40,10 @@ CUAKMEncodedMessageModule::CUAKMEncodedMessageModule() : CModuleBase(ModuleType:
 	_width = 0.0f;
 	_height = 0.0f;
 
-	_pSaveMsg = NULL;
+	_pSaveMsg = nullptr;
 
-	_vertexBuffer = NULL;
-	_indicatorVertexBuffer = NULL;
+	_vertexBuffer = nullptr;
+	_indicatorVertexBuffer = nullptr;
 
 	_indicatorX = -1.0f;
 	_indicatorY = -1.0f;
@@ -58,28 +61,28 @@ CUAKMEncodedMessageModule::~CUAKMEncodedMessageModule()
 
 void CUAKMEncodedMessageModule::Dispose()
 {
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
+		_vertexBuffer = nullptr;
 	}
 
-	if (_indicatorVertexBuffer != NULL)
+	if (_indicatorVertexBuffer != nullptr)
 	{
 		_indicatorVertexBuffer->Release();
-		_indicatorVertexBuffer = NULL;
+		_indicatorVertexBuffer = nullptr;
 	}
 
-	if (_screen != NULL)
+	if (_screen != nullptr)
 	{
 		delete[] _screen;
-		_screen = NULL;
+		_screen = nullptr;
 	}
 }
 
 void CUAKMEncodedMessageModule::Render()
 {
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		if (_textureDirty)
 		{
@@ -91,12 +94,12 @@ void CUAKMEncodedMessageModule::Render()
 
 		CConstantBuffers::Setup2D(dx);
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -104,13 +107,13 @@ void CUAKMEncodedMessageModule::Render()
 
 		if (_charPos >= 0)
 		{
-			UINT stride = sizeof(COLOURED_VERTEX_ORTHO);
-			UINT offset = 0;
-			dx.SetVertexBuffers(0, 1, &_indicatorVertexBuffer, &stride, &offset);
+			uint32_t colStride = sizeof(COLOURED_VERTEX_ORTHO);
+			uint32_t colOffset = 0;
+			dx.SetVertexBuffers(0, 1, &_indicatorVertexBuffer, &colStride, &colOffset);
 			dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
 			CShaders::SelectColourShader();
-			XMMATRIX wm = XMMatrixTranslation(_indicatorX, -_indicatorY, -0.5f);
-			CConstantBuffers::SetWorld(dx, &wm);
+			float16 wmCol = Math::Translation(_indicatorX, -_indicatorY, -0.5f);
+			CConstantBuffers::SetWorld(dx, &wmCol);
 			dx.Draw(5, 0);
 		}
 
@@ -123,18 +126,16 @@ void CUAKMEncodedMessageModule::Render()
 	}
 }
 
-void CUAKMEncodedMessageModule::KeyDown(WPARAM key, LPARAM lParam)
+void CUAKMEncodedMessageModule::KeyDown(int key, int lParam)
 {
 	if (key >= 'A' && key <= 'Z' && _charPos >= 0)
 	{
-		// Get original character at position
 		char orig = pMsg[_charPos];
 
 		char* pUsr = _pSaveMsg;
-		char* pSrc = pMsg;
-		char* pDst = pDec;
+		const char* pSrc = pMsg;
+		const char* pDst = pDec;
 
-		// Update buffer
 		for (int y = 0; y < 8; y++)
 		{
 			int ox = 41;
@@ -152,18 +153,16 @@ void CUAKMEncodedMessageModule::KeyDown(WPARAM key, LPARAM lParam)
 
 					if (b == c)
 					{
-						// Choose red
 						_col2 = 9;
 						_col3 = 8;
 					}
 					else
 					{
-						// Choose green
 						_col2 = 12;
 						_col3 = 12;
 					}
 
-					RenderChar(ox, oy, c, FALSE);
+					RenderChar(ox, oy, c, false);
 				}
 
 				ox += 13;
@@ -172,7 +171,6 @@ void CUAKMEncodedMessageModule::KeyDown(WPARAM key, LPARAM lParam)
 
 		_textureDirty = true;
 
-		// Check if message is decoded, add score (hint state?)
 		_completed = CheckCompleted();
 		if (_completed)
 		{
@@ -187,33 +185,31 @@ void CUAKMEncodedMessageModule::Initialize()
 	_cursorPosX = dx.GetWidth() / 2.0f;
 	_cursorPosY = dx.GetHeight() / 2.0f;
 
-	DWORD s;
-	_font = GetResource(IDR_RAWFONT_UAKM, L"BIN", &s);
-	if (_font != NULL)
+	uint32_t s;
+	_font = GetResource(IDR_RAWFONT_UAKM, "BIN", &s);
+	if (_font != nullptr)
 	{
 		for (int i = 0; i < 224; i++)
 		{
 			char ix = ' ' + i;
 			int offset = GetInt(_font + 3, i * 4, 4);
-			LPBYTE pChar = _font + offset;
+			uint8_t* pChar = _font + offset;
 			_fontMap[ix] = pChar;
 		}
 	}
 
-	// Background is in GRAPHICS.AP entry 13 with palette in 12
-	DoubleData bd = LoadDoubleEntry(L"GRAPHICS.AP", 12);
-	if (bd.File1.Data != NULL)
+	DoubleData bd = LoadDoubleEntry("GRAPHICS.AP", 12);
+	if (bd.File1.Data != nullptr)
 	{
-		// Copy palette
-		LPBYTE pPal = bd.File1.Data;
+		uint8_t* pPal = bd.File1.Data;
 		for (int c = 0; c < 256; c++)
 		{
 			double r = pPal[c * 3 + 0];
 			double g = pPal[c * 3 + 1];
 			double b = pPal[c * 3 + 2];
-			int ri = (byte)((r * 255.0) / 63.0);
-			int gi = (byte)((g * 255.0) / 63.0);
-			int bi = (byte)((b * 255.0) / 63.0);
+			int ri = (uint8_t)((r * 255.0) / 63.0);
+			int gi = (uint8_t)((g * 255.0) / 63.0);
+			int bi = (uint8_t)((b * 255.0) / 63.0);
 			int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
 			_palette[c] = col;
 		}
@@ -221,7 +217,7 @@ void CUAKMEncodedMessageModule::Initialize()
 		delete[] pPal;
 	}
 
-	_texture.Init(286, 322);	// Size of background image
+	_texture.Init(286, 322);
 
 	_screen = bd.File2.Data;
 
@@ -232,14 +228,12 @@ void CUAKMEncodedMessageModule::Initialize()
 	_codeMap['G'] = 'D';
 	_codeMap['C'] = 'G';
 
-	// Render original text
-	RenderText(pMsg, 11, TRUE);
+	RenderText(pMsg, 11, true);
 
 	_pSaveMsg = (char*)(CGameController::GetDataPointer() + UAKM_SAVE_CODED_MESSAGE);
 	char* pUsr = _pSaveMsg;
-	char* pDst = pDec;
+	const char* pDst = pDec;
 
-	// Render decrypted text
 	for (int y = 0; y < 8; y++)
 	{
 		int ox = 41;
@@ -251,30 +245,27 @@ void CUAKMEncodedMessageModule::Initialize()
 			char d = *pDst++;
 			if (c == d)
 			{
-				// Choose red
 				_col2 = 9;
 				_col3 = 8;
 			}
 			else
 			{
-				// Choose green
 				_col2 = 12;
 				_col3 = 12;
 			}
 
-			RenderChar(ox, oy, c, FALSE);
+			RenderChar(ox, oy, c, false);
 			ox += 13;
 		}
 	}
 
 	_textureDirty = true;
 
-	// Calculate screen offsets
 	float w = (float)dx.GetWidth();
 	float h = (float)dx.GetHeight();
 	float sx = w / 286.0f;
 	float sy = h / 322.0f;
-	_scale = min(sx, sy);
+	_scale = std::min(sx, sy);
 	_width = 286 * _scale;
 	_height = 322 * _scale;
 	_left = (w - _width) / 2.0f;
@@ -283,30 +274,29 @@ void CUAKMEncodedMessageModule::Initialize()
 	CreateTexturedRectangle(-_top, _left, -_height - _top, _left + _width, &_vertexBuffer, "EncodedNoteVertexBuffer");
 
 	COLOURED_VERTEX_ORTHO* pVB = new COLOURED_VERTEX_ORTHO[5];
-	if (pVB != NULL)
+	if (pVB != nullptr)
 	{
 		float x1 = 0.0f;
-		float x2 = floor(14.0f * _scale);
+		float x2 = std::floor(14.0f * _scale);
 		float y1 = 0.0f;
-		float y2 = floor(y1 - 12.0f * _scale);
+		float y2 = std::floor(y1 - 12.0f * _scale);
 
-		pVB[0].position = XMFLOAT4(x1, y1, 0.0f, 0.0f);
-		pVB[0].colour = XMFLOAT4(0.0f, 0.588f, 1.0f, 1.0f);
-		pVB[1].position = XMFLOAT4(x2, y1, 0.0f, 0.0f);
-		pVB[1].colour = XMFLOAT4(0.0f, 0.588f, 1.0f, 1.0f);
-		pVB[2].position = XMFLOAT4(x2, y2, 0.0f, 0.0f);
-		pVB[2].colour = XMFLOAT4(0.0f, 0.588f, 1.0f, 1.0f);
-		pVB[3].position = XMFLOAT4(x1, y2, 0.0f, 0.0f);
-		pVB[3].colour = XMFLOAT4(0.0f, 0.588f, 1.0f, 1.0f);
-		pVB[4].position = XMFLOAT4(x1, y1, 0.0f, 0.0f);
-		pVB[4].colour = XMFLOAT4(0.0f, 0.588f, 1.0f, 1.0f);
+		pVB[0].position = float4(x1, y1, 0.0f, 0.0f);
+		pVB[0].colour = float4(0.0f, 0.588f, 1.0f, 1.0f);
+		pVB[1].position = float4(x2, y1, 0.0f, 0.0f);
+		pVB[1].colour = float4(0.0f, 0.588f, 1.0f, 1.0f);
+		pVB[2].position = float4(x2, y2, 0.0f, 0.0f);
+		pVB[2].colour = float4(0.0f, 0.588f, 1.0f, 1.0f);
+		pVB[3].position = float4(x1, y2, 0.0f, 0.0f);
+		pVB[3].colour = float4(0.0f, 0.588f, 1.0f, 1.0f);
+		pVB[4].position = float4(x1, y1, 0.0f, 0.0f);
+		pVB[4].colour = float4(0.0f, 0.588f, 1.0f, 1.0f);
 
 		D3D11_BUFFER_DESC vbDesc;
 		vbDesc.Usage = D3D11_USAGE_DYNAMIC;
 		vbDesc.ByteWidth = sizeof(COLOURED_VERTEX_ORTHO) * 5;
 		vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		vbDesc.MiscFlags = 0;
 		vbDesc.StructureByteStride = 0;
 
 		D3D11_SUBRESOURCE_DATA vData;
@@ -319,8 +309,7 @@ void CUAKMEncodedMessageModule::Initialize()
 		delete[] pVB;
 	}
 
-	// Resume-button
-	char* pResume = "Resume";
+	const char* pResume = "Resume";
 	_pBtnResume = new CDXButton(pResume, TexFont.PixelWidth(pResume), 32.0f * pConfig->FontScale, OnResume);
 	_pBtnResume->SetPosition(dx.GetWidth() - _pBtnResume->GetWidth(), dx.GetHeight() - 40 * pConfig->FontScale);
 
@@ -330,10 +319,10 @@ void CUAKMEncodedMessageModule::Initialize()
 void CUAKMEncodedMessageModule::UpdateTexture()
 {
 	ID3D11Texture2D* pTex = _texture.GetTexture();
-	if (pTex != NULL)
+	if (pTex != nullptr)
 	{
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+		if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 		{
 			int* pScr = (int*)subRes.pData;
 			for (int y = 0; y < 322; y++)
@@ -349,14 +338,14 @@ void CUAKMEncodedMessageModule::UpdateTexture()
 	}
 }
 
-void CUAKMEncodedMessageModule::RenderChar(int x, int y, char c, BOOL transparent)
+void CUAKMEncodedMessageModule::RenderChar(int x, int y, char c, bool transparent)
 {
-	LPBYTE pChar = _fontMap[c];
-	if (pChar != NULL)
+	uint8_t* pChar = _fontMap[c];
+	if (pChar != nullptr)
 	{
 		int width = *pChar++;
 		int bytesPerLine = (width + 1) / 2;
-		pChar += bytesPerLine;	// Skip 1 line
+		pChar += bytesPerLine;
 		for (int cy = 1; cy < 13; cy++)
 		{
 			int cx = 0;
@@ -390,9 +379,9 @@ void CUAKMEncodedMessageModule::RenderChar(int x, int y, char c, BOOL transparen
 	}
 }
 
-void CUAKMEncodedMessageModule::RenderText(char* pText, int yOffset, BOOL transparent)
+void CUAKMEncodedMessageModule::RenderText(const char* pText, int yOffset, bool transparent)
 {
-	char* pPrint = pMsg;
+	const char* pPrint = pText;
 	int pos = 0;
 	int line = 0;
 	int x = 41;
@@ -427,13 +416,12 @@ bool CUAKMEncodedMessageModule::CheckCompleted()
 	return true;
 }
 
-void CUAKMEncodedMessageModule::Cursor(float x, float y, BOOL relative)
+void CUAKMEncodedMessageModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
-	_pBtnResume->SetMouseOver(_pBtnResume->HitTest(x, y) != NULL);
+	_pBtnResume->SetMouseOver(_pBtnResume->HitTest(x, y) != nullptr);
 
-	// Check if the cursor is over a letter
 	_indicatorX = -1.0f;
 	_indicatorY = -1.0f;
 	_charPos = -1;
@@ -449,8 +437,8 @@ void CUAKMEncodedMessageModule::Cursor(float x, float y, BOOL relative)
 				char c = pDec[p];
 				if (c >= 'A' && c <= 'Z')
 				{
-					_indicatorX = floor(_left + (39 + ((cx - 41) / 13) * 13.0f) * _scale) + 0.5f;
-					_indicatorY = floor(_top + LineOffsets[sy] * _scale) - 0.5f;
+					_indicatorX = std::floor(_left + (39 + ((cx - 41) / 13) * 13.0f) * _scale) + 0.5f;
+					_indicatorY = std::floor(_top + LineOffsets[sy] * _scale) - 0.5f;
 					_charPos = p;
 				}
 			}
@@ -472,7 +460,7 @@ void CUAKMEncodedMessageModule::BeginAction()
 	}
 }
 
-void CUAKMEncodedMessageModule::OnResume(LPVOID data)
+void CUAKMEncodedMessageModule::OnResume(void* data)
 {
 	pUAKMEMM->Back();
 }

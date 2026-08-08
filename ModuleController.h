@@ -2,56 +2,59 @@
 
 #include "ModuleBase.h"
 #include <list>
+#include <cstdint>
 #include "AnimatedCursor.h"
 #include "Map.h"
-#include "Mutex.h"
+#include "Point.h"
+#include "Enums.h"
 
 class CControllerData;
 
 class CModuleController
 {
 public:
-	static BOOL Init(CMap* map, CMap* dmap);
+    static bool Init(CMap* map, CMap* dmap);
 
-	static void GotFocus();
-	static void LostFocus();
+    static void GotFocus();
+    static void LostFocus();
 
-	static void Push(CModuleBase* pModule, BOOL overrideCurrent = FALSE);
-	static void Pop(CModuleBase* pModule);
-	static void SendToBack(CModuleBase* pModule);
-	static void SendToFront(CModuleBase* pModule);
+    static void Push(CModuleBase* pModule, bool overrideCurrent = false);
+    static void Pop(CModuleBase* pModule);
+    static void SendToBack(CModuleBase* pModule);
+    static void SendToFront(CModuleBase* pModule);
 
-	static CModuleBase* Get(ModuleType type);
-	static void ClearExcept(CModuleBase* pModule);
+    static CModuleBase* Get(ModuleType type);
+    static void ClearExcept(CModuleBase* pModule);
 
-	static void Render();
-	static void MouseMove(POINT pt);
-	static void MouseDown(POINT pt, int btn);
-	static void MouseUp(POINT pt, int btn);
-	static void MouseWheel(int scroll);
-	static void KeyDown(WPARAM key, LPARAM lParam);
-	static void KeyUp(WPARAM key, LPARAM lParam);
-	static void GamepadInput(InputSource source, int offset, int data);
+    static void Render();
+    
+    static void MouseMove(Point pt);
+    static void MouseDown(Point pt, int btn);
+    static void MouseUp(Point pt, int btn);
+    static void MouseWheel(int scroll);
+    static void KeyDown(uint32_t key, uint32_t lParam);
+    static void KeyUp(uint32_t key, uint32_t lParam);
+    static void GamepadInput(InputSource source, int offset, int data);
 
-	static void Resize(int width, int height);
+    static void Resize(int width, int height);
 
-	static CAnimatedCursor Cursors[12];
+    static CAnimatedCursor Cursors[13];
 
-	static DWORD MainThreadId;
-	static DWORD D3DThreadId;
-	static DWORD TimerThreadId;
+    static uint32_t MainThreadId;
+    static uint32_t D3DThreadId;
+    static uint32_t TimerThreadId;
 
-	static CModuleBase* CurrentModule;
-	static CModuleBase* NextModule;
+    static CModuleBase* CurrentModule;
+    static CModuleBase* NextModule;
 
-	static CMap* pMap;
-	static CMap* pDMap;
+    static CMap* pMap;
+    static CMap* pDMap;
 
-	static void Resume();
+    static void Resume();
 
 protected:
-	static std::list<CModuleBase*> Modules;
+    static std::list<CModuleBase*> Modules;
 
-	static void PauseModule(CModuleBase* pModule);
-	static void ResumeModule(CModuleBase* pModule);
+    static void PauseModule(CModuleBase* pModule);
+    static void ResumeModule(CModuleBase* pModule);
 };

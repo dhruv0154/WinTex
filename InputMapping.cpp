@@ -46,6 +46,7 @@ void CInputMapping::LoadControlsMap()
 		// Load blob from registry
 
 		file.read(reinterpret_cast<char*>(config), sizeof(config));
+		uint32_t size = sizeof(config);
 		if (file.gcount() > 0)
 		{
 			int ix = 0;

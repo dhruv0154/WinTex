@@ -1,27 +1,32 @@
 #include "PDRitzSecurityKeypadModule.h"
 #include "Utilities.h"
 #include "GameController.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
 
-#define IMG_GREEN		22
-#define IMG_RED			24
-#define SND_KEY			26
-#define SND_BAD			27
-#define SND_GOOD		28
+#define IMG_GREEN       22
+#define IMG_RED         24
+#define SND_KEY         26
+#define SND_BAD         27
+#define SND_GOOD        28
 
-signed char DoorCode[] = { 4,8,2,7,-1 };
+#define VK_RETURN       0x0D
 
-int KeyHitTestCoordinates[] = { 348,422,195,269,	// 0
-								94,168,195,269,		// 1
-								94,168,280,354,		// 2
-								94,168,365,439,		// 3
-								179,253,195,269,	// 4
-								179,253,280,354,	// 5
-								179,253,365,439,	// 6
-								263,337,195,269,	// 7
-								263,337,280,354,	// 8
-								263,337,365,439,	// 9
-								348,422,280,439,	// Enter
-								420,449,580,639 };	// Escape/exit button
+signed char DoorCode[] = { 4, 8, 2, 7, -1 };
+
+int KeyHitTestCoordinates[] = { 348,422,195,269,
+								94,168,195,269,
+								94,168,280,354,
+								94,168,365,439,
+								179,253,195,269,
+								179,253,280,354,
+								179,253,365,439,
+								263,337,195,269,
+								263,337,280,354,
+								263,337,365,439,
+								348,422,280,439,
+								420,449,580,639 };
 
 int KeyRenderCoordinates[] = { 193,345,193,91,278,91,363,91,193,176,278,176,363,176,193,260,278,260,363,260,278,345,338,58,213,58 };
 
@@ -34,9 +39,9 @@ CPDRitzSecurityKeypadModule::CPDRitzSecurityKeypadModule() : CFullScreenModule(M
 		_keyTimes[i] = 0;
 	}
 
-	_updateTexture = FALSE;
+	_updateTexture = false;
 
-	_codeCorrect = FALSE;
+	_codeCorrect = false;
 	_blinkFrame = 0;
 	_blinkFrameTime = 0;
 
@@ -50,7 +55,7 @@ CPDRitzSecurityKeypadModule::~CPDRitzSecurityKeypadModule()
 
 void CPDRitzSecurityKeypadModule::Render()
 {
-	ULONGLONG now = GetTickCount64();
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 	if (_soundStartTime > 0 && (now - _soundStartTime >= 200))
 	{
@@ -65,7 +70,7 @@ void CPDRitzSecurityKeypadModule::Render()
 			// Render original back
 			RenderItem(key * 2, KeyRenderCoordinates[key * 2], KeyRenderCoordinates[key * 2 + 1]);
 			_keyTimes[key] = 0;
-			_updateTexture = TRUE;
+			_updateTexture = true;
 			_soundStartTime = now;
 
 			if (_keyPos < 5)
@@ -83,22 +88,22 @@ void CPDRitzSecurityKeypadModule::Render()
 
 			if (key != 10)
 			{
-				_inputEnabled = TRUE;
+				_inputEnabled = true;
 			}
 			else
 			{
-				_codeCorrect = TRUE;
+				_codeCorrect = true;
 				for (int i = 0; i < 5; i++)
 				{
 					if (_enteredCode[i] != DoorCode[i])
 					{
-						_codeCorrect = FALSE;
+						_codeCorrect = false;
 						break;
 					}
 				}
 
 				_blinkFrame = 18;
-				_blinkFrameTime = GetTickCount64();
+				_blinkFrameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 				if (_codeCorrect)
 				{
@@ -124,7 +129,7 @@ void CPDRitzSecurityKeypadModule::Render()
 
 				RenderItem((_codeCorrect ? IMG_GREEN : IMG_RED) + (_blinkFrame & 1), KeyRenderCoordinates[(12 - _codeCorrect) * 2 + 0], KeyRenderCoordinates[(12 - _codeCorrect) * 2 + 1]);
 
-				_updateTexture = TRUE;
+				_updateTexture = true;
 			}
 
 			_blinkFrameTime = now;
@@ -138,7 +143,7 @@ void CPDRitzSecurityKeypadModule::Render()
 				else
 				{
 					ResetCode();
-					_inputEnabled = TRUE;
+					_inputEnabled = true;
 				}
 			}
 		}
@@ -147,19 +152,19 @@ void CPDRitzSecurityKeypadModule::Render()
 	if (_updateTexture)
 	{
 		UpdateTexture();
-		_updateTexture = FALSE;
+		_updateTexture = false;
 	}
 
 	if (_vertexBuffer != NULL)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -176,19 +181,18 @@ void CPDRitzSecurityKeypadModule::Initialize()
 {
 	CFullScreenModule::Initialize();
 
-	DoubleData dd = LoadDoubleEntry(L"SPECIAL.AP", 57);
+	DoubleData dd = LoadDoubleEntry("SPECIAL.AP", 57);
 	if (dd.File1.Data != NULL)
 	{
 		_screen = dd.File2.Data;
 
-		LPBYTE pPal = dd.File1.Data;
+		uint8_t* pPal = dd.File1.Data;
 		ReadPalette(pPal);
 
 		delete[] pPal;
 	}
 
-	// Load extra files
-	BinaryData bd = LoadEntry(L"SPECIAL.AP", 59);
+	BinaryData bd = LoadEntry("SPECIAL.AP", 59);
 	if (bd.Data != NULL)
 	{
 		_data = bd.Data;
@@ -204,7 +208,7 @@ void CPDRitzSecurityKeypadModule::Initialize()
 	_cursorMinY = static_cast<int>(-_top + 4 * _scale);
 	_cursorMaxY = static_cast<int>(-_top + 468 * _scale);
 
-	_updateTexture = TRUE;
+	_updateTexture = true;
 }
 
 void CPDRitzSecurityKeypadModule::Dispose()
@@ -212,7 +216,7 @@ void CPDRitzSecurityKeypadModule::Dispose()
 	CModuleController::Cursors[(int)CAnimatedCursor::CursorType::Crosshair].SetPosition(dx.GetWidth() / 2.0f, dx.GetHeight() / 2.0f);
 }
 
-void CPDRitzSecurityKeypadModule::KeyDown(WPARAM key, LPARAM lParam)
+void CPDRitzSecurityKeypadModule::KeyDown(int key, int lParam)
 {
 	if (_inputEnabled)
 	{
@@ -262,10 +266,10 @@ void CPDRitzSecurityKeypadModule::Key(int key)
 {
 	if (key < 11)
 	{
-		_inputEnabled = FALSE;
-		_keyTimes[key] = GetTickCount64();
+		_inputEnabled = false;
+		_keyTimes[key] = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		RenderItem(key * 2 + 1, KeyRenderCoordinates[key * 2], KeyRenderCoordinates[key * 2 + 1]);
-		_updateTexture = TRUE;
+		_updateTexture = true;
 	}
 	else if (key == 11)
 	{

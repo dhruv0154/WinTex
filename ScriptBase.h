@@ -10,18 +10,17 @@
 class CScriptBase
 {
 public:
-	CScriptBase();
-	virtual ~CScriptBase();
+    CScriptBase();
+    virtual ~CScriptBase();
 
-	virtual void Execute(CScriptState* pState, int id) = 0;
-	virtual void Resume(CScriptState* pState, bool breakWait = false) = 0;
-	virtual ActionType GetCurrentActions(CScriptState* pState, int currentObjectIndex) { return ActionType::None; };
-	virtual void PermformAction(CScriptState* pState, int id, ActionType action, int item) = 0;
-	virtual void SelectDialogueOption(CScriptState* pState, int option) = 0;
+    virtual void Execute(CScriptState* pState, int id) = 0;
+    virtual void Resume(CScriptState* pState, bool breakWait = false) = 0;
+    virtual ActionType GetCurrentActions(CScriptState* pState, int currentObjectIndex) { return ActionType::None; };
+    
+    virtual void PermformAction(CScriptState* pState, int id, ActionType action, int item) = 0;
+    virtual void SelectDialogueOption(CScriptState* pState, int option) = 0;
 
-	CMapData* _mapEntry;
-
-	CLocation* _pLoc;
-
-	CMutex _scriptLock;
+    CMapData* _mapEntry{nullptr};
+    CLocation* _pLoc{nullptr};
+    CMutex _scriptLock;
 };

@@ -2,12 +2,13 @@
 
 #include "FullScreenModule.h"
 #include "RawFont.h"
+#include <cstdint>
 
 class CPDLaptopModule : public CFullScreenModule
 {
 public:
-	CPDLaptopModule(BOOL cdUsed);
-	CPDLaptopModule(LPBYTE screen, LPINT palette);
+	CPDLaptopModule(bool cdUsed);
+	CPDLaptopModule(uint8_t* screen, int* palette);
 	~CPDLaptopModule();
 
 	virtual void Render();
@@ -20,20 +21,20 @@ protected:
 	void RenderScreen();
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void Back();
 
-	BOOL _cdUsed;
+	bool _cdUsed;
 
 	int _mode;
 	int _stage;
 	int _dotX;
-	ULONGLONG _time;
+	uint64_t _time;
 
 	static int CellSequence[];
 
-	void RenderButton(int x1, int y1, int x2, int y2, char* text, int boxColour, int textColour);
+	void RenderButton(int x1, int y1, int x2, int y2, const char* text, int boxColour, int textColour);
 
 	void RenderArticleButtons();
 };

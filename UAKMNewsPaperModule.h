@@ -2,9 +2,9 @@
 
 #include "ModuleBase.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
 #include "Texture.h"
 #include "DXButton.h"
+#include <cstdint>
 
 class CUAKMNewsPaperModule : public CModuleBase
 {
@@ -34,37 +34,37 @@ protected:
 	int _palette[256];
 
 	CDXButton* _pBtnResume;
-	static void OnResume(LPVOID data);
+	static void OnResume(void* data);
 
 	class CNewsPaperView
 	{
 	public:
 		CNewsPaperView()
 		{
-			Data = NULL;
-			Buffer = NULL;
+			Data = nullptr;
+			Buffer = nullptr;
 		}
 
 		~CNewsPaperView()
 		{
-			if (Data != NULL)
+			if (Data != nullptr)
 			{
 				delete[] Data;
-				Data = NULL;
+				Data = nullptr;
 			}
 
-			if (Buffer != NULL)
+			if (Buffer != nullptr)
 			{
 				Buffer->Release();
-				Buffer = NULL;
+				Buffer = nullptr;
 			}
 		}
 
-		LPBYTE Data = NULL;
+		uint8_t* Data = nullptr;
 		int Width = 0;
 		int Height = 0;
 		CTexture Texture;
-		ID3D11Buffer* Buffer = NULL;
+		ID3D11Buffer* Buffer = nullptr;
 	};
 
 	std::unordered_map<int, CNewsPaperView*> _newsPaper;
@@ -72,7 +72,7 @@ protected:
 	void UpdateTexture(CNewsPaperView* np);
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void Back();
 };

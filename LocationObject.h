@@ -1,30 +1,25 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
+#include <cstdint>
 
 class CLocationSubObject
 {
 public:
-	CLocationSubObject();
-	virtual ~CLocationSubObject();
+    CLocationSubObject();
+    virtual ~CLocationSubObject() = default;
 
-	int Id;
-	int TextureIndex;
-	int VertexIndex;
-	int VertexCount;
+    int Id{0};
+    int TextureIndex{0};
+    int VertexIndex{0};
+    int VertexCount{0};
 };
 
 class CLocationObject
 {
 public:
-	CLocationObject();
-	virtual ~CLocationObject();
+    CLocationObject();
+    virtual ~CLocationObject();
 
-	int SubObjectCount;
-	CLocationSubObject* pSubObjects;
+    int SubObjectCount{0};
+    CLocationSubObject* pSubObjects{nullptr};
 };

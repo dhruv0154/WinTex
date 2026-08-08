@@ -19,6 +19,6 @@ protected:
 	virtual void SetupLoadFrame();
 	virtual void SetupSaveFrame();
 
-	static void Intro(LPVOID data);
-	static void Credits(LPVOID data);
+	static void Intro(void* data);
+	static void Credits(void* data);
 };

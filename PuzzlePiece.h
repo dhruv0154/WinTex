@@ -3,6 +3,7 @@
 #include "Texture.h"
 #include <unordered_map>
 #include <vector>
+#include <cstdint>
 
 class CPuzzlePiece
 {
@@ -13,7 +14,7 @@ public:
 	float X;
 	float Y;
 	int Orientation;
-	LPBYTE RawImage;
+	uint8_t* RawImage;
 	float Width;
 	float Height;
 	int OriginalWidth;
@@ -22,7 +23,7 @@ public:
 	int Z;
 
 	static void Reset();
-	static void Add(int index, LPBYTE pImage, float scale, int palette[], int numberOfImages, float left, float top, int positionOffset);
+	static void Add(int index, uint8_t* pImage, float scale, int palette[], int numberOfImages, float left, float top, int positionOffset);
 	static void Sort();
 	static CPuzzlePiece* Get(int index);
 	static void Dispose();

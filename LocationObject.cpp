@@ -2,8 +2,8 @@
 
 CLocationObject::CLocationObject()
 {
-	SubObjectCount = 0;
-	pSubObjects = NULL;
+    SubObjectCount = 0;
+    pSubObjects = nullptr;
 }
 
 CLocationObject::~CLocationObject()
@@ -11,9 +11,5 @@ CLocationObject::~CLocationObject()
 }
 
 CLocationSubObject::CLocationSubObject()
-{
-}
-
-CLocationSubObject::~CLocationSubObject()
 {
 }

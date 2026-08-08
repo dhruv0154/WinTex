@@ -5,17 +5,15 @@
 #include "FullScreenModule.h"
 #include "RawFont.h"
 #include <unordered_map>
+#include <list>
+#include <cstdint>
 #include "ScriptBase.h"
 #include "DXListBox.h"
 #include "PDScriptState.h"
-#ifdef PLATFORM_WINDOWS
-#include <dsound.h>
-#include <xaudio2.h>
-#else
-#include "Win32Compat.h"
-#endif
+#include "Structs.h"
+#include "DXSound.h"
 
-class CPDVidPhoneModule : public CFullScreenModule, public IXAudio2VoiceCallback
+class CPDVidPhoneModule : public CFullScreenModule
 {
 public:
 	CPDVidPhoneModule();
@@ -24,19 +22,6 @@ public:
 	virtual void Resize(int width, int height);
 	virtual void Render();
 
-	// For sound playback (dialling)
-	STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32) { }
-	STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
-	STDMETHOD_(void, OnStreamEnd)() { }
-	STDMETHOD_(void, OnBufferStart)(void*) { }
-	STDMETHOD_(void, OnBufferEnd)(void*)
-	{
-		_nextToneTime = GetTickCount64() + 100;
-		_readyForNextTone = TRUE;
-	}
-	STDMETHOD_(void, OnLoopEnd)(void*) { }
-	STDMETHOD_(void, OnVoiceError)(void*, HRESULT) { }
-
 protected:
 	virtual void Initialize();
 
@@ -44,7 +29,7 @@ protected:
 	CRawFont _uakmRawFont;
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void Back();
 
@@ -65,10 +50,10 @@ protected:
 	class Phonebook
 	{
 	public:
-		Phonebook() { Index = 0; IsSelected = FALSE; Box = { 0,0,0,0 }; }
+		Phonebook() { Index = 0; IsSelected = false; Box.Top = 0; Box.Left = 0; Box.Bottom = 0; Box.Right = 0; }
 		int Index;
-		RECT Box;
-		BOOL IsSelected;
+		Rect Box;
+		bool IsSelected;
 	};
 
 	std::list<Phonebook*> _phonebook;
@@ -78,29 +63,28 @@ protected:
 
 	void LoadVideo(int caller);
 	void RenderScreen();
-	LPBYTE _screenResetData;
+	uint8_t* _screenResetData;
 
-	// Copied from VideoModule
 	CScriptBase* _scriptEngine;
 	CPDScriptState _scriptState;
 	CDXListBox _listBox;
 
 	int _askAboutBase;
 
-	static void DialogueOptionA(LPVOID data);
-	static void DialogueOptionB(LPVOID data);
-	static void DialogueOptionC(LPVOID data);
+	static void DialogueOptionA(void* data);
+	static void DialogueOptionB(void* data);
+	static void DialogueOptionC(void* data);
 
 	static void SelectOption(int option);
 	void SelectDialogueOption(int option);
 
-	IXAudio2SourceVoice* _sourceVoice;
+	CAudioStream* _audioStream;
 	void PlayNextTone();
-	BOOL _readyForNextTone;
-	ULONGLONG _nextToneTime;
+	bool _readyForNextTone;
+	uint64_t _nextToneTime;
 
 	Phonebook* _highlighted;
 
-	BOOL _flashMessages;
-	BOOL _flashDial;
+	bool _flashMessages;
+	bool _flashDial;
 };

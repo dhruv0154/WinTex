@@ -12,7 +12,7 @@ public:
 	CPDClimbLadderOverlay();
 	~CPDClimbLadderOverlay();
 
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 	virtual void Render();
 	virtual void BeginAction();
 

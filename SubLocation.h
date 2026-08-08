@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DXText.h"
+#include <string>
 
 class CSubLocation
 {
@@ -13,5 +14,11 @@ public:
 	float Bottom;
 	float Right;
 
-	CSubLocation(int parent, std::string text) { Left = Top = Right = Bottom = 0.0f; ParentLocation = parent; Text = text; RealText.SetText((char*)text.c_str()); }
+	CSubLocation(int parent, std::string text) 
+	{ 
+		Left = Top = Right = Bottom = 0.0f; 
+		ParentLocation = parent; 
+		Text = text; 
+		RealText.SetText((char*)text.c_str()); 
+	}
 };

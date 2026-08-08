@@ -15,5 +15,5 @@ public:
 	void Render();
 	void Render(float x, float y);
 
-	BOOL HitTest(float x, float y) { return (x >= Left && x < Right&& y >= -Top && y < -Bottom); }
+	bool HitTest(float x, float y) { return (x >= Left && x < Right && y >= -Top && y < -Bottom); }
 };

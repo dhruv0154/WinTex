@@ -5,9 +5,8 @@
 
 CScriptBase::CScriptBase()
 {
-	ZeroMemory(&_mapEntry, sizeof(_mapEntry));
-
-	_pLoc = NULL;
+    _mapEntry = nullptr;
+    _pLoc = nullptr;
 }
 
 CScriptBase::~CScriptBase()

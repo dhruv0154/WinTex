@@ -3,6 +3,7 @@
 #include "GameController.h"
 #include "Utilities.h"
 #include "MainMenuModule.h"
+#include <algorithm>
 
 int CResumeGameModule::TextColour1 = 0;
 int CResumeGameModule::TextColour2 = 0xffc30000;
@@ -31,7 +32,6 @@ void CResumeGameModule::Render()
 {
 	_pFrame->Render();
 
-	// Render cursor
 	CModuleController::Cursors[(int)CAnimatedCursor::CursorType::Arrow].SetPosition(_cursorPosX, _cursorPosY);
 	CModuleController::Cursors[(int)CAnimatedCursor::CursorType::Arrow].Render();
 }
@@ -44,22 +44,29 @@ void CResumeGameModule::Initialize()
 	int w = dx.GetWidth();
 	int h = dx.GetHeight();
 
-	char* pY = "Yes";
-	char* pN = "No";
-	char* pL1 = "Do you wish to continue the";
-	char* pL2 = "current game in progress?";
-	char* pH = "GAME IN PROGRESS";
-	float maxbtnw = max(TexFont.PixelWidth(pY), TexFont.PixelWidth(pN));
-	float maxlabelw = max(TexFont.PixelWidth(pL1), TexFont.PixelWidth(pL2));
-	float hw = max(TexFont.PixelWidth(pH), maxlabelw);
+	const char* pY = "Yes";
+	const char* pN = "No";
+	const char* pL1 = "Do you wish to continue the";
+	const char* pL2 = "current game in progress?";
+	const char* pH = "GAME IN PROGRESS";
+	
+	float maxbtnw = std::max(TexFont.PixelWidth(pY), TexFont.PixelWidth(pN));
+	float maxlabelw = std::max(TexFont.PixelWidth(pL1), TexFont.PixelWidth(pL2));
+	float hw = std::max(TexFont.PixelWidth(pH), maxlabelw);
 	float lineHeight = TexFont.Height() * pConfig->FontScale;
 	float fw = hw + 16.0f * pConfig->FontScale;
 	float fh = 8.5f * lineHeight;
 
 	_pFrame = new CDXFrame(pH, fw, fh);
 
-	_pLine1 = new CDXLabel(pL1, { 0,0,0,maxlabelw }, CDXText::Alignment::JustifyAlways);
-	_pLine2 = new CDXLabel(pL2, { 0,0,0,maxlabelw }, CDXText::Alignment::JustifyAlways);
+	Rect labelRect;
+	labelRect.Top = 0;
+	labelRect.Left = 0;
+	labelRect.Bottom = 0;
+	labelRect.Right = static_cast<int>(maxlabelw);
+
+	_pLine1 = new CDXLabel(pL1, labelRect, CDXText::Alignment::JustifyAlways);
+	_pLine2 = new CDXLabel(pL2, labelRect, CDXText::Alignment::JustifyAlways);
 	_pLine1->SetColours(TextColour1, TextColour2, TextColour3, TextColour4);
 	_pLine2->SetColours(TextColour1, TextColour2, TextColour3, TextColour4);
 
@@ -75,7 +82,7 @@ void CResumeGameModule::Initialize()
 	_pFrame->SetPosition(fx, fy);
 }
 
-void CResumeGameModule::Cursor(float x, float y, BOOL relative)
+void CResumeGameModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -104,7 +111,7 @@ void CResumeGameModule::Dispose()
 	// TODO: Delete and dispose of objects
 }
 
-void CResumeGameModule::KeyDown(WPARAM key, LPARAM lParam)
+void CResumeGameModule::KeyDown(int key, int lParam)
 {
 	if (key == 'Y')
 	{
@@ -118,18 +125,16 @@ void CResumeGameModule::KeyDown(WPARAM key, LPARAM lParam)
 
 void CResumeGameModule::Yes()
 {
-	// Auto load
 	CModuleController::Pop(this);
-	CGameController::LoadGame(L"GAMES\\SAVEGAME.000");
-	CMainMenuModule::MainMenuModule->EnableSaveAndResume(TRUE);
+	CGameController::LoadGame("GAMES\\SAVEGAME.000");
+	CMainMenuModule::MainMenuModule->EnableSaveAndResume(true);
 	CMainMenuModule::UpdateSaveGameData();
 }
 
 void CResumeGameModule::No()
 {
-	// Load title video
 	CModuleController::Pop(this);
-	CModuleController::Push(new CVideoModule(VideoType::Single, L"TITLE.AP", 0));
+	CModuleController::Push(new CVideoModule(VideoType::Single, "TITLE.AP", 0));
 }
 
 void CResumeGameModule::SetTextColours(int colour1, int colour2, int colour3, int colour4)

@@ -37,31 +37,28 @@ CFile::~CFile()
 
 std::string CFile::Find(std::string path, std::string file)
 {
-    std::string sPath = ResolvePath(path);
-    
-    if (sPath.empty()) sPath = ".";
+    std::string root = gamePath.empty() ? "." : gamePath;
 
     try {
-        if (!fs::exists(sPath)) {
-            return "";
-        }
-
-        for (const auto& entry : fs::recursive_directory_iterator(sPath, fs::directory_options::skip_permission_denied)) {
+        for (const auto& entry : fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied)) {
             if (entry.is_regular_file()) {
                 std::string filename = entry.path().filename().string();
                 if (IEquals(filename, file)) {
-                    std::string foundPath = entry.path().string();
-                    return foundPath;
+                    return entry.path().string();
                 }
             }
         }
     } catch (...) {}
+    
     return "";
 }
 
 bool CFile::Open(const std::string& fileName, Mode mode)
 {
-	std::string realFile = fileName;
+	std::string sFileName = fileName;
+    std::replace(sFileName.begin(), sFileName.end(), '\\', '/');
+    
+    std::string realFile = sFileName;
 	if (mode == Mode::Read)
 	{
 		auto it = FileMap.find(fileName);
@@ -81,22 +78,32 @@ bool CFile::Open(const std::string& fileName, Mode mode)
 				std::string path = ".";
 				std::string file = fileName;
                 
-                std::string sFileName = fileName;
-                std::replace(sFileName.begin(), sFileName.end(), '\\', '/');
                 size_t lastSlash = sFileName.find_last_of('/');
                 if (lastSlash != std::string::npos) {
                     file = sFileName.substr(lastSlash + 1);
                     path = sFileName.substr(0, lastSlash);
                 }
 
-				realFile = Find(path, file);
+                realFile = Find(path, file);
                 if (!realFile.empty())
-				    FileMap[fileName] = realFile;
+                    FileMap[sFileName] = realFile;
                 else 
-                    realFile = fileName;
+                    realFile = sFileName;
 			}
 		}
 	}
+	else if (mode == Mode::Write)
+    {
+        realFile = ResolvePath(sFileName);
+        
+        size_t lastSlash = realFile.find_last_of('/');
+        if (lastSlash != std::string::npos) {
+            std::string dir = realFile.substr(0, lastSlash);
+            if (!dir.empty() && !fs::exists(dir)) {
+                try { fs::create_directories(dir); } catch(...) {}
+            }
+        }
+    }
 
 	std::ios_base::openmode openMode = std::ios::binary;
 	if (mode == Mode::Read) openMode |= std::ios::in;

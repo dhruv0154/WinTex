@@ -2,6 +2,7 @@
 
 #include "FullScreenModule.h"
 #include "AmbientAudio.h"
+#include <cstdint>
 
 class CPDRitzSecurityKeypadModule : public CFullScreenModule
 {
@@ -11,7 +12,7 @@ public:
 
 	virtual void Dispose();
 	virtual void Render();
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 
 protected:
 	virtual void Initialize();
@@ -20,16 +21,16 @@ protected:
 	void Key(int key);
 	signed char _enteredCode[5];
 	int _keyPos;
-	ULONGLONG _keyTimes[11];
-	BOOL _updateTexture;
+	uint64_t _keyTimes[11];
+	bool _updateTexture;
 
 	// Input related
 	virtual void BeginAction();
 
-	BOOL _codeCorrect;
+	bool _codeCorrect;
 	int _blinkFrame;
-	ULONGLONG _blinkFrameTime;
+	uint64_t _blinkFrameTime;
 
 	CAmbientAudio _sound;
-	ULONGLONG _soundStartTime;
+	uint64_t _soundStartTime;
 };

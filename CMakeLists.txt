@@ -11,7 +11,6 @@ if(WIN32)
     endif()
 else()
     file(GLOB SOURCES "*.cpp")
-    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/WinTex.cpp")
     message(STATUS "Sources: ${SOURCES}")
     add_definitions(-DPLATFORM_LINUX)
     

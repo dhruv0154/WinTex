@@ -9,37 +9,28 @@
 #include "UAKMEncodedMessageModule.h"
 #include "UAKMTornNoteModule.h"
 #include "LocationModule.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <cmath>
+#include <chrono>
+#include <algorithm>
+#include <cstring>
 
-#define INVENTORY_WIDTH	108.0f
+#define INVENTORY_WIDTH 108.0f
 #define INVENTORY_HEIGHT 80.0f
 
-//#define EXAMINE_ITEM_ID				0
-//#define EXAMINE_ADD_ITEM_ID			1
-//#define EXAMINE_PARAMETER_A_INDEX	2
-//#define EXAMINE_PARAMETER_A_VALUE	3
-//#define EXAMINE_ASK_ABOUT1			4
-//#define EXAMINE_ASK_ABOUT2			5
-//#define EXAMINE_TRAVEL1				6
-//#define EXAMINE_TRAVEL2				7
-//#define EXAMINE_FILE				8
-//#define EXAMINE_ENTRY				9
-//#define EXAMINE_DESCRIPTION			10
-//#define EXAMINE_FLAGS				14
-//#define EXAMINE_RATE				15
-//#define EXAMINE_HINT_STATE			17
-
-#define ITEM_NOTE_SCRAPS			33
-#define ITEM_SHREDDED_NOTE			57
-#define ITEM_NEWSPAPER				94
-#define ITEM_ENCODED_NOTE			95
-#define ITEM_NOTE_SCRAPS_2			139
+#define ITEM_NOTE_SCRAPS            33
+#define ITEM_SHREDDED_NOTE          57
+#define ITEM_NEWSPAPER              94
+#define ITEM_ENCODED_NOTE           95
+#define ITEM_NOTE_SCRAPS_2          139
 
 CInventoryModule* CInventoryModule::Instance = NULL;
 
 int CInventoryModule::_selectedItemId = -1;
 int CInventoryModule::_draggingItemId = -1;
 int CInventoryModule::_mouseOverItemId = -1;
-ULONGLONG CInventoryModule::_lastItemClick = 0;
+uint64_t CInventoryModule::_lastItemClick = 0;
 
 CDXButton* CInventoryModule::_pBtnExamine = NULL;
 CDXButton* CInventoryModule::_pBtnUse = NULL;
@@ -52,11 +43,11 @@ CDXImageButton* CInventoryModule::_pBtnDown = NULL;
 
 ID3D11Buffer* CInventoryModule::_selectionRectangle = NULL;
 
-LPBYTE CInventoryModule::_examData = NULL;
+uint8_t* CInventoryModule::_examData = NULL;
 int CInventoryModule::_examStructSize = 0;
 CAnimBase* CInventoryModule::_anim = NULL;
 
-WCHAR CInventoryModule::_examFileName[11];
+char CInventoryModule::_examFileName[16];
 
 int CInventoryModule::ExamineItemOnResume = -1;
 
@@ -64,20 +55,24 @@ int CInventoryModule::_lineAdjustment = 0;
 int CInventoryModule::_lineCount = 0;
 int CInventoryModule::_visibleLineCount = 0;
 
-D3D11_RECT CInventoryModule::_limitedRect;
+Rect CInventoryModule::_limitedRect;
 
 CInventoryModule::CInventoryModule() : CModuleBase(ModuleType::Inventory)
 {
 	_selectedItemId = -1;
 	_draggingItemId = -1;
 	_mouseOverItemId = -1;
-	_dragging = FALSE;
-	_mouseDownPoint.x = -1;
-	_mouseDownPoint.y = -1;
+	_dragging = false;
+	_mouseDownX = -1;
+	_mouseDownY = -1;
 	ExamineItemOnResume = -1;
 
 	_text.SetColours(0xff000000, 0xff00c300, 0xff24ff00, 0xff000000);
-	_fullRect = { 0,0,0,0 };
+	
+	_fullRect.Top = 0;
+	_fullRect.Left = 0;
+	_fullRect.Bottom = 0;
+	_fullRect.Right = 0;
 
 	Instance = this;
 }
@@ -132,11 +127,10 @@ void CInventoryModule::Initialize()
 
 	if (_pBtnExamine == NULL)
 	{
-		// Create UI
-		char* pExam = "Examine";
-		char* pRes = "Resume";
-		char* pUse = "Use";
-		float maxw = max(max(TexFont.PixelWidth(pExam), TexFont.PixelWidth(pRes)), TexFont.PixelWidth(pUse));
+		const char* pExam = "Examine";
+		const char* pRes = "Resume";
+		const char* pUse = "Use";
+		float maxw = std::max({ TexFont.PixelWidth(pExam), TexFont.PixelWidth(pRes), TexFont.PixelWidth(pUse) });
 
 		_pBtnExamine = new CDXButton(pExam, maxw, 32.0f * pConfig->FontScale, OnExamine);
 		_pBtnUse = new CDXButton(pUse, maxw, 32.0f * pConfig->FontScale, OnUse);
@@ -146,27 +140,23 @@ void CInventoryModule::Initialize()
 		_pBtnUse->SetPosition((dx.GetWidth() - _pBtnUse->GetWidth()) / 2, dx.GetHeight() - 40 * pConfig->FontScale);
 		_pBtnResume->SetPosition(dx.GetWidth() - _pBtnResume->GetWidth(), dx.GetHeight() - 40 * pConfig->FontScale);
 
-		ZeroMemory(&_fullRect, sizeof(D3D11_RECT));
-		_fullRect.top = 0;
-		_fullRect.left = 0;
-		_fullRect.bottom = dx.GetHeight();
-		_fullRect.right = dx.GetWidth();
+		_fullRect.Top = 0;
+		_fullRect.Left = 0;
+		_fullRect.Bottom = dx.GetHeight();
+		_fullRect.Right = dx.GetWidth();
 
-		ZeroMemory(&_limitedRect, sizeof(D3D11_RECT));
-		_limitedRect.top = static_cast<LONG>(3.0f * dx.GetHeight() / 4.0f);
-		_limitedRect.left = 0;
-		_limitedRect.bottom = static_cast<LONG>(dx.GetHeight() - 10.0f);
-		_limitedRect.right = static_cast<LONG>(dx.GetWidth() - 40 - _pBtnResume->GetWidth());
+		_limitedRect.Top = static_cast<int>(3.0f * dx.GetHeight() / 4.0f);
+		_limitedRect.Left = 0;
+		_limitedRect.Bottom = static_cast<int>(dx.GetHeight() - 10.0f);
+		_limitedRect.Right = static_cast<int>(dx.GetWidth() - 40 - _pBtnResume->GetWidth());
 
-		_visibleLineCount = static_cast<int>((_limitedRect.bottom - _limitedRect.top) / (TexFont.Height() * pConfig->FontScale));
+		_visibleLineCount = static_cast<int>((_limitedRect.Bottom - _limitedRect.Top) / (TexFont.Height() * pConfig->FontScale));
 
-		// Text up/down buttons
 		_pBtnUp = new CDXImageButton(2, ScrollUp);
-		_pBtnUp->SetPosition(static_cast<float>(_limitedRect.right), static_cast<float>(_limitedRect.top));
+		_pBtnUp->SetPosition(static_cast<float>(_limitedRect.Right), static_cast<float>(_limitedRect.Top));
 		_pBtnDown = new CDXImageButton(3, ScrollDown);
-		_pBtnDown->SetPosition(static_cast<float>(_limitedRect.right), _limitedRect.bottom - _pBtnDown->GetHeight() - 10.0f);
+		_pBtnDown->SetPosition(static_cast<float>(_limitedRect.Right), _limitedRect.Bottom - _pBtnDown->GetHeight() - 10.0f);
 
-		// Create selection rectangle vertex buffer
 		COLOURED_VERTEX_ORTHO* pVB = new COLOURED_VERTEX_ORTHO[5];
 		if (pVB != NULL)
 		{
@@ -175,23 +165,22 @@ void CInventoryModule::Initialize()
 			float y1 = 0.5f;
 			float y2 = y1 - INVENTORY_HEIGHT - 2.0f;
 
-			pVB[0].position = XMFLOAT4(x1, y1, 0.0f, 0.0f);
-			pVB[0].colour = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-			pVB[1].position = XMFLOAT4(x2, y1, 0.0f, 0.0f);
-			pVB[1].colour = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-			pVB[2].position = XMFLOAT4(x2, y2 - 0.3f, 0.0f, 0.0f);	// DX bug?
-			pVB[2].colour = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-			pVB[3].position = XMFLOAT4(x1, y2, 0.0f, 0.0f);
-			pVB[3].colour = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-			pVB[4].position = XMFLOAT4(x1, y1, 0.0f, 0.0f);
-			pVB[4].colour = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+			pVB[0].position = float4(x1, y1, 0.0f, 0.0f);
+			pVB[0].colour = float4(1.0f, 1.0f, 1.0f, 1.0f);
+			pVB[1].position = float4(x2, y1, 0.0f, 0.0f);
+			pVB[1].colour = float4(1.0f, 1.0f, 1.0f, 1.0f);
+			pVB[2].position = float4(x2, y2 - 0.3f, 0.0f, 0.0f); 
+			pVB[2].colour = float4(1.0f, 1.0f, 1.0f, 1.0f);
+			pVB[3].position = float4(x1, y2, 0.0f, 0.0f);
+			pVB[3].colour = float4(1.0f, 1.0f, 1.0f, 1.0f);
+			pVB[4].position = float4(x1, y1, 0.0f, 0.0f);
+			pVB[4].colour = float4(1.0f, 1.0f, 1.0f, 1.0f);
 
 			D3D11_BUFFER_DESC vbDesc;
 			vbDesc.Usage = D3D11_USAGE_DYNAMIC;
 			vbDesc.ByteWidth = sizeof(COLOURED_VERTEX_ORTHO) * 5;
 			vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 			vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vbDesc.MiscFlags = 0;
 			vbDesc.StructureByteStride = 0;
 
 			D3D11_SUBRESOURCE_DATA vData;
@@ -204,19 +193,14 @@ void CInventoryModule::Initialize()
 			delete[] pVB;
 		}
 
-		// Load inventory data file
-		_examData = CLZ::Decompress(L"EXAM.LZ").Data;
+		_examData = CLZ::Decompress("EXAM.LZ").Data;
 		_examStructSize = *(int*)_examData;
 
-		// TODO: PD examine structure size is 0x17 bytes
-		// PD offset = ?
-
-		CopyMemory(_examFileName, L"EXAM000.AP", sizeof(L"EXAM000.AP"));
+		strcpy(_examFileName, "EXAM000.AP");
 	}
 
 	if (_selectedItemId >= 0)
 	{
-		// Trigger examine
 		_pBtnExamine->Click();
 	}
 }
@@ -240,10 +224,8 @@ void CInventoryModule::Render()
 
 	if (_anim == NULL)
 	{
-		// Render images from inventory
 		int itemCount = CGameController::GetItemCount();
 
-		// Find maximum width of all inventory names, use as right side margin
 		int w = dx.GetWidth();
 		int h = dx.GetHeight();
 
@@ -266,7 +248,7 @@ void CInventoryModule::Render()
 			}
 
 			int id = CGameController::GetItemId(i);
-			BOOL mouseOver = (_cursorPosX >= (ox - 5) && _cursorPosX < (ox + inventoryWidth - 5) && _cursorPosY >= (oy - 5) && _cursorPosY < (oy + inventoryHeight - 3));	// Offsetting by 5, box is 10 pixels wider and taller than image
+			bool mouseOver = (_cursorPosX >= (ox - 5) && _cursorPosX < (ox + inventoryWidth - 5) && _cursorPosY >= (oy - 5) && _cursorPosY < (oy + inventoryHeight - 3));
 			if (mouseOver)
 			{
 				_mouseOverItemId = id;
@@ -276,24 +258,22 @@ void CInventoryModule::Render()
 				}
 			}
 
-			// Do not render beyond what is visible
 			if ((oy + inventoryHeight) <= h)
 			{
-				if (_selectedItemId != id || !_dragging || (_mouseDownPoint.x == _cursorPosX && _mouseDownPoint.y == _cursorPosY))
+				if (_selectedItemId != id || !_dragging || (_mouseDownX == static_cast<int>(_cursorPosX) && _mouseDownY == static_cast<int>(_cursorPosY)))
 				{
 					CItems::RenderItemImage(id, ox, oy, mouseOver);
 				}
 
 				if (_selectedItemId == id && !_dragging)
 				{
-					// Render selection rectangle
-					UINT stride = sizeof(COLOURED_VERTEX_ORTHO);
-					UINT offset = 0;
+					unsigned int stride = sizeof(COLOURED_VERTEX_ORTHO);
+					unsigned int offset = 0;
 					dx.SetVertexBuffers(0, 1, &_selectionRectangle, &stride, &offset);
 					CShaders::SelectColourShader();
 					dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
 
-					XMMATRIX wm = XMMatrixTranslation(ox - 5, 5 - oy, 0.0f);
+					float16 wm = Math::Translation(ox - 5, 5 - oy, 0.0f);
 					CConstantBuffers::SetWorld(dx, &wm);
 					dx.Draw(5, 0);
 				}
@@ -302,33 +282,37 @@ void CInventoryModule::Render()
 			ox += inventoryWidth;
 		}
 
-		// Need 3 buttons, Examine, Use, Close (plus possibly scroll up/down)
 		_pBtnExamine->Render();
 		_pBtnUse->Render();
 
 		if (_mouseOverItemId >= 0 && !_dragging)
 		{
 			int namePixels = CItems::GetItemNameWidth(_mouseOverItemId);
-			float namex = min(max(0.0f, _cursorPosX - namePixels / 2), w - namePixels);
-			CItems::RenderItemName(_mouseOverItemId, namex - 10.0f, _cursorPosY + 16.0f, TRUE);
+			float namex = std::min(std::max(0.0f, _cursorPosX - namePixels / 2.0f), w - (float)namePixels);
+			CItems::RenderItemName(_mouseOverItemId, namex - 10.0f, _cursorPosY + 16.0f, true);
 		}
-
-		// TODO: Need optionally visible buttons to scroll inventory list
-		// TODO: Leave margin at bottom for buttons
 	}
 	else
 	{
-		// Render animation
 		CAnimationController::UpdateAndRender(_anim);
 	}
 
 	if (_anim != NULL)
 	{
-		// Limit view, make scrollable if text too large
-		dx.SetScissorRect(_limitedRect);
-		// Render text at bottom, top line may need to be modified
+		D3D11_RECT d3dRect;
+		d3dRect.left = _limitedRect.Left;
+		d3dRect.top = _limitedRect.Top;
+		d3dRect.right = _limitedRect.Right;
+		d3dRect.bottom = _limitedRect.Bottom;
+		dx.SetScissorRect(d3dRect);
+		
 		_text.Render(10.0f, dx.GetHeight() - _text.Height() - 10.0f + _lineAdjustment * TexFont.Height() * pConfig->FontScale);
-		dx.SetScissorRect(_fullRect);
+		
+		d3dRect.left = _fullRect.Left;
+		d3dRect.top = _fullRect.Top;
+		d3dRect.right = _fullRect.Right;
+		d3dRect.bottom = _fullRect.Bottom;
+		dx.SetScissorRect(d3dRect);
 
 		if (_lineCount > _visibleLineCount)
 		{
@@ -339,12 +323,11 @@ void CInventoryModule::Render()
 
 	_pBtnResume->Render();
 
-	if (_dragging && (_mouseDownPoint.x != _cursorPosX || _mouseDownPoint.y != _cursorPosY))
+	if (_dragging && (_mouseDownX != static_cast<int>(_cursorPosX) || _mouseDownY != static_cast<int>(_cursorPosY)))
 	{
-		// Render item at cursor
 		CModuleController::Cursors[(int)CAnimatedCursor::CursorType::Crosshair].SetPosition(_cursorPosX, _cursorPosY);
 		CModuleController::Cursors[(int)CAnimatedCursor::CursorType::Crosshair].Render();
-		CItems::RenderItemImage(_selectedItemId, _cursorPosX, _cursorPosY, FALSE);
+		CItems::RenderItemImage(_selectedItemId, _cursorPosX, _cursorPosY, false);
 	}
 	else
 	{
@@ -355,38 +338,33 @@ void CInventoryModule::Render()
 	dx.EnableZBuffer();
 }
 
-BOOL CInventoryModule::CheckButton(CDXButton* btn, float x, float y)
+bool CInventoryModule::CheckButton(CDXButton* btn, float x, float y)
 {
 	if (btn->HitTest(x, y))
 	{
 		btn->Click();
-		return TRUE;
+		return true;
 	}
-
-	return FALSE;
+	return false;
 }
 
 short comboTable[] = { 0,5,26,1,4,0,1,5,129,4,129,26,7,37,39,9,12,2,10,77,78,14,15,49,17,35,138,18,112,114,27,28,52,42,43,85,45,46,88,45,48,87,46,87,107,48,88,107,58,59,90,60,90,93,61,70,102,65,66,108,66,73,110,66,96,132,73,131,96,79,80,76,91,103,95,110,131,132,111,114,124 };
-
 short comboScoreTable[] = { 8,85,14,76,6,108,10,93 };
-
 short comboHintStateScoreTable[] = { 0,11,2,75,26,12,39,108,49,135,52,145,76,234,78,227,85,263,88,342,90,373,93,374,95,189,102,418,107,343,108,469,110,453,114,379,124,380,132,454,138,209,255,-1 };
 
-void CInventoryModule::OnExamine(LPVOID data)
+void CInventoryModule::OnExamine(void* data)
 {
 	Instance->Examine();
 }
 
-void CInventoryModule::OnUse(LPVOID data)
+void CInventoryModule::OnUse(void* data)
 {
-	// Set current item, resume
 	CGameController::SetCurrentItemId(_selectedItemId);
-	// Set current action to be "Use"
 	CLocationModule::CurrentAction = ActionType::Use;
 	OnResume(NULL);
 }
 
-void CInventoryModule::OnResume(LPVOID data)
+void CInventoryModule::OnResume(void* data)
 {
 	Instance->Resume();
 }
@@ -405,7 +383,6 @@ void CInventoryModule::Resume()
 		ExminationData* pExam = (ExminationData*)(_examData + 4 + _selectedItemId * _examStructSize);
 		if (pExam->ItemId != _selectedItemId)
 		{
-			// Transform item (remove old, add new)
 			CGameController::SetItemState(_selectedItemId, 2);
 			CGameController::SetItemState(pExam->ItemId, 1);
 		}
@@ -440,13 +417,11 @@ void CInventoryModule::Resume()
 	}
 }
 
-// TODO: When combining, should select the new item
-
 void CInventoryModule::Resize(int width, int height)
 {
 }
 
-void CInventoryModule::Cursor(float x, float y, BOOL relative)
+void CInventoryModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -467,18 +442,17 @@ void CInventoryModule::BeginAction()
 		if (CheckButton(_pBtnExamine, x, y) || CheckButton(_pBtnUse, x, y) || CheckButton(_pBtnResume, x, y));
 		else
 		{
-			// Check if mouse is over an item
 			if (_mouseOverItemId >= 0)
 			{
 				_selectedItemId = _mouseOverItemId;
-				_mouseDownPoint.x = static_cast<LONG>(_cursorPosX);
-				_mouseDownPoint.y = static_cast<LONG>(_cursorPosY);
-				_dragging = TRUE;
+				_mouseDownX = static_cast<int>(_cursorPosX);
+				_mouseDownY = static_cast<int>(_cursorPosY);
+				_dragging = true;
 
-				ULONGLONG now = GetTickCount64();
+				uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 				if ((now - _lastItemClick) < 500)
 				{
-					_dragging = FALSE;
+					_dragging = false;
 					_pBtnExamine->Click();
 				}
 
@@ -500,12 +474,10 @@ void CInventoryModule::EndAction()
 	{
 		if (_selectedItemId != _mouseOverItemId)
 		{
-			// Check for combination
 			for (int c = 0; c < 27; c++)
 			{
 				if ((comboTable[c * 3] == _selectedItemId && comboTable[c * 3 + 1] == _mouseOverItemId) || (comboTable[c * 3] == _mouseOverItemId && comboTable[c * 3 + 1] == _selectedItemId))
 				{
-					// Remove 2 items, add new
 					int newItemId = comboTable[c * 3 + 2];
 					CGameController::SetItemState(_selectedItemId, 2);
 					CGameController::SetItemState(_mouseOverItemId, 2);
@@ -542,7 +514,7 @@ void CInventoryModule::EndAction()
 			}
 		}
 
-		_dragging = FALSE;
+		_dragging = false;
 	}
 }
 
@@ -551,15 +523,15 @@ void CInventoryModule::Back()
 	OnResume(NULL);
 }
 
-void CInventoryModule::ScrollUp(LPVOID data)
+void CInventoryModule::ScrollUp(void* data)
 {
-	_lineAdjustment = max(0, min(_lineCount - _visibleLineCount, _lineAdjustment + 1));
+	_lineAdjustment = std::max(0, std::min(_lineCount - _visibleLineCount, _lineAdjustment + 1));
 	UpdateButtons();
 }
 
-void CInventoryModule::ScrollDown(LPVOID data)
+void CInventoryModule::ScrollDown(void* data)
 {
-	_lineAdjustment = max(0, _lineAdjustment - 1);
+	_lineAdjustment = std::max(0, _lineAdjustment - 1);
 	UpdateButtons();
 }
 
@@ -569,13 +541,13 @@ void CInventoryModule::UpdateButtons()
 	_pBtnUp->SetEnabled(tooManyLines && _lineAdjustment != (_lineCount - _visibleLineCount));
 	if (!_pBtnUp->GetEnabled())
 	{
-		_pBtnUp->SetMouseOver(FALSE);
+		_pBtnUp->SetMouseOver(false);
 	}
 
 	_pBtnDown->SetEnabled(tooManyLines && _lineAdjustment > 0);
 	if (!_pBtnDown->GetEnabled())
 	{
-		_pBtnDown->SetMouseOver(FALSE);
+		_pBtnDown->SetMouseOver(false);
 	}
 }
 
@@ -597,7 +569,7 @@ void CInventoryModule::Examine()
 
 		ExminationData* pExam = (ExminationData*)(_examData + 4 + _selectedItemId * _examStructSize);
 
-		_examFileName[5] = (WCHAR)('0' + (pExam->File >> 4));
+		_examFileName[5] = (char)('0' + (pExam->File >> 4));
 
 		char* pDesc = (char*)(pExam->DescriptionOffset + _examData);
 		pAddCaptions->clear();
@@ -606,10 +578,15 @@ void CInventoryModule::Examine()
 		pDisplayCaptions = pAddCaptions;
 		pAddCaptions = pOld;
 		ClearCaptions(pOld);
-		Rect rect{ 0.0f, 0.0f, 1000.0f, static_cast<float>(_limitedRect.right - _limitedRect.left) };
+		Rect rect;
+		rect.Top = 0;
+		rect.Left = 0;
+		rect.Bottom = 1000;
+		rect.Right = _limitedRect.Right - _limitedRect.Left;
+		
 		_text.SetText(pDesc, rect);
 		_lineCount = _text.Lines();
-		_lineAdjustment = max(0, min(_lineCount - _visibleLineCount, _lineCount));
+		_lineAdjustment = std::max(0, std::min(_lineCount - _visibleLineCount, _lineCount));
 		UpdateButtons();
 
 		if ((pExam->Flags & EXAMINE_FLAG_VIDEO) != 0)
@@ -624,14 +601,12 @@ void CInventoryModule::Examine()
 		}
 		else if (pExam->Flags == 0)
 		{
-			// Special examine module required (newspaper, shredded/torn notes etc)
 			if (_selectedItemId == ITEM_NOTE_SCRAPS || _selectedItemId == ITEM_NOTE_SCRAPS_2 || _selectedItemId == ITEM_SHREDDED_NOTE)
 			{
 				CModuleController::Push(new CUAKMTornNoteModule(_selectedItemId));
 			}
 			else if (_selectedItemId == ITEM_NEWSPAPER)
 			{
-				// Show newspaper
 				CModuleController::Push(new CUAKMNewsPaperModule());
 			}
 			else if (_selectedItemId == ITEM_ENCODED_NOTE)

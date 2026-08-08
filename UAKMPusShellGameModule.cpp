@@ -3,6 +3,7 @@
 #include "GameController.h"
 #include "AnimationController.h"
 #include "MainMenuModule.h"
+#include <algorithm>
 
 int Coordinates[] = { 106,129,128,153,57,78,262,284,106,130,237,261,201,230,234,263 };
 
@@ -16,7 +17,7 @@ CUAKMPusShellGameModule::CUAKMPusShellGameModule(int parameter, int correctAnswe
 	float sx = w / (float)CAnimationController::Width();
 	float sy = h / (float)CAnimationController::Height();
 
-	_scale = min(sx, sy);
+	_scale = std::min(sx, sy);
 	float sw = (float)CAnimationController::Width() * _scale;
 	float sh = (float)CAnimationController::Height() * _scale;
 
@@ -69,11 +70,9 @@ void CUAKMPusShellGameModule::Initialize()
 
 void CUAKMPusShellGameModule::BeginAction()
 {
-	// Coordinates need to be scaled and offset
 	int x = 8 + static_cast<int>((_cursorPosX - _left) / _scale);
 	int y = 6 + static_cast<int>((_cursorPosY - _top) / _scale);
 
-	// If over a ball, set parameter to 0 or 1 (if the ID matches correct answer), then pop module
 	for (int i = 0; i < 4; i++)
 	{
 		if (y >= Coordinates[i * 4] && y < Coordinates[i * 4 + 1] && x >= Coordinates[i * 4 + 2] && x < Coordinates[i * 4 + 3])

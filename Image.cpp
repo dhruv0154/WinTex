@@ -1,85 +1,78 @@
 #include "Image.h"
+#include "Globals.h"
+#include <cstring>
+#include <algorithm>
 
-CImage::CImage(DoubleData dd, int width, int height, int factor)
+CImage::CImage(DoubleData dd, int width, int height, int factor) : CAnimBase()
 {
-	Init(dd.File1.Data, dd.File2, width, height, factor);
+    Init(dd.File1.Data, dd.File2, width, height, factor);
 }
 
-CImage::CImage(LPBYTE palette, BinaryData bd, int width, int height, int factor)
+CImage::CImage(uint8_t* palette, BinaryData bd, int width, int height, int factor) : CAnimBase()
 {
-	Init(palette, bd, width, height, factor);
-
-	CopyMemory(_pVideoOutputBuffer, bd.Data, min(width*height, bd.Length));
-
-	//// Delete palette
-	//delete[] dd.File1.Data;
-
-	_framePointer = 1;
+    Init(palette, bd, width, height, factor);
 }
 
 CImage::~CImage()
 {
 }
 
-BOOL CImage::Update()
+bool CImage::Update()
 {
-	BOOL updated = CAnimBase::Update();
-	_done = FALSE;
-	return updated;
+    bool updated = CAnimBase::Update();
+    _done = false;
+    return updated;
 }
 
-void CImage::Init(LPBYTE palette, BinaryData bd, int width, int height, int factor)
+void CImage::Init(uint8_t* palette, BinaryData bd, int width, int height, int factor)
 {
-	CAnimBase::Init(bd);
+    CAnimBase::Init(bd);
 
-	_width = width;
-	_height = height;
+    _width = width;
+    _height = height;
 
-	// Copy palette
-	for (int c = 0; c < 256; c++)
-	{
-		double r = palette[c * 3 + 0];
-		double g = palette[c * 3 + 1];
-		double b = palette[c * 3 + 2];
-		int ri = (byte)((r * 255.0) / 63.0);
-		int gi = (byte)((g * 255.0) / 63.0);
-		int bi = (byte)((b * 255.0) / 63.0);
-		int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
-		_pPalette[c] = col;
-	}
+    if (palette != nullptr)
+    {
+        for (int c = 0; c < 256; c++)
+        {
+            double r = palette[c * 3 + 0];
+            double g = palette[c * 3 + 1];
+            double b = palette[c * 3 + 2];
+            int ri = static_cast<uint8_t>((r * 255.0) / 63.0);
+            int gi = static_cast<uint8_t>((g * 255.0) / 63.0);
+            int bi = static_cast<uint8_t>((b * 255.0) / 63.0);
+            int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
+            _pPalette[c] = col;
+        }
+    }
 
-	// Create image buffer
-	CreateBuffers(width, height, factor);
-	_texture.Init(_width, _height);
+    CreateBuffers(width, height, factor);
+    _texture.Init(_width, _height);
 
-	CopyMemory(_pVideoOutputBuffer, bd.Data, min(width*height, bd.Length));
+    // Copy raw indexed bitmap data into video output buffer
+    if (_pVideoOutputBuffer != nullptr && bd.Data != nullptr)
+    {
+        std::memcpy(_pVideoOutputBuffer, bd.Data, std::min(width * height, static_cast<int>(bd.Length)));
+    }
 
-	// Delete palette
-	//delete[] dd.File1.Data;
+    _framePointer = 1;
 
-	_framePointer = 1;
+    ID3D11Texture2D* pTex = _texture.GetTexture();
+    if (pTex != nullptr)
+    {
+        D3D11_MAPPED_SUBRESOURCE subRes;
+        if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
+        {
+            int* pScr = reinterpret_cast<int*>(subRes.pData);
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    pScr[y * subRes.RowPitch / 4 + x] = _pPalette[_pVideoOutputBuffer[y * _width + x]];
+                }
+            }
 
-	// Replace texture if new video frame is required (frame time has lapsed, video frame exists)
-	ID3D11Texture2D* pTex = _texture.GetTexture();
-	if (pTex != NULL)
-	{
-		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
-		{
-			int* pScr = (int*)subRes.pData;
-			for (int y = 0; y < _height; y++)
-			{
-				for (int x = 0; x < _width; x++)
-				{
-					pScr[y * subRes.RowPitch / 4 + x] = _pPalette[_pVideoOutputBuffer[y * _width + x]];
-				}
-			}
-
-			dx.Unmap(pTex, 0);
-		}
-		else
-		{
-			int debug = 0;
-		}
-	}
+            dx.Unmap(pTex, 0);
+        }
+    }
 }

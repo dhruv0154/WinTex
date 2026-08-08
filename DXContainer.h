@@ -1,55 +1,55 @@
 #pragma once
 
 #include "DXControl.h"
-#include <list>
-#include "DXControls.h"
 #include "Globals.h"
+#include <list>
+#include <cstdint>
+#include <iterator>
+
+class CDXBitmap;
+class CDXButton;
 
 class CDXContainer : public CDXControl
 {
-	friend class CDXControl;
+    friend class CDXControl;
 
 public:
-	CDXContainer();
-	virtual ~CDXContainer();
+    CDXContainer();
+    virtual ~CDXContainer() override;
 
-	virtual void Render();
+    virtual void Render() override;
 
-	BOOL IsModal();
+    bool IsModal() const;
 
-	CDXControl* GetCurrentMouseOver();
+    virtual CDXControl* GetCurrentMouseOver() override;
 
-	void AddChild(CDXControl* pCtrl, float x, float y);
-	void RemoveChild(CDXControl* pCtrl);
-	virtual CDXControl* HitTest(float x, float y);
+    void AddChild(CDXControl* pCtrl, float x, float y);
+    void RemoveChild(CDXControl* pCtrl);
+    virtual CDXControl* HitTest(float x, float y) override;
 
-	virtual CDXBitmap* AddBitmap(PWCHAR fileName, Alignment alignment = Alignment::Default);
-	virtual CDXBitmap* AddBitmap(PBYTE pImg, DWORD size, Alignment alignment = Alignment::Default);
-	virtual CDXButton* AddButton(char* text, float x, float y, float w, float h, void(*onClick)(LPVOID data));
+    virtual CDXBitmap* AddBitmap(const char* fileName, Alignment alignment = Alignment::Default);
+    virtual CDXBitmap* AddBitmap(uint8_t* pImg, uint32_t size, Alignment alignment = Alignment::Default);
+    virtual CDXButton* AddButton(const char* text, float x, float y, float w, float h, void(*onClick)(void* data));
 
-	void ShowModal(CDXControl* pControl);
-	CDXControl* GetModal();
-	void PopModal();
+    void ShowModal(CDXControl* pControl);
+    CDXControl* GetModal();
+    void PopModal();
 
-	CDXControl* GetChild(int index)
-	{
-		if (_childElements.size() >= index)
-		{
-			std::list<CDXControl*>::iterator it = _childElements.begin();
-			for (int i = 0; i < index; i++)
-			{
-				it++;
-			}
+    CDXControl* GetChild(int index)
+    {
+        if (index >= 0 && static_cast<size_t>(index) < _childElements.size())
+        {
+            auto it = _childElements.begin();
+            std::advance(it, index);
+            return *it;
+        }
 
-			return *it;
-		}
+        return nullptr;
+    }
 
-		return NULL;
-	}
-
-	virtual void SetColours(int colour1, int colour2, int colour3, int colour4);
+    virtual void SetColours(int colour1, int colour2, int colour3, int colour4) override;
 
 protected:
-	std::list<CDXControl*> _childElements;
-	std::list<CDXControl*> _modalElements;
+    std::list<CDXControl*> _childElements;
+    std::list<CDXControl*> _modalElements;
 };

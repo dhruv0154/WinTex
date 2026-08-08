@@ -8,31 +8,31 @@ public:
 	CH2O(int factor = 1);
 	~CH2O();
 
-	virtual BOOL Init(LPBYTE pData, int length);
-	virtual BOOL HasVideo() { return (_videoFramePointer != 0); }
+	virtual bool Init(uint8_t* pData, int length);
+	virtual bool HasVideo() { return (_videoFramePointer != 0); }
 
-	void SetOutputBuffer(LPBYTE pBuffer, int width, int height, int offsetX, int offsetY, LPINT pPalette, int minColAllowChange, int maxColAllowChange);
+	void SetOutputBuffer(uint8_t* pBuffer, int width, int height, int offsetX, int offsetY, int* pPalette, int minColAllowChange, int maxColAllowChange);
 
 protected:
 	int _factor;
 
-	virtual BOOL DecodeFrame();
+	virtual bool DecodeFrame();
 
-	virtual int DecodeH2OAudio(LPBYTE source, LPBYTE destination, int chunkLength);
+	virtual int DecodeH2OAudio(uint8_t* source, uint8_t* destination, int chunkLength);
 
-	BOOL ProcessFrame(int& offset, BOOL video);
+	bool ProcessFrame(int& offset, bool video);
 
 	int _channels;
 	int _depth;
 	int _remainingLength;
-	BOOL _audioCompressed;
+	bool _audioCompressed;
 
-	LPBYTE* _ppAudioOutputBuffers;
+	uint8_t** _ppAudioOutputBuffers;
 	int _audioOutputBufferIndex;
 
 	int _minimumBitCount;
 	int* _pDecodingTable;
-	LPBYTE _pDecodingBuffer;
+	uint8_t* _pDecodingBuffer;
 	int _decodedSize;
 
 	void Unpack(int offset, int size);
@@ -53,8 +53,8 @@ protected:
 
 	int _startAudioOnFrame;
 
-	LPBYTE _configuredOutputBuffer;
-	LPINT _configuredPalette;
+	uint8_t* _configuredOutputBuffer;
+	int* _configuredPalette;
 	int _minColAllowChange;
 	int _maxColAllowChange;
 	int _renderWidth;

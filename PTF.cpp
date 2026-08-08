@@ -1,12 +1,13 @@
-#pragma once
-
 #include "PTF.h"
 #include "Utilities.h"
 #include "MediaIdentifiers.h"
+#include "DXSound.h"
+#include <algorithm>
+#include <cstring>
 
-BOOL CPTF::Init(LPBYTE pData, int length)
+bool CPTF::Init(uint8_t* pData, int length)
 {
-	BOOL ret = CAnimBase::Init(pData, length);
+	bool ret = CAnimBase::Init(pData, length);
 
 	// Validate that the file is a PTF
 	if (ret && GetInt(pData, 4, 4) == PTF)
@@ -39,7 +40,7 @@ BOOL CPTF::Init(LPBYTE pData, int length)
 			framePtr += frameSize;
 		}
 
-		if (_audioFramePointer != NULL && _videoFramePointer == NULL)
+		if (_audioFramePointer != 0 && _videoFramePointer == 0)
 		{
 			// Prepare for audio playback
 			_framePointer = _inputBufferLength;
@@ -49,7 +50,7 @@ BOOL CPTF::Init(LPBYTE pData, int length)
 	return ret;
 }
 
-BOOL CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
+bool CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
 {
 	int outPtr = 0;
 	int currentRow = 0;
@@ -58,8 +59,8 @@ BOOL CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
 	inPtr += 10;// Skip subChunks count and reserved data
 	while (subChunks > 0)
 	{
-		int cmdSize = *(int*)(_pInputBuffer + inPtr);		// Command size
-		int cmdType = *(short*)(_pInputBuffer + inPtr + 4);	// Command type
+		int cmdSize = *(int*)(_pInputBuffer + inPtr);       // Command size
+		int cmdType = *(short*)(_pInputBuffer + inPtr + 4); // Command type
 		if (cmdType <= 0x10)
 		{
 			inPtr += 6;
@@ -180,7 +181,7 @@ BOOL CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
 			else if (cmdType == 0xd)
 			{
 				// Clear screen
-				ZeroMemory(_pVideoOutputBuffer, _width * _height);
+				memset(_pVideoOutputBuffer, 0, _width * _height);
 				inPtr += 6;
 			}
 			else if (cmdType == 0x0f)
@@ -188,14 +189,14 @@ BOOL CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
 				// Full frame
 				for (int y = 0; y < _height; y++)
 				{
-					inPtr++;	// Skip packet count
+					inPtr++;    // Skip packet count
 					int bytesLeft = _width;
 					while (bytesLeft > 0)
 					{
 						int count = *(_pInputBuffer + inPtr++);
 						if ((count & 0x80) != 0)
 						{
-							count = min((-count) & 0xff, bytesLeft);
+							count = std::min<int>((-count) & 0xff, bytesLeft);
 							for (int x = 0; x < count; x++)
 							{
 								_pVideoOutputBuffer[outPtr++] = *(_pInputBuffer + inPtr++);
@@ -203,8 +204,8 @@ BOOL CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
 						}
 						else
 						{
-							byte cp = *(_pInputBuffer + inPtr++);
-							count = min(count, bytesLeft);
+							uint8_t cp = *(_pInputBuffer + inPtr++);
+							count = std::min<int>(count, bytesLeft);
 							for (int x = 0; x < count; x++)
 							{
 								_pVideoOutputBuffer[outPtr++] = cp;
@@ -228,21 +229,18 @@ BOOL CPTF::ProcessFLCFrame(int inPtr, int chunkSize)
 		subChunks--;
 	}
 
-	return TRUE;
+	return true;
 }
 
-BOOL CPTF::DecodeFrame()
+bool CPTF::DecodeFrame()
 {
 	// Video is usually before audio
-	BOOL ret = FALSE;
+	bool ret = false;
 
 	// If this is an audio-only PTF, should extract all audio bytes to prevent clicking
-	if (_videoFramePointer == NULL)
+	if (_videoFramePointer == 0)
 	{
-		//Trace(L"PTF Audio-Only Frame ");
-		//TraceLine(_frame);
-
-		ret = TRUE;
+		ret = true;
 
 		if (_audioFramePointer > 0)
 		{
@@ -258,23 +256,19 @@ BOOL CPTF::DecodeFrame()
 					// This is a new audio buffer
 					_remainingAudioLength = GetInt(_pInputBuffer, inPtr + 0x28, 4);
 
-					if (_sourceVoice == NULL)
+					if (_sourceVoice == nullptr)
 					{
-						char formatBuff[64];
-						WAVEFORMATEX* pwfx = reinterpret_cast<WAVEFORMATEX*>(&formatBuff);
-						pwfx->wFormatTag = GetInt(_pInputBuffer, inPtr + 0x14, 2);// WAVE_FORMAT_PCM;
-						pwfx->nChannels = GetInt(_pInputBuffer, inPtr + 0x16, 2);
-						pwfx->nSamplesPerSec = GetInt(_pInputBuffer, inPtr + 0x18, 4);
-						pwfx->nAvgBytesPerSec = GetInt(_pInputBuffer, inPtr + 0x1c, 4);
-						pwfx->nBlockAlign = 2;
-						pwfx->wBitsPerSample = GetInt(_pInputBuffer, inPtr + 0x22, 2);
-						pwfx->cbSize = 0;
-						_sourceVoice = CDXSound::CreateSourceVoice(pwfx, 0, 1.0f, this);
+						AudioFormat format;
+						format.channels = GetInt(_pInputBuffer, inPtr + 0x16, 2);
+						format.samplesPerSec = GetInt(_pInputBuffer, inPtr + 0x18, 4);
+						format.bitsPerSample = GetInt(_pInputBuffer, inPtr + 0x22, 2);
+						
+						_sourceVoice = CDXSound::CreateAudioStream(format);
 					}
 
-					if (_sourceVoice != NULL)
+					if (_sourceVoice != nullptr)
 					{
-						_sourceVoice->Start(0, 0);
+						_sourceVoice->Start();
 					}
 
 					audioPtr += 0x2c;
@@ -282,8 +276,8 @@ BOOL CPTF::DecodeFrame()
 				}
 
 				Buffer ab;
-				audioBytes = min(audioBytes, _remainingAudioLength);
-				audioBytes = min(audioBytes, _inputBufferLength - audioPtr);
+				audioBytes = std::min<int>(audioBytes, _remainingAudioLength);
+				audioBytes = std::min<int>(audioBytes, _inputBufferLength - audioPtr);
 				ab.Size = audioBytes;
 				ab.pData = _pInputBuffer + audioPtr;
 				_remainingAudioLength -= audioBytes;
@@ -292,20 +286,16 @@ BOOL CPTF::DecodeFrame()
 				inPtr += chunkSize;
 			}
 
-			if (_sourceVoice != NULL)
+			if (_sourceVoice != nullptr)
 			{
-				// Enqueue a couple of buffers	XAUDIO2_MAX_QUEUED_BUFFERS=64
+				// Enqueue a couple of buffers
 				auto buffers = _audioBuffers.size();
 				for (int i = 0; i < buffers && i < 10; i++)
 				{
 					Buffer ab = _audioBuffers.front();
 					_audioBuffers.pop_front();
 
-					XAUDIO2_BUFFER buf = { 0 };
-					buf.AudioBytes = ab.Size;
-					buf.pAudioData = ab.pData;
-					//if (_remainingAudioLength == 0) buf.Flags = XAUDIO2_END_OF_STREAM;
-					_sourceVoice->SubmitSourceBuffer(&buf);
+					_sourceVoice->SubmitBuffer(ab.pData, ab.Size);
 
 					_audioFramesQueued++;
 				}
@@ -313,15 +303,15 @@ BOOL CPTF::DecodeFrame()
 
 			_audioFramePointer = 0;
 
-			ret = TRUE;
+			ret = true;
 		}
 	}
-	else if (_pInputBuffer != NULL && _framePointer >= 0 && _framePointer < _inputBufferLength)
+	else if (_pInputBuffer != nullptr && _framePointer >= 0 && _framePointer < _inputBufferLength)
 	{
 		int inPtr = _framePointer;
 		int chunkSize = GetInt(_pInputBuffer, inPtr, 4);
 		int frameType = GetInt(_pInputBuffer, inPtr + 4, 2);
-		BOOL embeddedPalette = FALSE;
+		bool embeddedPalette = false;
 		inPtr += 6;
 
 		if (frameType == 0x5657)
@@ -335,45 +325,39 @@ BOOL CPTF::DecodeFrame()
 				// This is a new audio buffer
 				_remainingAudioLength = GetInt(_pInputBuffer, inPtr + 0x28, 4);
 
-				if (_sourceVoice == NULL)
+				if (_sourceVoice == nullptr)
 				{
-					char formatBuff[64];
-					WAVEFORMATEX* pwfx = reinterpret_cast<WAVEFORMATEX*>(&formatBuff);
-					pwfx->wFormatTag = GetInt(_pInputBuffer, inPtr + 0x14, 2);// WAVE_FORMAT_PCM;
-					pwfx->nChannels = GetInt(_pInputBuffer, inPtr + 0x16, 2);
-					pwfx->nSamplesPerSec = GetInt(_pInputBuffer, inPtr + 0x18, 4);
-					pwfx->nAvgBytesPerSec = GetInt(_pInputBuffer, inPtr + 0x1c, 4);
-					pwfx->nBlockAlign = 2;
-					pwfx->wBitsPerSample = GetInt(_pInputBuffer, inPtr + 0x22, 2);
-					pwfx->cbSize = 0;
-					_sourceVoice = CDXSound::CreateSourceVoice(pwfx, 0, 1.0f, this);
+					AudioFormat format;
+					format.channels = GetInt(_pInputBuffer, inPtr + 0x16, 2);
+					format.samplesPerSec = GetInt(_pInputBuffer, inPtr + 0x18, 4);
+					format.bitsPerSample = GetInt(_pInputBuffer, inPtr + 0x22, 2);
+
+					_sourceVoice = CDXSound::CreateAudioStream(format);
 				}
 
-				if (_sourceVoice != NULL)
+				if (_sourceVoice != nullptr)
 				{
-					_sourceVoice->Start(0, 0);
+					_sourceVoice->Start();
 				}
 
 				inPtr += 0x2c;
 				audioBytes -= 0x2c;
 			}
 
-			if (_sourceVoice != NULL)
+			if (_sourceVoice != nullptr)
 			{
-				XAUDIO2_BUFFER buf = { 0 };
-				audioBytes = min(audioBytes, _remainingAudioLength);
-				audioBytes = min(audioBytes, _inputBufferLength - inPtr);
-				buf.AudioBytes = audioBytes;
-				buf.pAudioData = _pInputBuffer + inPtr;
+				audioBytes = std::min<int>(audioBytes, _remainingAudioLength);
+				audioBytes = std::min<int>(audioBytes, _inputBufferLength - inPtr);
+				
+				_sourceVoice->SubmitBuffer(_pInputBuffer + inPtr, audioBytes);
+				
 				_remainingAudioLength -= audioBytes;
-				_sourceVoice->SubmitSourceBuffer(&buf);
-
 				_audioFramesQueued++;
 			}
 
 			_framePointer += chunkSize;
 
-			ret = TRUE;
+			ret = true;
 
 			inPtr = _framePointer;
 			if (inPtr < _inputBufferLength)
@@ -386,7 +370,7 @@ BOOL CPTF::DecodeFrame()
 		if (chunkSize < 0)
 		{
 			// Embedded palette
-			embeddedPalette = TRUE;
+			embeddedPalette = true;
 
 			chunkSize = -chunkSize;
 
@@ -409,7 +393,7 @@ BOOL CPTF::DecodeFrame()
 		{
 			// FLC
 			ProcessFLCFrame(inPtr, chunkSize);
-			ret = TRUE;
+			ret = true;
 			_videoFramesProcessed++;
 			_framePointer += chunkSize;
 			if (embeddedPalette) _framePointer += 0x300;
@@ -419,7 +403,7 @@ BOOL CPTF::DecodeFrame()
 			// BIC frame
 			ProcessBICFrame(inPtr, chunkSize);
 			chunkSize += 6;
-			ret = TRUE;
+			ret = true;
 			_videoFramesProcessed++;
 			_framePointer += chunkSize;
 			if (embeddedPalette) _framePointer += 0x300;

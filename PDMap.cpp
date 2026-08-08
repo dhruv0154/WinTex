@@ -1,19 +1,20 @@
+#include "PDMap.h"
 #include "File.h"
 #include "LZ.h"
-#include "PDMap.h"
 #include "Utilities.h"
+#include <cstdint>
 
-BOOL CPDMap::Init()
+bool CPDMap::Init()
 {
-	BOOL result = FALSE;
+	bool result = false;
 
 	// RMAP.AP, each entry is compressed
 	CFile file;
-	if (file.Open(L"RMAP.AP"))
+	if (file.Open("RMAP.AP"))
 	{
 		int length = file.Size();
-		LPBYTE data = new BYTE[length];
-		if (data != NULL)
+		uint8_t* data = new uint8_t[length];
+		if (data != nullptr)
 		{
 			if (file.Read(data, length) == length)
 			{
@@ -25,9 +26,9 @@ BOOL CPDMap::Init()
 					int mapOffset = *(int*)(data + 2 + i * 4);
 					int mapLength = *(int*)(data + 6 + i * 4) - mapOffset;
 					BinaryData map = CLZ::Decompress(data, mapOffset, mapLength);
-					if (map.Data != NULL && map.Length > 0)
+					if (map.Data != nullptr && map.Length > 0)
 					{
-						LPBYTE mdata = map.Data;
+						uint8_t* mdata = map.Data;
 
 						int inPtr = 0;
 						int numberOfStartupPositions = GetInt(mdata, inPtr, 4);
@@ -141,8 +142,9 @@ BOOL CPDMap::Init()
 					_entries.push_back(pMD);
 				}
 
-				result = TRUE;
+				result = true;
 			}
+			delete[] data;
 		}
 
 		file.Close();

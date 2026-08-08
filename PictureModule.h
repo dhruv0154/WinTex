@@ -16,7 +16,7 @@ protected:
 	CScriptBase* _script;
 	CScriptState* _state;
 	CImage* _image;
-	BOOL _rendered;
+	bool _rendered;
 
 	// Input related
 	virtual void BeginAction();

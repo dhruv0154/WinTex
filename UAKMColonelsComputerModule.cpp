@@ -1,6 +1,10 @@
 #include "UAKMColonelsComputerModule.h"
 #include "Utilities.h"
 #include "GameController.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
+#include <cstring>
 
 short _colonelsComputerRectCoords[] = { 305, 235, 314, 240,
 										264, 209, 365, 272,
@@ -32,7 +36,7 @@ short _colonelsComputerAnimData[] = { 9, 72, 82, 6,
 
 CUAKMColonelsComputerModule::CUAKMColonelsComputerModule() : CFullScreenModule(ModuleType::ColonelsComputer)
 {
-	_inputEnabled = FALSE;
+	_inputEnabled = false;
 
 	_currentPage = -1;
 }
@@ -42,37 +46,20 @@ CUAKMColonelsComputerModule::~CUAKMColonelsComputerModule()
 	Dispose();
 }
 
-/*
-#define IMG_HAND		0
-#define IMG_ENTER_PW	1
-#define IMG_PATRONAGE	2
-#define IMG_INCORRECT	3
-#define IMG_DOT			4
-#define DAT_COORDS1		5
-#define DAT_COORDS2		6
-#define SND_1			7
-#define SND_2			8
-#define SND_3			9
-#define SND_4			10
-#define SND_5			11
-#define SND_6			12
-#define SND_7			13
-*/
-
 void CUAKMColonelsComputerModule::Render()
 {
-	BOOL popOnEnd = FALSE;
+	bool popOnEnd = false;
 
-	auto delta = GetTickCount64() - _frameTime;
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	auto delta = now - _frameTime;
+
 	if (_currentPage == 0)
 	{
-		// Part of the startup animation
-
 		if (_currentFrame == 0 && delta >= 500)
 		{
 			DrawRectangle(_colonelsComputerRectCoords[0], _colonelsComputerRectCoords[1], _colonelsComputerRectCoords[2], _colonelsComputerRectCoords[3], 1);
 			UpdateTexture();
-			_frameTime = GetTickCount64();
+			_frameTime = now;
 			_currentFrame++;
 		}
 		else if (_currentFrame >= 1 && _currentFrame <= 3 && delta >= 166)
@@ -83,7 +70,7 @@ void CUAKMColonelsComputerModule::Render()
 				DrawRectangle(_colonelsComputerRectCoords[_currentFrame * 4], _colonelsComputerRectCoords[_currentFrame * 4 + 1], _colonelsComputerRectCoords[_currentFrame * 4 + 2], _colonelsComputerRectCoords[_currentFrame * 4 + 3], 1);
 			}
 			UpdateTexture();
-			_frameTime = GetTickCount64();
+			_frameTime = now;
 			_currentFrame++;
 			if (_currentFrame == 4)
 			{
@@ -116,14 +103,13 @@ void CUAKMColonelsComputerModule::Render()
 				_currentPage = 2;
 				_currentFrame = 0;
 			}
-			_frameTime = GetTickCount64();
+			_frameTime = now;
 		}
 	}
 	else if (_currentPage == 2)
 	{
 		if (_currentFrame > 0 || delta >= 1500)
 		{
-			// Flash loading
 			if (_currentFrame == 0)
 			{
 				ClearArea(90, 67, 544, 388);
@@ -142,7 +128,7 @@ void CUAKMColonelsComputerModule::Render()
 				UpdateTexture();
 
 				_currentFrame++;
-				_frameTime = GetTickCount64();
+				_frameTime = now;
 
 				if (_currentFrame == 12)
 				{
@@ -154,10 +140,8 @@ void CUAKMColonelsComputerModule::Render()
 	}
 	else if (_currentPage == 3)
 	{
-		// Show Perfect Word page
 		if (_currentFrame == 0)
 		{
-			// Initialize, set colours to black
 			for (int i = 250; i < 256; i++)
 			{
 				_palette[i] = 0xff000000;
@@ -173,7 +157,6 @@ void CUAKMColonelsComputerModule::Render()
 		}
 		else if (_currentFrame == 11 && delta >= 1500)
 		{
-			// Wait 1.5 seconds
 			_currentFrame++;
 		}
 		else if (_currentFrame == 12)
@@ -191,8 +174,8 @@ void CUAKMColonelsComputerModule::Render()
 		else if (_currentFrame == 10)
 		{
 			RenderRaw(0, 0x5a, 0x43);
-			Render(5, 336, 363);	// Exit
-			Render(3, 421, 363);	// Down/next
+			Render(5, 336, 363);	
+			Render(3, 421, 363);	
 			UpdateTexture();
 			_currentFrame++;
 		}
@@ -202,7 +185,7 @@ void CUAKMColonelsComputerModule::Render()
 		}
 		else if (_currentFrame == 21)
 		{
-			_inputEnabled = TRUE;
+			_inputEnabled = true;
 			_currentFrame++;
 		}
 	}
@@ -215,9 +198,9 @@ void CUAKMColonelsComputerModule::Render()
 		else if (_currentFrame == 10)
 		{
 			RenderRaw(1, 0x5a, 0x43);
-			Render(5, 336, 363);	// Exit
-			Render(3, 421, 363);	// Down/next
-			Render(7, 456, 363);	// Up/prev
+			Render(5, 336, 363);	
+			Render(3, 421, 363);	
+			Render(7, 456, 363);	
 			UpdateTexture();
 			_currentFrame++;
 		}
@@ -227,7 +210,7 @@ void CUAKMColonelsComputerModule::Render()
 		}
 		else if (_currentFrame == 21)
 		{
-			_inputEnabled = TRUE;
+			_inputEnabled = true;
 			_currentFrame++;
 		}
 	}
@@ -240,8 +223,8 @@ void CUAKMColonelsComputerModule::Render()
 		else if (_currentFrame == 10)
 		{
 			RenderRaw(2, 0x5a, 0x43);
-			Render(5, 336, 363);	// Exit
-			Render(7, 456, 363);	// Up/prev
+			Render(5, 336, 363);	
+			Render(7, 456, 363);	
 			UpdateTexture();
 			_currentFrame++;
 		}
@@ -251,7 +234,7 @@ void CUAKMColonelsComputerModule::Render()
 		}
 		else if (_currentFrame == 21)
 		{
-			_inputEnabled = TRUE;
+			_inputEnabled = true;
 			_currentFrame++;
 		}
 	}
@@ -271,20 +254,20 @@ void CUAKMColonelsComputerModule::Render()
 		}
 		else if (_currentFrame == 21)
 		{
-			popOnEnd = TRUE;
+			popOnEnd = true;
 		}
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -294,7 +277,7 @@ void CUAKMColonelsComputerModule::Render()
 		{
 			dx.SetVertexBuffers(0, 1, &_iconVertexBuffer, &stride, &offset);
 			dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-			wm = XMMatrixTranslation(_cursorPosX, -_cursorPosY, -0.5f);
+			wm = Math::Translation(_cursorPosX, -_cursorPosY, -0.5f);
 			CConstantBuffers::SetWorld(dx, &wm);
 			pRV = _iconTexture.GetTextureRV();
 			dx.SetShaderResources(0, 1, &pRV);
@@ -314,24 +297,23 @@ void CUAKMColonelsComputerModule::Initialize()
 {
 	CFullScreenModule::Initialize();
 
-	DoubleData dd = LoadDoubleEntry(L"SPECIAL.AP", 49);
-	if (dd.File1.Data != NULL)
+	DoubleData dd = LoadDoubleEntry("SPECIAL.AP", 49);
+	if (dd.File1.Data != nullptr)
 	{
 		_screen = dd.File2.Data;
 
-		LPBYTE pPal = dd.File1.Data;
+		uint8_t* pPal = dd.File1.Data;
 		ReadPalette(pPal);
 
-		CopyMemory(_originalPalette, _palette, sizeof(int) * 256);
+		memcpy(_originalPalette, _palette, sizeof(int) * 256);
 
 		delete[] pPal;
 	}
 
 	UpdateTexture();
 
-	// Load extra files
-	dd = LoadDoubleEntry(L"SPECIAL.AP", 51);
-	if (dd.File1.Data != NULL)
+	dd = LoadDoubleEntry("SPECIAL.AP", 51);
+	if (dd.File1.Data != nullptr)
 	{
 		_data = dd.File1.Data;
 		int count = GetInt(_data, 0, 2) - 1;
@@ -343,12 +325,12 @@ void CUAKMColonelsComputerModule::Initialize()
 		CreateTexturedRectangle(0.0f, 0.0f, -16.0f, 16.0f, &_iconVertexBuffer, "ComputerIconVertexBuffer");
 		_iconTexture.Init(dd.File2.Data, 0, 0, &_palette[0], 0, "ComputerIconTexture");
 
-		delete dd.File2.Data;
+		delete[] dd.File2.Data;
 	}
 
 	_currentPage = 0;
 	_currentFrame = 0;
-	_frameTime = GetTickCount64();
+	_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 void CUAKMColonelsComputerModule::Render(int entry, int offset_x, int offset_y, int x1, int x2, int y1, int y2)
@@ -370,7 +352,7 @@ void CUAKMColonelsComputerModule::Render(int entry, int offset_x, int offset_y, 
 		y2 = 479;
 	}
 
-	LPBYTE pImg = _files[entry];
+	uint8_t* pImg = _files[entry];
 	int w = GetInt(pImg, 2, 2);
 	int h = GetInt(pImg, 4, 2);
 	int inPtr = 16;
@@ -401,10 +383,10 @@ void CUAKMColonelsComputerModule::Render(int entry, int offset_x, int offset_y, 
 void CUAKMColonelsComputerModule::RenderRaw(int entry, int offset_x, int offset_y)
 {
 	int w = 455, h = 322;
-	LPBYTE pImg = _files[entry];
+	uint8_t* pImg = _files[entry];
 	int l = GetInt(_data, 6 + entry * 4, 4) - GetInt(_data, 2 + entry * 4, 4);
 	BinaryData bd = CLZ::Decompress(pImg, l);
-	LPBYTE pRaw = bd.Data;
+	uint8_t* pRaw = bd.Data;
 
 	for (int y = 0; y < h; y++)
 	{
@@ -414,17 +396,13 @@ void CUAKMColonelsComputerModule::RenderRaw(int entry, int offset_x, int offset_
 		}
 	}
 
-	delete pRaw;
+	delete[] pRaw;
 }
 
 void CUAKMColonelsComputerModule::BeginAction()
 {
 	if (_inputEnabled)
 	{
-		// Check if key is hit
-		//LPBYTE pTest1 = _codePanelFiles[DAT_COORDS1];
-		//LPBYTE pTest2 = _codePanelFiles[DAT_COORDS2];
-
 		int x = static_cast<int>((_cursorPosX - _left) / _scale);
 		int y = static_cast<int>((_cursorPosY - _top) / _scale);
 
@@ -432,24 +410,21 @@ void CUAKMColonelsComputerModule::BeginAction()
 		{
 			if (x >= 336 && x < 393)
 			{
-				// Exit, trigger shutdown anim (fade and pop)
 				_currentPage = 7;
 				_currentFrame = 0;
-				_inputEnabled = FALSE;
+				_inputEnabled = false;
 			}
 			else if (x >= 421 && x < 451 && _currentPage != 6)
 			{
-				// Next
 				_currentPage++;
 				_currentFrame = 0;
-				_inputEnabled = FALSE;
+				_inputEnabled = false;
 			}
 			else if (x >= 456 && x < 486 && _currentPage != 4)
 			{
-				// Prev
 				_currentPage--;
 				_currentFrame = 0;
-				_inputEnabled = FALSE;
+				_inputEnabled = false;
 			}
 		}
 	}

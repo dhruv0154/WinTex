@@ -1,33 +1,34 @@
 #pragma once
+
 #include "DXFrame.h"
-#include <string>
+#include <cstdint>
 
 class CDXTabControl;
 
 class CDXTabItem : public CDXFrame
 {
 public:
-	CDXTabItem(CDXTabControl* pOwner, LPSTR title, float w, float h);
-	~CDXTabItem();
+    CDXTabItem(CDXTabControl* pOwner, const char* title, float w, float h);
+    virtual ~CDXTabItem() override;
 
-	virtual void Render(float x, float y, float hx, float hy, bool selected);
-	virtual void MouseButtonDown();
-	virtual CDXControl* HitTest(float x, float y);
+    virtual void Render(float x, float y, float hx, float hy, bool selected);
+    virtual void MouseButtonDown() override;
+    virtual CDXControl* HitTest(float x, float y) override;
 
-	static void Init();
-	static void Dispose();
+    static void Init();
+    static void Dispose();
 
-	void Select();
+    void Select();
 
-	virtual void SetColours(int colour1, int colour2, int colour3, int colour4);
+    virtual void SetColours(int colour1, int colour2, int colour3, int colour4) override;
 
 private:
-	static CTexture _texBackgroundTabItem;
+    static CTexture _texBackgroundTabItem;
 
-	CDXTabControl* _pOwner;
+    CDXTabControl* _pOwner{nullptr};
 
-	int _colour1;
-	int _colour2;
-	int _colour3;
-	int _colour4;
+    int _colour1{0};
+    int _colour2{-1};
+    int _colour3{-1};
+    int _colour4{0};
 };

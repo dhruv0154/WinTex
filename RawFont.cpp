@@ -1,241 +1,242 @@
 #include "RawFont.h"
 #include "Utilities.h"
 #include "DirectX.h"
+#include <cstring>
 
-CRawFont::CRawFont()
+CRawFont::CRawFont() : CTexture()
 {
-	_pFontData = NULL;
-	_fontDataSize = 0;
-	_bitsPerPixel = 0;
-	_fontHeight = 0;
+    _pFontData = nullptr;
+    _fontDataSize = 0;
+    _bitsPerPixel = 0;
+    _fontHeight = 0;
 }
 
-CRawFont::CRawFont(int resource)
+CRawFont::CRawFont(int resource) : CTexture()
 {
-	_pFontData = NULL;
-	_fontDataSize = 0;
-	_bitsPerPixel = 0;
-	_fontHeight = 0;
+    _pFontData = nullptr;
+    _fontDataSize = 0;
+    _bitsPerPixel = 0;
+    _fontHeight = 0;
 
-	Init(resource);
+    Init(resource);
 }
 
 CRawFont::~CRawFont()
 {
-	if (_pFontData != NULL)
-	{
-		delete[] _pFontData;
-	}
+    if (_pFontData != nullptr)
+    {
+        delete[] _pFontData;
+    }
 
-	_pFontData = NULL;
-	_fontDataSize = 0;
-	_bitsPerPixel = 0;
-	_fontHeight = 0;
+    _pFontData = nullptr;
+    _fontDataSize = 0;
+    _bitsPerPixel = 0;
+    _fontHeight = 0;
 
-	_fontMap.clear();
+    _fontMap.clear();
 }
 
 void CRawFont::Init(int resource)
 {
-	DWORD fontDataSize;
-	LPBYTE pFontData = GetResource(resource, L"BIN", &fontDataSize);
-	MapAndCreateTexture(pFontData, fontDataSize);
-	_pFontData = NULL;// Prevent deleting resource memory
+    uint32_t fontDataSize = 0;
+    uint8_t* pFontData = GetResource(resource, "BIN", &fontDataSize);
+    MapAndCreateTexture(pFontData, fontDataSize);
+    _pFontData = nullptr; // Prevent double-deleting resource memory managed by the archive loader
 }
 
 void CRawFont::Init(BinaryData& data)
 {
-	MapAndCreateTexture(data.Data, data.Length);
+    MapAndCreateTexture(data.Data, data.Length);
 }
 
-void CRawFont::MapAndCreateTexture(LPBYTE pFontData, int fontDataSize, BOOL createTexture)
+void CRawFont::MapAndCreateTexture(uint8_t* pFontData, int fontDataSize, bool createTexture)
 {
-	if (pFontData != NULL)
-	{
-		_pFontData = pFontData;
-		_fontDataSize = fontDataSize;
-		int charCount = pFontData[0];
-		_bitsPerPixel = pFontData[1];
-		_fontHeight = pFontData[2];
-		int widest = 0;
-		for (int i = 0; i < charCount; i++)
-		{
-			int offset = GetInt(pFontData + 3, i * 4, 4);
-			LPBYTE pChar = pFontData + offset;
-			_fontMap[' ' + i] = pChar;
+    if (pFontData != nullptr)
+    {
+        _pFontData = pFontData;
+        _fontDataSize = fontDataSize;
+        int charCount = pFontData[0];
+        _bitsPerPixel = pFontData[1];
+        _fontHeight = pFontData[2];
+        int widest = 0;
 
-			// Find widest character
-			if (pChar[0] > widest)
-			{
-				widest = pChar[0];
-			}
-		}
+        for (int i = 0; i < charCount; i++)
+        {
+            int offset = GetInt(pFontData + 3, i * 4, 4);
+            uint8_t* pChar = pFontData + offset;
+            _fontMap[' ' + i] = pChar;
 
-		if (createTexture)
-		{
-			int textureWidth = charCount * widest;
-			int textureHeight = _fontHeight;
+            // Find widest character in the font set
+            if (pChar[0] > widest)
+            {
+                widest = pChar[0];
+            }
+        }
 
-			D3D11_TEXTURE2D_DESC desc;
-			desc.Width = textureWidth;
-			desc.Height = textureHeight * 4;	// For now, shader only supports 4 colour fonts
-			desc.MipLevels = desc.ArraySize = 1;
-			desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			desc.SampleDesc.Count = 1;
-			desc.Usage = D3D11_USAGE_DYNAMIC;
-			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-			desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			desc.MiscFlags = 0;
+        if (createTexture)
+        {
+            int textureWidth = charCount * widest;
+            int textureHeight = _fontHeight;
 
-			ID3D11Texture2D* pTexture = NULL;
-			if (SUCCEEDED(dx.CreateTexture2D(&desc, NULL, &pTexture)))
-			{
-				D3D11_MAPPED_SUBRESOURCE mappedResource;
-				if (SUCCEEDED(dx.Map(pTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource)))
-				{
-					// Write to texture
-					LPBYTE pData = (LPBYTE)mappedResource.pData;
-					int textureOffset = 0;
-					for (int i = 0; i < charCount; i++)
-					{
-						int offset = GetInt(pFontData + 3, i * 4, 4);
-						LPBYTE pChar = pFontData + offset;
-						int charWidth = *(pChar++);
-						int bytesPerRow = (charWidth * _bitsPerPixel + 7) / 8;
-						for (int fy = 0; fy < _fontHeight; fy++)
-						{
-							int bitOffset = 0;
+            D3D11_TEXTURE2D_DESC desc = {};
+            desc.Width = textureWidth;
+            desc.Height = textureHeight * 4;    // Shader currently supports 4-color fonts
+            desc.MipLevels = desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            desc.SampleDesc.Count = 1;
+            desc.Usage = D3D11_USAGE_DYNAMIC;
+            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            desc.MiscFlags = 0;
 
-							for (int fx = 0; fx < charWidth; fx++)
-							{
-								int pixel = ReadBits(pChar, _bitsPerPixel, bitOffset);
-								if (pixel > 0 && pixel < 5)
-								{
-									pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 0] = 255;
-									pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 1] = 255;
-									pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 2] = 255;
-									pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 3] = 255;
-								}
-							}
+            ID3D11Texture2D* pTexture = nullptr;
+            if (dx.CreateTexture2D(&desc, nullptr, &pTexture) == 0)
+            {
+                D3D11_MAPPED_SUBRESOURCE mappedResource;
+                if (dx.Map(pTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) == 0)
+                {
+                    uint8_t* pData = reinterpret_cast<uint8_t*>(mappedResource.pData);
+                    int textureOffset = 0;
 
-							pChar += bytesPerRow;
-						}
+                    for (int i = 0; i < charCount; i++)
+                    {
+                        int offset = GetInt(pFontData + 3, i * 4, 4);
+                        uint8_t* pChar = pFontData + offset;
+                        int charWidth = *(pChar++);
+                        int bytesPerRow = (charWidth * _bitsPerPixel + 7) / 8;
 
-						textureOffset += widest * 4;
-					}
+                        for (int fy = 0; fy < _fontHeight; fy++)
+                        {
+                            int bitOffset = 0;
 
-					dx.Unmap(pTexture, 0);
-				}
-			}
-		}
-	}
+                            for (int fx = 0; fx < charWidth; fx++)
+                            {
+                                int pixel = ReadBits(pChar, _bitsPerPixel, bitOffset);
+                                if (pixel > 0 && pixel < 5)
+                                {
+                                    pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 0] = 255;
+                                    pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 1] = 255;
+                                    pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 2] = 255;
+                                    pData[textureOffset + ((fy + (pixel - 1) * _fontHeight) * desc.Width + fx) * 4 + 3] = 255;
+                                }
+                            }
+
+                            pChar += bytesPerRow;
+                        }
+
+                        textureOffset += widest * 4;
+                    }
+
+                    dx.Unmap(pTexture, 0);
+                }
+            }
+        }
+    }
 }
 
-void CRawFont::Render(LPBYTE screen, int screenWidth, int screenHeight, int x, int y, BYTE character, int colourBase, BOOL center)
+void CRawFont::Render(uint8_t* screen, int screenWidth, int screenHeight, int x, int y, uint8_t character, int colourBase, bool center)
 {
-	LPBYTE pCharData = _fontMap[character];
-	if (pCharData != NULL)
-	{
-		int charWidth = *(pCharData++);
-		int bytesPerRow = (charWidth * _bitsPerPixel + 7) / 8;
+    uint8_t* pCharData = _fontMap[character];
+    if (pCharData != nullptr)
+    {
+        int charWidth = *(pCharData++);
+        int bytesPerRow = (charWidth * _bitsPerPixel + 7) / 8;
 
-		if (center)
-		{
-			x -= charWidth / 2;
-			y -= _fontHeight / 2;
-		}
+        if (center)
+        {
+            x -= charWidth / 2;
+            y -= _fontHeight / 2;
+        }
 
-		for (int fy = 0; fy < _fontHeight; fy++)
-		{
-			int bitOffset = 0;
+        for (int fy = 0; fy < _fontHeight; fy++)
+        {
+            int bitOffset = 0;
 
-			for (int fx = 0; fx < charWidth; fx++)
-			{
-				int pixel = ReadBits(pCharData, _bitsPerPixel, bitOffset);
-				if (pixel != 0)
-				{
-					screen[(y + fy) * screenWidth + x + fx] = (BYTE)(pixel + colourBase);
-				}
-			}
+            for (int fx = 0; fx < charWidth; fx++)
+            {
+                int pixel = ReadBits(pCharData, _bitsPerPixel, bitOffset);
+                if (pixel != 0)
+                {
+                    screen[(y + fy) * screenWidth + x + fx] = static_cast<uint8_t>(pixel + colourBase);
+                }
+            }
 
-			pCharData += bytesPerRow;
-		}
-	}
+            pCharData += bytesPerRow;
+        }
+    }
 }
 
-RECT CRawFont::Render(LPBYTE screen, int screenWidth, int screenHeight, int x, int y, char* text, std::unordered_map<int, int> colourMap, int horizontalAdjustment, int verticalAdjustment, BOOL ignoreReturn)
+Rect CRawFont::Render(uint8_t* screen, int screenWidth, int screenHeight, int x, int y, const char* text, std::unordered_map<int, int> colourMap, int horizontalAdjustment, int verticalAdjustment, bool ignoreReturn)
 {
-	RECT box{ x, y, 0, 0 };
+    Rect box{ x, y, 0, 0 };
+    int originalX = x;
 
-	int originalX = x;
-	while (*text != 0)
-	{
-		char character = *(text++);
-		if ((character == '\r' || character == '\n') && ignoreReturn)
-		{
-			character = ' ';
-		}
+    while (*text != 0)
+    {
+        char character = *(text++);
+        if ((character == '\r' || character == '\n') && ignoreReturn)
+        {
+            character = ' ';
+        }
 
-		if (character == '\r' || character == '\n')
-		{
-			// New line
-			x = originalX;
-			y += _fontHeight + verticalAdjustment;
-		}
-		else
-		{
-			LPBYTE pCharData = _fontMap[character];
-			if (pCharData != NULL)
-			{
-				int charWidth = pCharData[0];
-				int bytesPerRow = (charWidth * _bitsPerPixel + 7) / 8;
-				int byteOffset = 1;
-				for (int fy = 0; fy < _fontHeight; fy++)
-				{
-					int bitOffset = byteOffset * 8;
+        if (character == '\r' || character == '\n')
+        {
+            // Advance to next line
+            x = originalX;
+            y += _fontHeight + verticalAdjustment;
+        }
+        else
+        {
+            uint8_t* pCharData = _fontMap[character];
+            if (pCharData != nullptr)
+            {
+                int charWidth = pCharData[0];
+                int bytesPerRow = (charWidth * _bitsPerPixel + 7) / 8;
+                int byteOffset = 1;
 
-					for (int fx = 0; fx < charWidth; fx++)
-					{
-						int pixel = ReadBits(pCharData, _bitsPerPixel, bitOffset);
-						int colour = colourMap[pixel];
-						if (colour != 0)
-						{
-							screen[(y + fy) * screenWidth + x + fx] = (BYTE)(colour);
-						}
-					}
+                for (int fy = 0; fy < _fontHeight; fy++)
+                {
+                    int bitOffset = byteOffset * 8;
 
-					byteOffset += bytesPerRow;
-				}
+                    for (int fx = 0; fx < charWidth; fx++)
+                    {
+                        int pixel = ReadBits(pCharData, _bitsPerPixel, bitOffset);
+                        auto it = colourMap.find(pixel);
+                        if (it != colourMap.end() && it->second != 0)
+                        {
+                            screen[(y + fy) * screenWidth + x + fx] = static_cast<uint8_t>(it->second);
+                        }
+                    }
 
-				x += charWidth + horizontalAdjustment;
-				if (x > box.right)
-				{
-					box.right = x;
-				}
-			}
-		}
-	}
+                    byteOffset += bytesPerRow;
+                }
 
-	box.bottom = y + _fontHeight - verticalAdjustment;
+                x += charWidth + horizontalAdjustment;
+                if (x > box.Right)
+                {
+                    box.Right = x;
+                }
+            }
+        }
+    }
 
-	return box;
+    box.Bottom = y + _fontHeight - verticalAdjustment;
+    return box;
 }
 
-int CRawFont::Measure(char* text, int horizontalAdjustment)
+int CRawFont::Measure(const char* text, int horizontalAdjustment)
 {
-	int x = 0;
-	int lineCount = 0;
+    int x = 0;
 
-	while (*text != 0)
-	{
-		char character = *(text++);
+    while (*text != 0)
+    {
+        char character = *(text++);
+        uint8_t* pCharData = _fontMap[character];
+        if (pCharData != nullptr)
+        {
+            x += pCharData[0] + horizontalAdjustment;
+        }
+    }
 
-		LPBYTE pCharData = _fontMap[character];
-		if (pCharData != NULL)
-		{
-			x += pCharData[0] + horizontalAdjustment;
-		}
-	}
-
-	return x;
+    return x;
 }

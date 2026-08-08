@@ -3,8 +3,11 @@
 #include "PDGame.h"
 #include "GameController.h"
 #include "MainMenuModule.h"
+#include <cstring>
 
-CPDSelectLevelModule::CPDSelectLevelModule(BYTE* pGameData) : CModuleBase(ModuleType::NewGame)
+#define VK_ESCAPE 0x1B
+
+CPDSelectLevelModule::CPDSelectLevelModule(uint8_t* pGameData) : CModuleBase(ModuleType::NewGame)
 {
 	_pCBEntertainment = NULL;
 	_pCBGamePlayer = NULL;
@@ -14,8 +17,8 @@ CPDSelectLevelModule::CPDSelectLevelModule(BYTE* pGameData) : CModuleBase(Module
 
 	_gameData = pGameData;
 
-	_bEntertainment = TRUE;
-	_bGamePlayer = FALSE;
+	_bEntertainment = true;
+	_bGamePlayer = false;
 }
 
 CPDSelectLevelModule::~CPDSelectLevelModule()
@@ -52,19 +55,34 @@ void CPDSelectLevelModule::Dispose()
 
 void CPDSelectLevelModule::Initialize()
 {
-	Rect r1{ 0, 0, (float)dx.GetHeight(), (float)dx.GetWidth() };
+	Rect r1;
+	r1.Top = 0;
+	r1.Left = 0;
+	r1.Bottom = (float)dx.GetHeight();
+	r1.Right = (float)dx.GetWidth();
+
 	_line1.SetColours(0xffffffff, 0, 0);
-	_line1.SetTextPD(L"Play level selection", r1);
+	_line1.SetTextPD("Play level selection", r1);
 
-	Rect r2{ 0, 10, (float)dx.GetHeight() - 100, (float)dx.GetWidth() - 10 };
+	Rect r2;
+	r2.Top = 0;
+	r2.Left = 10;
+	r2.Bottom = (float)dx.GetHeight() - 100;
+	r2.Right = (float)dx.GetWidth() - 10;
+	
 	_line2.SetColours(0xff26ff00, 0xff0096ff, 0xffffffff);
-	_line2.SetTextPD2(L"^.Do you wish to play the ^-Entertainment Level^. or the ^-Game Players Level^.?\n\nWe recommend that everyone except experienced game players select the ^-Entertainment Level^. the first time through.  There are hints available on this level as well as an option to bypass the more difficult puzzles (refer to the Hint System.)\n\nThe ^-Game Players Level^. is very challenging and should be selected only by experienced game players, or by players who have already gone through the ^-Entertainment Level^..  There are no hints available, but instead of ^?1500^. possible points, there are ^?4000^..  In addition, there are bonus locations and puzzles.\n\nNote:  Both levels have three narrative paths through the story leading to a total of seven combined endings.", r2);
+	_line2.SetTextPD2("^.Do you wish to play the ^-Entertainment Level^. or the ^-Game Players Level^.?\n\nWe recommend that everyone except experienced game players select the ^-Entertainment Level^. the first time through.  There are hints available on this level as well as an option to bypass the more difficult puzzles (refer to the Hint System.)\n\nThe ^-Game Players Level^. is very challenging and should be selected only by experienced game players, or by players who have already gone through the ^-Entertainment Level^..  There are no hints available, but instead of ^?1500^. possible points, there are ^?4000^..  In addition, there are bonus locations and puzzles.\n\nNote:  Both levels have three narrative paths through the story leading to a total of seven combined endings.", r2);
 
-	Rect r3{ 0, 0, (float)dx.GetHeight() - 100, (float)dx.GetWidth() };
+	Rect r3;
+	r3.Top = 0;
+	r3.Left = 0;
+	r3.Bottom = (float)dx.GetHeight() - 100;
+	r3.Right = (float)dx.GetWidth();
+	
 	_line3.SetColours(0xffffffff, 0, 0);
-	_line3.SetTextPD(L"Play level", r3);
+	_line3.SetTextPD("Play level", r3);
 
-	float chkY = (_line2.Height() + dx.GetHeight()) / 2;
+	float chkY = (_line2.Height() + dx.GetHeight()) / 2.0f;
 
 	_pCBEntertainment = new CDXCheckBox("Entertainment", &_bEntertainment, 0.0f);
 	_pCBEntertainment->SetColours(0, 0, -1, 0);
@@ -78,11 +96,8 @@ void CPDSelectLevelModule::Initialize()
 	_pBtnCancel = new CDXButton("Cancel", 80, 20);
 	_pBtnCancel->SetPosition(dx.GetWidth() - _pBtnCancel->GetWidth() - 10, dx.GetHeight() - _pBtnCancel->GetHeight() - 10);
 
-	POINT pt;
-	GetCursorPos(&pt);
-	::ScreenToClient(_hWnd, &pt);
-	_cursorPosX = pt.x;
-	_cursorPosY = pt.y;
+	_cursorPosX = dx.GetWidth() / 2.0f;
+	_cursorPosY = dx.GetHeight() / 2.0f;
 }
 
 void CPDSelectLevelModule::Resize(int width, int height)
@@ -93,7 +108,7 @@ void CPDSelectLevelModule::Render()
 {
 	_line1.Render((dx.GetWidth() - _line1.Width()) / 2.0f, 50);
 	_line2.Render(0, 100);
-	float chkY = (_line2.Height() + dx.GetHeight()) / 2;
+	float chkY = (_line2.Height() + dx.GetHeight()) / 2.0f;
 	_line3.Render((dx.GetWidth() - _line3.Width()) / 2.0f, chkY);
 
 	_pCBEntertainment->Render();
@@ -107,7 +122,7 @@ void CPDSelectLevelModule::Render()
 	CModuleController::Cursors[0].Render();
 }
 
-void CPDSelectLevelModule::KeyDown(WPARAM key, LPARAM lParam)
+void CPDSelectLevelModule::KeyDown(int key, int lParam)
 {
 	if (key == VK_ESCAPE)
 	{
@@ -115,7 +130,7 @@ void CPDSelectLevelModule::KeyDown(WPARAM key, LPARAM lParam)
 	}
 }
 
-void CPDSelectLevelModule::Cursor(float x, float y, BOOL relative)
+void CPDSelectLevelModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -130,13 +145,13 @@ void CPDSelectLevelModule::BeginAction()
 	// Check checkboxes and buttons
 	if (_pCBEntertainment->HitTest(_cursorPosX, _cursorPosY))
 	{
-		_pCBEntertainment->SetCheck(TRUE);
-		_pCBGamePlayer->SetCheck(FALSE);
+		_pCBEntertainment->SetCheck(true);
+		_pCBGamePlayer->SetCheck(false);
 	}
 	else if (_pCBGamePlayer->HitTest(_cursorPosX, _cursorPosY))
 	{
-		_pCBGamePlayer->SetCheck(TRUE);
-		_pCBEntertainment->SetCheck(FALSE);
+		_pCBGamePlayer->SetCheck(true);
+		_pCBEntertainment->SetCheck(false);
 	}
 	else if (_pBtnOK->HitTest(_cursorPosX, _cursorPosY))
 	{
@@ -157,42 +172,39 @@ void CPDSelectLevelModule::NewGame()
 {
 	CMainMenuModule::SetPlayerNameAndEnableButtons();
 
-	// Reset game buffer
-	ZeroMemory(_gameData, PD_SAVE_SIZE);
+	memset(_gameData, 0, PD_SAVE_SIZE);
 
 	_gameData[PD_SAVE_HEADER_UNKNOWN1] = 6;
 	CGameController::SetData(PD_SAVE_HEADER_PLAYER, "TEX");
 
 	CGameController::SetData(PD_SAVE_HEADER_GAME_DAY, 1);
 
-	CGameController::SetData(PD_SAVE_TRAVEL + 1, 1);				// Tex' Office
-	CGameController::SetData(PD_SAVE_TRAVEL + 70, 1);				// Tex' Bedroom
-	CGameController::SetData(PD_SAVE_TRAVEL + 71, 1);				// Tex' Computer Room
+	CGameController::SetData(PD_SAVE_TRAVEL + 1, 1);                
+	CGameController::SetData(PD_SAVE_TRAVEL + 70, 1);               
+	CGameController::SetData(PD_SAVE_TRAVEL + 71, 1);               
 
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 0, 1);	// Enable AskAbout Tex Murphy
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 1, 1);	// Enable AskAbout Chelsee Bando
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 2, 1);	// Enable AskAbout Louie LaMintz
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 3, 1);	// Enable AskAbout Rook Garner
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 6, 1);	// Enable AskAbout Gordon Fitzpatrick
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 7, 1);	// Enable AskAbout Thomas Malloy
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 9, 1);	// Enable AskAbout Nilo
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 40, 1);	// Enable AskAbout Tyson Matthews
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 56, 1);	// Enable AskAbout Newspaper photo of Malloy
-	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 61, 1);	// Enable AskAbout Sandra
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 0, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 1, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 2, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 3, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 6, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 7, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 9, 1);    
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 40, 1);   
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 56, 1);   
+	CGameController::SetItemState(PD_SAVE_ASK_ABOUT_BASE, 61, 1);   
 
-	_gameData[PD_SAVE_PARAMETERS + 251] = 2;						// Preferred CD?
-	_gameData[PD_SAVE_PARAMETERS + 250] = 1;						// Day in game
+	_gameData[PD_SAVE_PARAMETERS + 251] = 2;                        
+	_gameData[PD_SAVE_PARAMETERS + 250] = 1;                        
 
-	// Parameter 0x19a, 0 = Entertainment Level, 1 = Game Player Level
 	_gameData[PD_SAVE_PARAMETERS_GAME_LEVEL] = _bGamePlayer;
 
 	CGameController::SetWord(PD_SAVE_CASH, 4000);
-	CGameController::SetItemState(0, 1);							// Cash
-	CGameController::SetItemState(1, 1);							// Photo of Malloy
-	CGameController::SetItemState(2, 1);							// Credit card
-	CGameController::SetItemState(4, 1);							// Fitzpatrick's card
+	CGameController::SetItemState(0, 1);                            
+	CGameController::SetItemState(1, 1);                            
+	CGameController::SetItemState(2, 1);                            
+	CGameController::SetItemState(4, 1);                            
 
-	// Set hint category states 1-4
 	CGameController::SetHintCategoryState(1, 1);
 	CGameController::SetHintCategoryState(2, 1);
 	CGameController::SetHintCategoryState(3, 1);

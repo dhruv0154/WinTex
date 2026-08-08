@@ -3,27 +3,25 @@
 #include "Utilities.h"
 #include "GameController.h"
 #include "AnimationController.h"
+#include <string>
 
 CPictureModule::CPictureModule(int fileId, int entryIndex, CScriptBase* pScript, CScriptState* pScriptState) : CFullScreenModule(ModuleType::Picture)
 {
 	_script = pScript;
 	_state = pScriptState;
 	_image = NULL;
-	_rendered = FALSE;
+	_rendered = false;
 
-	// Load file and create buffer
-	std::wstring fn = CGameController::GetFileName(fileId);
-	if (fn != L"")
+	std::string fn = CGameController::GetFileName(fileId);
+	if (fn != "")
 	{
 		BinaryData bd = LoadEntry(fn.c_str(), entryIndex);
 		if (bd.Data != NULL)
 		{
 			if (bd.Length > 0x304 && bd.Data[0x300] == 'D' && bd.Data[0x301] == 'B' && bd.Data[0x302] == 'E' && bd.Data[0x303] == 1)
 			{
-				// Combined, palette + compressed image
 				BinaryData imageData = CLZ::Decompress(bd.Data + 0x300, bd.Length - 0x300);
 
-				// Setup fullscreen image
 				_image = CAnimationController::LoadImage(bd.Data, imageData, 640, 480);
 
 				delete[] imageData.Data;
@@ -41,13 +39,12 @@ CPictureModule::~CPictureModule()
 
 void CPictureModule::Render()
 {
-	// Allow one frame to render before resuming script
 	if (_image != NULL && !_rendered)
 	{
 		_image->Render();
 
-		_rendered = TRUE;
-		_state->WaitingForMediaToFinish = FALSE;
+		_rendered = true;
+		_state->WaitingForMediaToFinish = false;
 	}
 	else if (_state->WaitingForMediaToFinish)
 	{
@@ -57,13 +54,12 @@ void CPictureModule::Render()
 		}
 		else
 		{
-			_state->WaitingForMediaToFinish = FALSE;
+			_state->WaitingForMediaToFinish = false;
 		}
 	}
 	else if (_script != NULL)
 	{
-		// Resume script
-		_script->Resume(_state, TRUE);
+		_script->Resume(_state, true);
 	}
 }
 

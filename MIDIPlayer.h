@@ -1,48 +1,46 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <windows.h>
-#include <mmsystem.h>
-#else
-#include "Win32Compat.h"
-#endif
-#include "LZ.h"
+#include "BinaryData.h"
 #include "Mutex.h"
+#include <cstdint>
+#include <thread>
+#include <atomic>
 
 class CMIDIPlayer
 {
 public:
-	CMIDIPlayer();
-	virtual ~CMIDIPlayer();
+    CMIDIPlayer();
+    virtual ~CMIDIPlayer();
 
-	void CloseDevice();
-	void OpenDevice(UINT deviceId);
+    void CloseDevice();
+    void OpenDevice(uint32_t deviceId);
 
-	virtual void Init(BinaryData data);
-	void Stop();
-	void Start();
-	void Pause();
-	void Resume();
-	void SetVolume(float volume);
+    virtual void Init(BinaryData data);
+    void Stop();
+    void Start();
+    void Pause();
+    void Resume();
+    void SetVolume(float volume);
 
 protected:
-	static HMIDIOUT _handle;
-	static BinaryData _data;
+    static BinaryData _data;
 
-	HANDLE _hMIDIThread;
-	DWORD _midiThreadId;
+    std::thread _midiThread;
+    std::atomic<bool> _running{false};
 
-	static BOOL _midiEnabled;
-	virtual DWORD Player();
-	static DWORD WINAPI PlayerThread(LPVOID lpParameter);
+    static bool _midiEnabled;
+    virtual uint32_t Player();
+    static void PlayerThread(CMIDIPlayer* pPlayer);
 
-	static LPBYTE _channels[16];
-	static int _delays[16];
-	static int _division;
-	static int _duration;
-	static int _volumes[16];
+    static void SendMidiMessage(uint32_t cmd);
+    static void SendMidiSysEx(const uint8_t* data, size_t len);
 
-	static CMutex _midiMutex;
-	static BOOL _changed;
+    static uint8_t* _channels[16];
+    static int _delays[16];
+    static int _division;
+    static int _duration;
+    static int _volumes[16];
+
+    static CMutex _midiMutex;
+    static bool _changed;
 };

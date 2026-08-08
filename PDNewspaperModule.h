@@ -2,9 +2,9 @@
 
 #include "ModuleBase.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
 #include "Texture.h"
 #include "DXButton.h"
+#include <cstdint>
 
 class CPDNewspaperModule : public CModuleBase
 {
@@ -34,7 +34,7 @@ protected:
 	int _palette[256];
 
 	CDXButton* _pBtnResume;
-	static void OnResume(LPVOID data);
+	static void OnResume(void* data);
 
 	class CNewsPaperView
 	{
@@ -60,7 +60,7 @@ protected:
 			}
 		}
 
-		LPBYTE Data = NULL;
+		uint8_t* Data = NULL;
 		int Width = 0;
 		int Height = 0;
 		CTexture Texture;
@@ -72,7 +72,7 @@ protected:
 	void UpdateTexture(CNewsPaperView* np);
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void Back();
 };

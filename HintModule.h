@@ -4,6 +4,7 @@
 #include "HintCategory.h"
 #include "Texture.h"
 #include "DXButton.h"
+#include <list>
 
 class CHintModule : public CModuleBase
 {
@@ -12,7 +13,7 @@ public:
 	~CHintModule();
 
 	virtual void Resize(int width, int height);
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void Back();
 

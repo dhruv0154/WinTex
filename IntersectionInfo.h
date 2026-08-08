@@ -2,7 +2,7 @@
 
 #include "Structs.h"
 
-typedef struct IntersectionInfo
+struct IntersectionInfo
 {
 	DPoint LineSegmentP1;
 	DPoint LineSegmentP2;

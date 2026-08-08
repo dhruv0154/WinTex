@@ -1,31 +1,26 @@
 #pragma once
 
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include "Mutex.h"
+#include <cstdint>
 
 class CSimpleAnimPlayer
 {
 public:
-	CSimpleAnimPlayer();
-	virtual ~CSimpleAnimPlayer();
+    CSimpleAnimPlayer();
+    virtual ~CSimpleAnimPlayer();
 
-	void Init(LPBYTE pData);
-	void Merge(LPBYTE pData);
+    void Init(uint8_t* pData);
+    void Merge(uint8_t* pData);
 
-	BOOL DecodeFrame(LPBYTE pScreen, int x, int y, int w);
+    bool DecodeFrame(uint8_t* pScreen, int x, int y, int w);
 
 protected:
-	int _currentFrame;
-	BOOL _firstFrameFull;
-	int _animationFrames;
-	int _animationWidth;
-	int _animationHeight;
-	LPBYTE _animationPointer;
-	LPBYTE _dataPointer;
-	CMutex _lock;
+    int _currentFrame;
+    bool _firstFrameFull;
+    int _animationFrames;
+    int _animationWidth;
+    int _animationHeight;
+    uint8_t* _animationPointer;
+    uint8_t* _dataPointer;
+    CMutex _lock;
 };

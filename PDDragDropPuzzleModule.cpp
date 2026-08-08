@@ -3,10 +3,13 @@
 #include "Utilities.h"
 #include "GameController.h"
 #include "PDGame.h"
-#include "resource.h"
 #include "PDLaptopModule.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <cstring>
+#include <cmath>
 
-WCHAR* CPDDragDropPuzzleModule::FileNames[] = { L"PANDORA.AP", L"SPECIAL.AP" };
+const char* CPDDragDropPuzzleModule::FileNames[] = { "PANDORA.AP", "SPECIAL.AP" };
 int CPDDragDropPuzzleModule::PuzzleFiles[] = { 0, 1, 1, 1, 1, 1, 1, 1 };
 int CPDDragDropPuzzleModule::PuzzleEntries[] = { 14, 11, 14, 17, 20, 26, 67, 74 };
 int CPDDragDropPuzzleModule::PuzzlePiecesCount[] = { 26, 9, 36, 24, 13, 5, 18, 16 };
@@ -14,18 +17,9 @@ int CPDDragDropPuzzleModule::PuzzleDataOffsets[] = { PD_SAVE_PANDORA_PUZZLE, PD_
 
 CPDDragDropPuzzleModule::CPDDragDropPuzzleModule(int puzzleIndex) : CFullScreenModule(ModuleType::DragDropPuzzle)
 {
-	// 00 = Pandora puzzle			PANDORA.AP, 14-15			2A9191		Needs different initialization code
-	// 01 = Mayan figures puzzle	SPECIAL.AP, 11-13			2A922D		10th image is exit button
-	// 02 = Torn note				SPECIAL.AP	14-16			2A9263
-	// 03 = Hole punch				SPECIAL.AP	17-19			2A933B
-	// 04 = Mayan labyrinth			SPECIAL.AP	20-22			2A93CB
-	// 05 = Dagger puzzle			SPECIAL.AP	26-29			2A941F
-	// 06 = Torn photo				SPECIAL.AP	67-69			2A943D
-	// 07 = Laptop with Cabin CD	SPECIAL.AP	74-76			2A94A9
-
 	_puzzleIndex = puzzleIndex;
 
-	_hasBonusScore = FALSE;
+	_hasBonusScore = false;
 	_scoreToAdd = 0;
 	_bonusScore = 0;
 	_bonusDropSpeed = 0;
@@ -36,11 +30,11 @@ CPDDragDropPuzzleModule::CPDDragDropPuzzleModule(int puzzleIndex) : CFullScreenM
 	_positionOffset = 0;
 	_imageOffset = 0;
 
-	_completed = FALSE;
+	_completed = false;
 
 	_selectedPiece = NULL;
 
-	_cheated = FALSE;
+	_cheated = false;
 }
 
 CPDDragDropPuzzleModule::~CPDDragDropPuzzleModule()
@@ -49,8 +43,6 @@ CPDDragDropPuzzleModule::~CPDDragDropPuzzleModule()
 
 void CPDDragDropPuzzleModule::Render()
 {
-	// TODO: Update time/moves left, bonus score etc
-
 	RenderScreen();
 
 	CPuzzlePiece::Render();
@@ -71,11 +63,9 @@ void CPDDragDropPuzzleModule::Initialize()
 	_cursorPosX = dx.GetWidth() / 2.0f;
 	_cursorPosY = dx.GetHeight() / 2.0f;
 
-	// Check Z-order of first 2 pieces, if they're both 0 then initial position data has not been loaded
 	if (CGameController::GetData(PD_SAVE_DRAG_DROP_PUZZLES + 4) == 0 && CGameController::GetData(PD_SAVE_DRAG_DROP_PUZZLES + 10) == 0)
 	{
-		// Load initial puzzle positions from PANDORA.AP.16
-		BinaryData bd = LoadEntry(L"PANDORA.AP", 16);
+		BinaryData bd = LoadEntry("PANDORA.AP", 16);
 		CGameController::Copy(bd.Data, PD_SAVE_DRAG_DROP_PUZZLES, bd.Length);
 	}
 
@@ -84,7 +74,6 @@ void CPDDragDropPuzzleModule::Initialize()
 	int imageEntryOffset = 2;
 	if (_puzzleIndex == 0)
 	{
-		// Palette and screen from combined item
 		BinaryData bd = LoadEntry(FileNames[PuzzleFiles[_puzzleIndex]], PuzzleEntries[_puzzleIndex]);
 		ReadPalette(bd.Data);
 		BinaryData bdImg = CLZ::Decompress(bd.Data + 0x300, bd.Length - 0x300);
@@ -95,7 +84,6 @@ void CPDDragDropPuzzleModule::Initialize()
 	}
 	else
 	{
-		// Palette and screen from paired items
 		DoubleData dd = LoadDoubleEntry(FileNames[PuzzleFiles[_puzzleIndex]], PuzzleEntries[_puzzleIndex]);
 		ReadPalette(dd.File1.Data);
 		delete[] dd.File1.Data;
@@ -109,7 +97,7 @@ void CPDDragDropPuzzleModule::Initialize()
 		int count = GetInt(_data, 0, 2) - 1;
 		for (int i = 0; i < count; i++)
 		{
-			LPBYTE pImage = _data + GetInt(_data, 2 + i * 4, 4);
+			uint8_t* pImage = _data + GetInt(_data, 2 + i * 4, 4);
 			_files[i] = pImage;
 			CPuzzlePiece::Add(i, pImage, _scale, _palette, count, _left, _top, _positionOffset);
 		}
@@ -136,12 +124,12 @@ void CPDDragDropPuzzleModule::RenderScreen()
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -151,17 +139,16 @@ void CPDDragDropPuzzleModule::RenderScreen()
 	}
 }
 
-void CPDDragDropPuzzleModule::Cursor(float x, float y, BOOL relative)
+void CPDDragDropPuzzleModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
 	if (!_completed && _selectedPiece != NULL)
 	{
-		// Move selected piece
 		_selectedPiece->X -= _pt.x - _cursorPosX;
 		_selectedPiece->Y -= _pt.y - _cursorPosY;
-		_pt.x = static_cast<LONG>(_cursorPosX);
-		_pt.y = static_cast<LONG>(_cursorPosY);
+		_pt.x = static_cast<int>(_cursorPosX);
+		_pt.y = static_cast<int>(_cursorPosY);
 	}
 }
 
@@ -173,8 +160,8 @@ void CPDDragDropPuzzleModule::BeginAction()
 		if (pScrap != NULL)
 		{
 			_selectedPiece = pScrap;
-			_pt.x = static_cast<LONG>(_cursorPosX);
-			_pt.y = static_cast<LONG>(_cursorPosY);
+			_pt.x = static_cast<int>(_cursorPosX);
+			_pt.y = static_cast<int>(_cursorPosY);
 			return;
 		}
 
@@ -232,7 +219,7 @@ void CPDDragDropPuzzleModule::Back()
 	}
 }
 
-BOOL CPDDragDropPuzzleModule::CheckCompleted()
+bool CPDDragDropPuzzleModule::CheckCompleted()
 {
 	switch (_puzzleIndex)
 	{
@@ -278,7 +265,7 @@ BOOL CPDDragDropPuzzleModule::CheckCompleted()
 		}
 	}
 
-	return FALSE;
+	return false;
 }
 
 void CPDDragDropPuzzleModule::EndAction()
@@ -296,9 +283,9 @@ void CPDDragDropPuzzleModule::EndAction()
 			{
 				for (int cy = 53; cy < 236; cy += 46)
 				{
-					int dx = cx - x;
+					int dx_val = cx - x;
 					int dy = cy - y;
-					if ((dx * dx + dy * dy) < 100)
+					if ((dx_val * dx_val + dy * dy) < 100)
 					{
 						x = cx;
 						y = cy;
@@ -359,45 +346,45 @@ void CPDDragDropPuzzleModule::Prev()
 	}
 }
 
-BOOL CPDDragDropPuzzleModule::CheckPandoraPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckPandoraPuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckFiguresPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckFiguresPuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckTornNotePuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckTornNotePuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckHolePunchPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckHolePunchPuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckLabyrinthPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckLabyrinthPuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckDaggerPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckDaggerPuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckTornPhotoPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckTornPhotoPuzzleCompleted()
 {
-	return FALSE;
+	return false;
 }
 
-BOOL CPDDragDropPuzzleModule::CheckLaptopPuzzleCompleted()
+bool CPDDragDropPuzzleModule::CheckLaptopPuzzleCompleted()
 {
-	BYTE grid[16];
-	ZeroMemory(grid, 16);
+	uint8_t grid[16];
+	memset(grid, 0, 16);
 
 	for (int p = 0; p < 16; p++)
 	{
@@ -405,14 +392,14 @@ BOOL CPDDragDropPuzzleModule::CheckLaptopPuzzleCompleted()
 		float x = (((pPiece->X - _left) / _scale) - 121) / 46.0f;
 		float y = (((pPiece->Y - _top) / _scale) - 53) / 46.0f;
 
-		if (floor(x) == x && floor(y) == y && x < 4 && y < 4)
+		if (std::floor(x) == x && std::floor(y) == y && x < 4 && y < 4)
 		{
 			// Piece dropped in a cell
 			grid[(int)y * 4 + (int)x] = (p < 4) ? 1 : 2 + (p - 4) / 3;
 		}
 		else
 		{
-			return FALSE;
+			return false;
 		}
 	}
 
@@ -420,8 +407,7 @@ BOOL CPDDragDropPuzzleModule::CheckLaptopPuzzleCompleted()
 	{
 		if (grid[i] == 0)
 		{
-			// All cells must be filled
-			return FALSE;
+			return false;
 		}
 	}
 
@@ -462,11 +448,11 @@ BOOL CPDDragDropPuzzleModule::CheckLaptopPuzzleCompleted()
 
 		CGameController::SetParameter(205, 2);
 		CModuleController::Push(new CPDLaptopModule(_screen, _palette));
-		_screen = NULL;// Sending screen to laptop module for re-use
+		_screen = NULL;
 		CModuleController::Pop(this);
 
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }

@@ -19,6 +19,8 @@
 #include "UAKMGRSComputerModule.h"
 #include "UAKMStasisModule.h"
 #include "PictureModule.h"
+#include <algorithm>
+#include <cctype>
 
 Point _lastKnownEyeBotPosition;
 
@@ -142,21 +144,21 @@ void CUAKMScript::Execute(CScriptState* pState, int id)
 {
 	// Find execution pointer and call resume
 	pState->ExecutionPointer = pState->GetScript(id);
-	pState->WaitingForMediaToFinish = FALSE;
+	pState->WaitingForMediaToFinish = false;
 	pState->LastDialoguePoint = 0;
 	Resume(pState);
 }
 
-void CUAKMScript::Resume(CScriptState* pState, BOOL breakWait)
+void CUAKMScript::Resume(CScriptState* pState, bool breakWait)
 {
 	_scriptLock.Lock();
 	CModuleBase* pThisModule = CModuleController::CurrentModule;
 
 	if (breakWait)
 	{
-		pState->WaitingForMediaToFinish = FALSE;
-		pState->WaitingForInput = FALSE;
-		pState->WaitingForExternalModule = FALSE;
+		pState->WaitingForMediaToFinish = false;
+		pState->WaitingForInput = false;
+		pState->WaitingForExternalModule = false;
 	}
 
 	//WCHAR buffer[40];
@@ -165,14 +167,14 @@ void CUAKMScript::Resume(CScriptState* pState, BOOL breakWait)
 	{
 		//_itow(pState->ExecutionPointer, buffer, 16);
 		//OutputDebugString(buffer);
-		//OutputDebugString(L" - ");
+		//OutputDebugString(" - ");
 
 		// Execute script
-		byte cmd = pState->Script[pState->ExecutionPointer++];
+		uint8_t cmd = pState->Script[pState->ExecutionPointer++];
 		if (cmd < 0x80 || cmd > 0xe0)
 		{
 			// This should never happen, terminate script
-			DebugTrace(pState, L"Invalid command, terminating script");
+			DebugTrace(pState, "Invalid command, terminating script");
 			pState->ExecutionPointer = -1;
 		}
 		else
@@ -194,24 +196,24 @@ void CUAKMScript::Resume(CScriptState* pState, BOOL breakWait)
 
 void CUAKMScript::Function_80(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_80");
+	DebugTrace(pState, "Function_80");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_81(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_81 - If Action=Use, play \"That's not gonna work\" and end script");
+	DebugTrace(pState, "Function_81 - If Action=Use, play \"That's not gonna work\" and end script");
 	if (pState->CurrentAction == ActionType::Use)
 	{
 		// Call script 89 to print "That's not gonna work." and play media 0 in SOUNDS.AP
 		pAddCaptions->clear();
-		pAddCaptions->push_back(new CCaption(0, "That's not gonna work.", TRUE));
+		pAddCaptions->push_back(new CCaption(0, "That's not gonna work.", true));
 
 		SwapCaptions();
 
-		CAnimationController::Load(L"SOUND.AP", 0);
+		CAnimationController::Load("SOUND.AP", 0);
 
-		pState->WaitingForMediaToFinish = TRUE;
+		pState->WaitingForMediaToFinish = true;
 	}
 
 	pState->ExecutionPointer = -1;
@@ -219,44 +221,44 @@ void CUAKMScript::Function_81(CScriptState* pState)
 
 void CUAKMScript::Function_83(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_83 - Jump on Abort");
+	DebugTrace(pState, "Function_83 - Jump on Abort");
 	pState->ExecutionPointer = (conversationOption == ConversationOption::Abort) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_85(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_85 - If Action=Move jump to script");
+	DebugTrace(pState, "Function_85 - If Action=Move jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::Move) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_86(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_86 - If Action=Use jump to script");
+	DebugTrace(pState, "Function_86 - If Action=Use jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::Use) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_87(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_87 - If Action=Talk jump to script");
+	DebugTrace(pState, "Function_87 - If Action=Talk jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::Talk) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_88(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_88 - If Action=Open jump to script");
+	DebugTrace(pState, "Function_88 - If Action=Open jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::Open) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_89(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_89");
+	DebugTrace(pState, "Function_89");
 	//text += string.Format("Print: {0}", print);	print up to 0-termination
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_8F(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_8F - Set Player Position");
+	DebugTrace(pState, "Function_8F - Set Player Position");
 
 	int x = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int y = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
@@ -287,13 +289,13 @@ void CUAKMScript::Function_8F(CScriptState* pState)
 
 void CUAKMScript::Function_92(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_92");
+	DebugTrace(pState, "Function_92");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_94(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_94 - Load Files");
+	DebugTrace(pState, "Function_94 - Load Files");
 
 	CAmbientAudio::Clear();
 	pMIDI->Stop();
@@ -306,24 +308,24 @@ void CUAKMScript::Function_94(CScriptState* pState)
 
 	CGameController::SetData(UAKM_SAVE_DMAP_ENTRY, ix);
 	CGameController::SetData(UAKM_SAVE_DMAP_FLAG, 1);
-	CGameController::SetData(UAKM_SAVE_SCRIPT_ID, (BYTE)0);
+	CGameController::SetData(UAKM_SAVE_SCRIPT_ID, (uint8_t)0);
 
 	CGameController::AutoSave();
 
 	CModuleController::Push(new CVideoModule(VideoType::Scripted, ix));
 
-	pState->WaitingForInput = TRUE;
+	pState->WaitingForInput = true;
 }
 
 void CUAKMScript::Function_95(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_95 - Jump on animation at frame");
+	DebugTrace(pState, "Function_95 - Jump on animation at frame");
 	pState->ExecutionPointer = (_pLoc != NULL && _pLoc->GetAnimationFrame(pState->Script[pState->ExecutionPointer]) == GetInt(pState->Script, pState->ExecutionPointer + 2, 1)) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer + 4, 2)) : pState->ExecutionPointer + 6;
 }
 
 void CUAKMScript::Function_98(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_98 - Jump on player Y > value");
+	DebugTrace(pState, "Function_98 - Jump on player Y > value");
 	int ytest = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	if (ytest & 0x8000)
 	{
@@ -331,13 +333,13 @@ void CUAKMScript::Function_98(CScriptState* pState)
 	}
 
 	float ylimit = ((float)ytest) / 16.0f;
-	float playerY = -_pLoc->GetPlayerPosition().Y;
+	float playerY = -_pLoc->GetPlayerPosition().y;
 	pState->ExecutionPointer = (playerY > ylimit) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer + 2, 2)) : pState->ExecutionPointer + 4;
 }
 
 void CUAKMScript::Function_9A(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_9A - Jump on player inside rectangle");
+	DebugTrace(pState, "Function_9A - Jump on player inside rectangle");
 
 	int p1 = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int p2 = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
@@ -355,15 +357,15 @@ void CUAKMScript::Function_9A(CScriptState* pState)
 	float f3 = ((float)p3) / 16.0f;
 	float f4 = ((float)p4) / 16.0f;
 
-	float x1 = min(f1, f3);
-	float x2 = max(f1, f3);
-	float z1 = min(f2, f4);
-	float z2 = max(f2, f4);
+	float x1 = std::min(f1, f3);
+	float x2 = std::max(f1, f3);
+	float z1 = std::min(f2, f4);
+	float z2 = std::max(f2, f4);
 
 	if (_pLoc != NULL)
 	{
 		Point p = _pLoc->GetPlayerPosition();
-		if (p.X >= x1 && p.X <= x2 && p.Z >= z1 && p.Z <= z2)
+		if (p.x >= x1 && p.x <= x2 && p.z >= z1 && p.z <= z2)
 		{
 			pState->ExecutionPointer = pState->GetScript(script);
 		}
@@ -380,69 +382,69 @@ void CUAKMScript::Function_9A(CScriptState* pState)
 
 void CUAKMScript::Function_9B(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_9B");
+	DebugTrace(pState, "Function_9B");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_9C(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_9C - Offer from Inventory mode");
+	DebugTrace(pState, "Function_9C - Offer from Inventory mode");
 
 	CGameController::SetParameter(253, 1);
 	CGameController::SetParameter(100, 1);
 	pState->Mode = InteractionMode::Offer;
-	pState->Offer = FALSE;
-	pState->AskAbout = FALSE;
+	pState->Offer = false;
+	pState->AskAbout = false;
 }
 
 void CUAKMScript::Function_9E(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_9E - Start Timer");
+	DebugTrace(pState, "Function_9E - Start Timer");
 
 	int timer = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int duration = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
 	CGameController::SetTimer(timer, duration);
 	pState->ExecutionPointer += 4;
 
-	//Trace(L"Timer ");
+	//Trace("Timer ");
 	//Trace(timer);
-	//Trace(L" set to ");
+	//Trace(" set to ");
 	//Trace((int)(duration*TIMER_SCALE));
-	//TraceLine(L" ms");
+	//TraceLine(" ms");
 }
 
 void CUAKMScript::Function_9F(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_9F - Conditional jump on Timer");
+	DebugTrace(pState, "Function_9F - Conditional jump on Timer");
 	int timer = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int timerState = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
 	int script = GetInt(pState->Script, pState->ExecutionPointer + 4, 2);
 	int currentState = CGameController::GetTimerState(timer);
-	BOOL stateMatches = (currentState == timerState);
+	bool stateMatches = (currentState == timerState);
 	pState->ExecutionPointer = stateMatches ? pState->GetScript(script) : pState->ExecutionPointer + 6;
 
-	//Trace(L"Timer ");
+	//Trace("Timer ");
 	//Trace(timer);
 	//if (stateMatches)
 	//{
-	//	Trace(L" is in state ");
+	//	Trace(" is in state ");
 	//	Trace(timerState);
-	//	Trace(L", branching to script ");
+	//	Trace(", branching to script ");
 	//	TraceLine(script);
 	//}
 	//else
 	//{
-	//	Trace(L" is NOT in state ");
+	//	Trace(" is NOT in state ");
 	//	Trace(timerState);
-	//	Trace(L", but in state ");
+	//	Trace(", but in state ");
 	//	Trace(currentState);
-	//	TraceLine(L", not branching");
+	//	TraceLine(", not branching");
 	//}
 }
 
 void CUAKMScript::Function_A0(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A0 - Change Travel Location state");
+	DebugTrace(pState, "Function_A0 - Change Travel Location state");
 
 	CGameController::SetData(UAKM_SAVE_TRAVEL + pState->Script[pState->ExecutionPointer], pState->Script[pState->ExecutionPointer + 1]);
 
@@ -451,31 +453,31 @@ void CUAKMScript::Function_A0(CScriptState* pState)
 
 void CUAKMScript::Function_A2(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A2");
+	DebugTrace(pState, "Function_A2");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_A3(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A3");
+	DebugTrace(pState, "Function_A3");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_A4(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A4");
+	DebugTrace(pState, "Function_A4");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_A6(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A6");
+	DebugTrace(pState, "Function_A6");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_A8(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A8 - Set Continuation Point");
+	DebugTrace(pState, "Function_A8 - Set Continuation Point");
 
 	CGameController::SetData(UAKM_SAVE_SCRIPT_ID, pState->Script[pState->ExecutionPointer]);
 	CGameController::SetData(UAKM_SAVE_SCRIPT_ID + 1, pState->Script[pState->ExecutionPointer + 1]);
@@ -485,13 +487,13 @@ void CUAKMScript::Function_A8(CScriptState* pState)
 
 void CUAKMScript::Function_A9(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A9");
+	DebugTrace(pState, "Function_A9");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_AB(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_AB - Show Picture");
+	DebugTrace(pState, "Function_AB - Show Picture");
 	// Show picture, mapped media
 	int ix = pState->Script[pState->ExecutionPointer];
 	pState->ExecutionPointer++;
@@ -500,20 +502,20 @@ void CUAKMScript::Function_AB(CScriptState* pState)
 
 void CUAKMScript::Function_AC(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_AC - Disallow cancelling of travel");
-	CGameController::CanCancelTravel = FALSE;
+	DebugTrace(pState, "Function_AC - Disallow cancelling of travel");
+	CGameController::CanCancelTravel = false;
 }
 
 void CUAKMScript::Function_AD(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_AD - Travel");
+	DebugTrace(pState, "Function_AD - Travel");
 	CModuleController::Push(new CUAKMTravelModule());
-	pState->WaitingForInput = TRUE;
+	pState->WaitingForInput = true;
 }
 
 void CUAKMScript::Function_AE(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_AE - If AskAboutState[x]=y go to z");
+	DebugTrace(pState, "Function_AE - If AskAboutState[x]=y go to z");
 
 	int ix = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int val = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
@@ -524,7 +526,7 @@ void CUAKMScript::Function_AE(CScriptState* pState)
 
 void CUAKMScript::Function_AF(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_AF - Special");
+	DebugTrace(pState, "Function_AF - Special");
 
 	int i1 = pState->Script[pState->ExecutionPointer];
 	int i2 = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
@@ -556,14 +558,14 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	{
 		// Colonel's Computer
 		CModuleController::Push(new CUAKMColonelsComputerModule());
-		pState->WaitingForInput = TRUE;
+		pState->WaitingForInput = true;
 		break;
 	}
 	case 4:
 	{
 		// Pus' Shell game
 		CModuleController::Push(new CUAKMPusShellGameModule(i2, i3));
-		pState->WaitingForExternalModule = TRUE;
+		pState->WaitingForExternalModule = true;
 		break;
 	}
 	case 5:
@@ -571,7 +573,7 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 		// Crime Link computer
 		CModuleBase* pModule = new CUAKMCrimeLinkModule(i2);
 		CModuleController::Push(pModule);
-		pState->WaitingForInput = TRUE;
+		pState->WaitingForInput = true;
 		break;
 	}
 	case 6:
@@ -583,23 +585,23 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	{
 		// Eddie Ching's safe
 		CModuleController::Push(new CUAKMSafeModule(i2, i3 == 0));
-		pState->WaitingForInput = TRUE;
+		pState->WaitingForInput = true;
 		break;
 	}
 	case 8:
 	{
 		// Colonel's safe
 		CModuleController::Push(new CUAKMColonelsSafeModule(i2));
-		pState->WaitingForInput = TRUE;
+		pState->WaitingForInput = true;
 		break;
 	}
 	case 9:
 	{
 		// Stasis chamber
 		CModuleController::Push(new CUAKMStasisModule(i2));
-		pState->WaitingForInput = TRUE;
-		//pState->WaitingForMediaToFinish = TRUE;
-		pState->WaitingForExternalModule = TRUE;
+		pState->WaitingForInput = true;
+		//pState->WaitingForMediaToFinish = true;
+		pState->WaitingForExternalModule = true;
 		break;
 	}
 	case 10:
@@ -612,14 +614,14 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	{
 		// Hotel door code
 		CModuleController::Push(new CUAKMCodePanelModule(i2));
-		pState->WaitingForInput = TRUE;
+		pState->WaitingForInput = true;
 		break;
 	}
 	case 12:
 	{
 		// GRS, Paul Dubois' computer
 		CModuleController::Push(new CUAKMGRSComputerModule());
-		pState->WaitingForInput = TRUE;
+		pState->WaitingForInput = true;
 		break;
 	}
 	case 13:
@@ -638,7 +640,7 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 			for (int i = 0; i < 40; i++)
 			{
 				CGameController::SetData(UAKM_SAVE_TRAVEL_BACKUP + i, CGameController::GetData(UAKM_SAVE_TRAVEL + i));
-				CGameController::SetData(UAKM_SAVE_TRAVEL + i, (BYTE)0);
+				CGameController::SetData(UAKM_SAVE_TRAVEL + i, (uint8_t)0);
 			}
 			CGameController::SetData(UAKM_SAVE_TRAVEL + 5, 1);	// Enable travel to Tex' office
 		}
@@ -663,7 +665,7 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	case 17:
 	{
 		// After intro
-		//TraceLine(L"After Intro");	// Probably flags the intro has been played so it doesn't auto play again next time a new game is started
+		//TraceLine("After Intro");	// Probably flags the intro has been played so it doesn't auto play again next time a new game is started
 		break;
 	}
 	case 18:
@@ -674,7 +676,7 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	case 19:
 	{
 		// Select held item
-		//TraceLine(L"Select held item");
+		//TraceLine("Select held item");
 
 		// TODO: Location module, select current item? Only if Location Module is current (or have to make held item static in Game Controller)...
 
@@ -682,7 +684,7 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	}
 	case 20:
 	{
-		//TraceLine(L"Set text and background colour");	// Indexes in the active palette
+		//TraceLine("Set text and background colour");	// Indexes in the active palette
 		break;
 	}
 	case 21:
@@ -710,8 +712,8 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 			{
 				_lastKnownEyeBotPosition = info.Position;
 
-				double x = player.X - info.Position.X;
-				double z = player.Z - info.Position.Z;
+				double x = player.x - info.Position.x;
+				double z = player.z - info.Position.z;
 				double distance = sqrt(x * x + z * z);
 				if (distance < 35)
 				{
@@ -724,13 +726,13 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 
 		if (distance < 0.0)
 		{
-			double x = player.X - _lastKnownEyeBotPosition.X;
-			double z = player.Z - _lastKnownEyeBotPosition.Z;
+			double x = player.x - _lastKnownEyeBotPosition.x;
+			double z = player.z - _lastKnownEyeBotPosition.z;
 			distance = sqrt(x * x + z * z);
 		}
 
 		// Set volume of probe audio
-		CAmbientAudio::SetVolume(0, (100.0f - (float)min(100.0f, max(0, distance - 35))) / 100.0f);
+		CAmbientAudio::SetVolume(0, (100.0f - (float)std::min(100.0f, std::max(0.0f, (float)(distance - 35)))) / 100.0f);
 
 		break;
 	}
@@ -749,7 +751,7 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 	default:
 	{
 		// Illegal
-		//TraceLine(L"Illegal!");
+		//TraceLine("Illegal!");
 		break;
 	}
 	}
@@ -759,31 +761,31 @@ void CUAKMScript::Function_AF(CScriptState* pState)
 
 void CUAKMScript::Function_B0(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B0");
+	DebugTrace(pState, "Function_B0");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_B1(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B1");
+	DebugTrace(pState, "Function_B1");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_B2(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B2");
+	DebugTrace(pState, "Function_B2");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_B3(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B3");
+	DebugTrace(pState, "Function_B3");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_B4(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B4 - Display options");
+	DebugTrace(pState, "Function_B4 - Display options");
 
 	pState->LastDialoguePoint = pState->ExecutionPointer - 1;
 
@@ -865,30 +867,30 @@ void CUAKMScript::Function_B4(CScriptState* pState)
 	pState->SelectedOption = -1;
 
 	// Should now wait for input
-	pState->WaitingForInput = TRUE;
+	pState->WaitingForInput = true;
 }
 
 void CUAKMScript::Function_B5(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B5");
+	DebugTrace(pState, "Function_B5");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_B7(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B7");
+	DebugTrace(pState, "Function_B7");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_B9(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B9 - Return to dialogue/options");
+	DebugTrace(pState, "Function_B9 - Return to dialogue/options");
 	pState->ExecutionPointer = pState->LastDialoguePoint;
 }
 
 void CUAKMScript::Function_BB(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_BB");
+	DebugTrace(pState, "Function_BB");
 	int ix = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	// Possibly stop all ambient sounds and play from media map (ix<<1)
 	pState->ExecutionPointer += 2;
@@ -896,26 +898,26 @@ void CUAKMScript::Function_BB(CScriptState* pState)
 
 void CUAKMScript::Function_BC(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_BC");
+	DebugTrace(pState, "Function_BC");
 	//text += "Abort?";
 	//text += "???ResetPosition???";
 }
 
 void CUAKMScript::Function_BD(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_BD");
+	DebugTrace(pState, "Function_BD");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_BE(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_BE");
+	DebugTrace(pState, "Function_BE");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_BF(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_BF - Jump on item collected or used");
+	DebugTrace(pState, "Function_BF - Jump on item collected or used");
 	int bix = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int ns = GetInt(pState->Script, pState->ExecutionPointer + 4, 2);
 	pState->ExecutionPointer = (CGameController::GetItemState(bix) != 0) ? pState->GetScript(ns) : pState->ExecutionPointer + 4;
@@ -923,7 +925,7 @@ void CUAKMScript::Function_BF(CScriptState* pState)
 
 void CUAKMScript::Function_C0(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C0 - Stop Animation");
+	DebugTrace(pState, "Function_C0 - Stop Animation");
 	int anim = pState->Script[pState->ExecutionPointer++];
 	if (_pLoc != NULL)
 	{
@@ -933,25 +935,25 @@ void CUAKMScript::Function_C0(CScriptState* pState)
 
 void CUAKMScript::Function_C1(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C1");
+	DebugTrace(pState, "Function_C1");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_C2(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C2");
+	DebugTrace(pState, "Function_C2");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_C3(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C3 - Preserve palette");
+	DebugTrace(pState, "Function_C3 - Preserve palette");
 	// PreservePalette = true
 }
 
 void CUAKMScript::Function_C6(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C6 - Game Over");
+	DebugTrace(pState, "Function_C6 - Game Over");
 	pState->ExecutionPointer = -1;
 
 	if (_lock.Lock())
@@ -967,14 +969,14 @@ void CUAKMScript::Function_C6(CScriptState* pState)
 			CModuleController::ClearExcept(pMMM);
 
 			// Delete the autosave (which will only reload the death scene)
-			DeleteFile(L"GAMES\\SAVEGAME.000");
+			std::remove("GAMES/SAVEGAME.000");
 		}
 	}
 }
 
 void CUAKMScript::Function_C7(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C7 - Get & Set Player Death");
+	DebugTrace(pState, "Function_C7 - Get & Set Player Death");
 	//pState->ExecutionPointer = -1;
 	// Set A[232] to current PlayerHasDied flag
 	// Set PlayerHasDied flag to true and save player data
@@ -982,13 +984,13 @@ void CUAKMScript::Function_C7(CScriptState* pState)
 
 void CUAKMScript::Function_C8(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C8");
+	DebugTrace(pState, "Function_C8");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_CA(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_CA - Set Hint Category State");
+	DebugTrace(pState, "Function_CA - Set Hint Category State");
 	int ix = GetInt(pState->Script, pState->ExecutionPointer, 1);
 	if (CGameController::GetHintCategoryState(ix) != 2) CGameController::SetHintCategoryState(ix, pState->Script[pState->ExecutionPointer + 1]);
 	pState->ExecutionPointer += 2;
@@ -996,12 +998,12 @@ void CUAKMScript::Function_CA(CScriptState* pState)
 
 void CUAKMScript::Function_CB(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_CB - Start Location MIDI");
+	DebugTrace(pState, "Function_CB - Start Location MIDI");
 }
 
 void CUAKMScript::Function_CC(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_CC - Conditional Score Increment");
+	DebugTrace(pState, "Function_CC - Conditional Score Increment");
 	int val = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	pState->ExecutionPointer += 2;
 
@@ -1024,14 +1026,14 @@ void CUAKMScript::Function_CC(CScriptState* pState)
 void CUAKMScript::Function_D0(CScriptState* pState)
 {
 	// TODO: Only used to check a condition when talking to Ardo, condition is unknown
-	DebugTrace(pState, L"Function_D0");
+	DebugTrace(pState, "Function_D0");
 	int conditionalScript = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_D1(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D1 - Play Wave");
+	DebugTrace(pState, "Function_D1 - Play Wave");
 	int index = pState->Script[pState->ExecutionPointer];
 	pState->ExecutionPointer++;
 
@@ -1042,8 +1044,8 @@ void CUAKMScript::Function_D1(CScriptState* pState)
 	if (_mapEntry->ScriptFileEntry != 0 || _mapEntry->ScriptFileIndex != 0)
 	{
 		FileMap fm = _mapEntry->AudioMap.at(index);
-		std::wstring fn = CGameController::GetFileName(fm.File);
-		if (fn != L"")
+		std::string fn = CGameController::GetFileName(fm.File);
+		if (fn != "")
 		{
 			CAnimationController::Load(fn.c_str(), fm.Entry);
 		}
@@ -1051,58 +1053,58 @@ void CUAKMScript::Function_D1(CScriptState* pState)
 	else if (_mapEntry->ScriptFileEntry != 0 || _mapEntry->ScriptFileIndex != 0)
 	{
 		FileMap fm = _mapEntry->AudioMap.at(index);
-		std::wstring fn = CGameController::GetFileName(fm.File);
-		if (fn != L"")
+		std::string fn = CGameController::GetFileName(fm.File);
+		if (fn != "")
 		{
 			CAnimationController::Load(fn.c_str(), fm.Entry);
 		}
 	}
 
-	pState->WaitingForMediaToFinish = TRUE;
+	pState->WaitingForMediaToFinish = true;
 }
 
 void CUAKMScript::Function_D2(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D2");
+	DebugTrace(pState, "Function_D2");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_D3(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D3");
+	DebugTrace(pState, "Function_D3");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_D4(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D4 - Stop Audio");
+	DebugTrace(pState, "Function_D4 - Stop Audio");
 
 	CAmbientAudio::Stop((pState->Script[pState->ExecutionPointer++]) & 0x7f);
 }
 
 void CUAKMScript::Function_D5(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D5 - Load MIDI");
+	DebugTrace(pState, "Function_D5 - Load MIDI");
 	// TODO: Should get filename from file list, but for UAKM it is always MUSIC.AP
 	int entry = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
-	//Trace(L"Loading MIDI #");
+	//Trace("Loading MIDI #");
 	//Trace(entry);
-	//Trace(L" from script at offset ");
+	//Trace(" from script at offset ");
 	//TraceLine(pState->ExecutionPointer - 1, 16);
-	BinaryData bd = LoadEntry(L"MUSIC.AP", entry);
+	BinaryData bd = LoadEntry("MUSIC.AP", entry);
 	pMIDI->Init(bd);
 	pState->ExecutionPointer += 4;
 }
 
 void CUAKMScript::Function_D6(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D6 - Start MIDI");
+	DebugTrace(pState, "Function_D6 - Start MIDI");
 	pMIDI->Start();
 }
 
 void CUAKMScript::Function_DA(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_DA - Jump on player close to point");
+	DebugTrace(pState, "Function_DA - Jump on player close to point");
 
 	int p1 = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int p2 = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
@@ -1119,13 +1121,13 @@ void CUAKMScript::Function_DA(CScriptState* pState)
 	//text += string.Format("If player distance from ({0:0.00},{1:0.00})<{2:0.00} jump to script {3}", f1, f2, f3, p4);
 	double distance = (_pLoc != NULL) ? _pLoc->GetPlayerDistanceFromPoint(f1, f2) : 0.0;
 	f3 *= f3;
-	//Trace(L"Player distance from <");
+	//Trace("Player distance from <");
 	//Trace(f1);
-	//Trace(L", ");
+	//Trace(", ");
 	//Trace(f2);
-	//Trace(L"> = ");
+	//Trace("> = ");
 	//Trace((float)distance);
-	//Trace(L", test against ");
+	//Trace(", test against ");
 	//TraceLine(f3);
 
 	if (distance <= f3)
@@ -1140,7 +1142,7 @@ void CUAKMScript::Function_DA(CScriptState* pState)
 
 void CUAKMScript::Function_DB(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_DB - Play BIC");
+	DebugTrace(pState, "Function_DB - Play BIC");
 	//int offx = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	//int offy = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
 	int index = GetInt(pState->Script, pState->ExecutionPointer + 4, 2);
@@ -1152,7 +1154,7 @@ void CUAKMScript::Function_DB(CScriptState* pState)
 
 void CUAKMScript::Function_DC(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_DC - Play Silent BIC");
+	DebugTrace(pState, "Function_DC - Play Silent BIC");
 	//int offx = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	//int offy = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
 	int index = GetInt(pState->Script, pState->ExecutionPointer + 4, 2);
@@ -1164,19 +1166,19 @@ void CUAKMScript::Function_DC(CScriptState* pState)
 
 void CUAKMScript::Function_DD(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_DD");
+	DebugTrace(pState, "Function_DD");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_DE(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_DE");
+	DebugTrace(pState, "Function_DE");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_DF(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_DF");
+	DebugTrace(pState, "Function_DF");
 	pState->ExecutionPointer = -1;
 }
 
@@ -1184,25 +1186,25 @@ void CUAKMScript::Function_DF(CScriptState* pState)
 
 void CUAKMScript::Function_82(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_82 - If Action=Look jump to script");
+	DebugTrace(pState, "Function_82 - If Action=Look jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::Look) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_84(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_84 - If Action=Get jump to script");
+	DebugTrace(pState, "Function_84 - If Action=Get jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::Get) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_8A(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_8A - End script");
+	DebugTrace(pState, "Function_8A - End script");
 	pState->ExecutionPointer = -1;
 }
 
 void CUAKMScript::Function_8B(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_8B - Start Animation");
+	DebugTrace(pState, "Function_8B - Start Animation");
 	int anim = pState->Script[pState->ExecutionPointer++];
 	if (_pLoc != NULL)
 	{
@@ -1212,7 +1214,7 @@ void CUAKMScript::Function_8B(CScriptState* pState)
 
 void CUAKMScript::Function_8C(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_8C - Set Parameter");
+	DebugTrace(pState, "Function_8C - Set Parameter");
 
 	// Set parameter
 	int index = GetInt(pState->Script, pState->ExecutionPointer, 1);
@@ -1221,26 +1223,26 @@ void CUAKMScript::Function_8C(CScriptState* pState)
 	{
 		if (value == 1 && CGameController::GetParameter(index) == 0)
 		{
-			pState->Offer = FALSE;
-			pState->AskAbout = FALSE;
+			pState->Offer = false;
+			pState->AskAbout = false;
 			pState->TopItemOffset = -1;
 		}
 	}
 	else if (index == 100)
 	{
 		pState->Mode = (value != 0) ? InteractionMode::Offer : InteractionMode::AskAbout;
-		pState->AskAbout = FALSE;
-		pState->Offer = FALSE;
+		pState->AskAbout = false;
+		pState->Offer = false;
 		pState->TopItemOffset = -1;
 	}
 
-	CGameController::SetParameter(index, (byte)value);
+	CGameController::SetParameter(index, (uint8_t)value);
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_8D(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_8D - Jump on A[X]=Y");
+	DebugTrace(pState, "Function_8D - Jump on A[X]=Y");
 
 	if (pState->ExecutionPointer == 0x27d)
 	{
@@ -1263,13 +1265,13 @@ void CUAKMScript::Function_8D(CScriptState* pState)
 
 void CUAKMScript::Function_8E(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_8E - Jump");
+	DebugTrace(pState, "Function_8E - Jump");
 	pState->ExecutionPointer = pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2));
 }
 
 void CUAKMScript::Function_90(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_90 - Set Item State");
+	DebugTrace(pState, "Function_90 - Set Item State");
 
 	CGameController::SetItemState(pState->Script[pState->ExecutionPointer], pState->Script[pState->ExecutionPointer + 1]);
 	pState->ExecutionPointer += 2;
@@ -1277,16 +1279,16 @@ void CUAKMScript::Function_90(CScriptState* pState)
 
 void CUAKMScript::Function_91(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_91 - Jump on item state");
+	DebugTrace(pState, "Function_91 - Jump on item state");
 	int bix = GetInt(pState->Script, pState->ExecutionPointer, 2);
-	BYTE cmp = pState->Script[pState->ExecutionPointer + 2];
+	uint8_t cmp = pState->Script[pState->ExecutionPointer + 2];
 	int ns = GetInt(pState->Script, pState->ExecutionPointer + 4, 2);
 	pState->ExecutionPointer = (CGameController::GetItemState(bix) == cmp) ? pState->GetScript(ns) : pState->ExecutionPointer + 6;
 }
 
 void CUAKMScript::Function_93(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_93 - Load Location");
+	DebugTrace(pState, "Function_93 - Load Location");
 	// Load files from MAP.LZ
 
 	CAmbientAudio::Clear();
@@ -1296,7 +1298,7 @@ void CUAKMScript::Function_93(CScriptState* pState)
 
 	int locationId = pState->Script[pState->ExecutionPointer];
 	CGameController::SetData(UAKM_SAVE_MAP_ENTRY, locationId);
-	CGameController::SetData(UAKM_SAVE_DMAP_FLAG, (BYTE)0);
+	CGameController::SetData(UAKM_SAVE_DMAP_FLAG, (uint8_t)0);
 
 	CGameController::AutoSave();
 
@@ -1306,21 +1308,21 @@ void CUAKMScript::Function_93(CScriptState* pState)
 
 void CUAKMScript::Function_96(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_96 - Jump on Animation Completed");
+	DebugTrace(pState, "Function_96 - Jump on Animation Completed");
 	pState->ExecutionPointer = (_pLoc != NULL && _pLoc->IsAnimationFinished(pState->Script[pState->ExecutionPointer])) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer + 2, 2)) : pState->ExecutionPointer + 4;
 }
 
 void CUAKMScript::Function_97(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_97 - Play Sound");
+	DebugTrace(pState, "Function_97 - Play Sound");
 	PlayAudio(pState, pState->Script[pState->ExecutionPointer++] - 1);
 
-	// pState->WaitingForMediaToFinish = TRUE;
+	// pState->WaitingForMediaToFinish = true;
 }
 
 void CUAKMScript::Function_99(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_99 - If Query Action = true, end script");
+	DebugTrace(pState, "Function_99 - If Query Action = true, end script");
 	if (pState->QueryAction)
 	{
 		pState->ExecutionPointer = -1;
@@ -1329,28 +1331,28 @@ void CUAKMScript::Function_99(CScriptState* pState)
 
 void CUAKMScript::Function_9D(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_9D - Set Ask About State");
+	DebugTrace(pState, "Function_9D - Set Ask About State");
 	int aa = GetInt(pState->Script, pState->ExecutionPointer, 1);
-	BYTE aastate = pState->Script[pState->ExecutionPointer + 1];
+	uint8_t aastate = pState->Script[pState->ExecutionPointer + 1];
 	CGameController::SetAskAboutState(aa, aastate);
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_A1(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A1 - If Action=On/Off jump to script");
+	DebugTrace(pState, "Function_A1 - If Action=On/Off jump to script");
 	pState->ExecutionPointer = (pState->CurrentAction == ActionType::OnOff) ? pState->GetScript(GetInt(pState->Script, pState->ExecutionPointer, 2)) : pState->ExecutionPointer + 2;
 }
 
 void CUAKMScript::Function_A5(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A5 - Set Embedded Video Mode");
+	DebugTrace(pState, "Function_A5 - Set Embedded Video Mode");
 	videoMode = VideoMode::Embedded;
 }
 
 void CUAKMScript::Function_A7(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_A7 - Play PTF");
+	DebugTrace(pState, "Function_A7 - Play PTF");
 	//int offx = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	//int offy = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
 	int index = GetInt(pState->Script, pState->ExecutionPointer + 4, 2);
@@ -1362,13 +1364,13 @@ void CUAKMScript::Function_A7(CScriptState* pState)
 
 void CUAKMScript::Function_AA(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_AA - Set Fullscreen Video Mode");
+	DebugTrace(pState, "Function_AA - Set Fullscreen Video Mode");
 	videoMode = VideoMode::FullScreen;
 }
 
 void CUAKMScript::Function_B6(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B6 - Allow Action");
+	DebugTrace(pState, "Function_B6 - Allow Action");
 
 	int action = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	if (action == 1) pState->AllowedAction |= ActionType::Look;
@@ -1382,7 +1384,7 @@ void CUAKMScript::Function_B6(CScriptState* pState)
 
 void CUAKMScript::Function_B8(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_B8 - Jump on Selected Option = X");
+	DebugTrace(pState, "Function_B8 - Jump on Selected Option = X");
 	int option = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	int ns = GetInt(pState->Script, pState->ExecutionPointer + 2, 2);
 	pState->ExecutionPointer = (pState->SelectedOption == option) ? pState->GetScript(ns) : pState->ExecutionPointer + 4;
@@ -1390,51 +1392,51 @@ void CUAKMScript::Function_B8(CScriptState* pState)
 
 void CUAKMScript::Function_BA(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_BA - Clear allowed actions");
+	DebugTrace(pState, "Function_BA - Clear allowed actions");
 	pState->AllowedAction = ActionType::None;
 }
 
 void CUAKMScript::Function_C4(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C4 - Hide location object");
+	DebugTrace(pState, "Function_C4 - Hide location object");
 	if (_pLoc != NULL)
 	{
-		_pLoc->SetObjectVisibility(GetInt(pState->Script, pState->ExecutionPointer, 2), FALSE);
+		_pLoc->SetObjectVisibility(GetInt(pState->Script, pState->ExecutionPointer, 2), false);
 	}
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_C5(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C5 - Show location object");
+	DebugTrace(pState, "Function_C5 - Show location object");
 	if (_pLoc != NULL)
 	{
-		_pLoc->SetObjectVisibility(GetInt(pState->Script, pState->ExecutionPointer, 2), TRUE);
+		_pLoc->SetObjectVisibility(GetInt(pState->Script, pState->ExecutionPointer, 2), true);
 	}
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_C9(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_C9 - Add Score");
+	DebugTrace(pState, "Function_C9 - Add Score");
 	CGameController::AddScore(GetInt(pState->Script, pState->ExecutionPointer, 2));
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_CD(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_CD - Set Frame Trigger");
+	DebugTrace(pState, "Function_CD - Set Frame Trigger");
 	pState->FrameTrigger = GetInt(pState->Script, pState->ExecutionPointer, 2);
 	pState->ExecutionPointer += 2;
 }
 
 void CUAKMScript::Function_CE(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_CE - Print at Frame Trigger (Tex)");
-	AddCaption(pState, TRUE);
+	DebugTrace(pState, "Function_CE - Print at Frame Trigger (Tex)");
+	AddCaption(pState, true);
 }
 
-void CUAKMScript::AddCaption(CScriptState* pState, BOOL TexTalk)
+void CUAKMScript::AddCaption(CScriptState* pState, bool TexTalk)
 {
 	// Print at frame trigger (ce = Tex talks, cf = others talk)
 	char* pST = (char*)(pState->Script + pState->ExecutionPointer);
@@ -1445,31 +1447,31 @@ void CUAKMScript::AddCaption(CScriptState* pState, BOOL TexTalk)
 
 void CUAKMScript::Function_CF(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_CF - Print at Frame Trigger (Other)");
-	AddCaption(pState, FALSE);
+	DebugTrace(pState, "Function_CF - Print at Frame Trigger (Other)");
+	AddCaption(pState, false);
 }
 
 void CUAKMScript::Function_D7(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D7 - Pause MIDI");
+	DebugTrace(pState, "Function_D7 - Pause MIDI");
 	pMIDI->Pause();
 }
 
 void CUAKMScript::Function_D8(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D8 - Resume MIDI");
+	DebugTrace(pState, "Function_D8 - Resume MIDI");
 	pMIDI->Resume();
 }
 
 void CUAKMScript::Function_D9(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_D9 - Stop MIDI");
+	DebugTrace(pState, "Function_D9 - Stop MIDI");
 	pMIDI->Stop();
 }
 
 void CUAKMScript::Function_E0(CScriptState* pState)
 {
-	DebugTrace(pState, L"Function_E0 - Script ID");
+	DebugTrace(pState, "Function_E0 - Script ID");
 	pState->ExecutionPointer += 2;	// Skip ID
 }
 
@@ -1485,8 +1487,8 @@ void CUAKMScript::Play(CScriptState* pState, int index, int bank, int rate)
 		if (bank == 1)
 		{
 			FileMap fm = _mapEntry->VideoMap.at(index);
-			std::wstring fn = CGameController::GetFileName(fm.File);
-			if (fn != L"")
+			std::string fn = CGameController::GetFileName(fm.File);
+			if (fn != "")
 			{
 				//CModuleController::Push(new CVideoModule(VideoType::Scripted, fn, mm.FileEntry));
 				CAnimationController::Load(fn.c_str(), fm.Entry);
@@ -1495,8 +1497,8 @@ void CUAKMScript::Play(CScriptState* pState, int index, int bank, int rate)
 		else
 		{
 			FileMap fm = _mapEntry->AudioMap.at(index);
-			std::wstring fn = CGameController::GetFileName(fm.File);
-			if (fn != L"")
+			std::string fn = CGameController::GetFileName(fm.File);
+			if (fn != "")
 			{
 				CAnimationController::Load(fn.c_str(), fm.Entry);
 			}
@@ -1514,8 +1516,8 @@ void CUAKMScript::Play(CScriptState* pState, int index, int bank, int rate)
 			fm = _mapEntry->VideoMap.at(index);
 		}
 
-		std::wstring fn = CGameController::GetFileName(fm.File);
-		if (fn != L"")
+		std::string fn = CGameController::GetFileName(fm.File);
+		if (fn != "")
 		{
 			CAnimationController::Load(fn.c_str(), fm.Entry);
 		}
@@ -1526,7 +1528,7 @@ void CUAKMScript::Play(CScriptState* pState, int index, int bank, int rate)
 
 void CUAKMScript::PlayAudio(CScriptState* pState, int index)
 {
-	CAmbientAudio::Play(_mapEntry, index, TRUE);
+	CAmbientAudio::Play(_mapEntry, index, true);
 }
 
 ActionType CUAKMScript::GetCurrentActions(CScriptState* pState, int currentObjectIndex)
@@ -1538,13 +1540,13 @@ ActionType CUAKMScript::GetCurrentActions(CScriptState* pState, int currentObjec
 		if (pState->ExecutionPointer >= 0)
 		{
 			// Set query action flag
-			pState->QueryAction = TRUE;
+			pState->QueryAction = true;
 
 			// Execute script
-			Resume(pState, TRUE);
+			Resume(pState, true);
 
 			// Clear query action flag
-			pState->QueryAction = FALSE;
+			pState->QueryAction = false;
 		}
 	}
 
@@ -1556,7 +1558,7 @@ void CUAKMScript::Show(CScriptState* pState, int index)
 	if (_mapEntry->ScriptFileEntry != 0 || _mapEntry->ScriptFileIndex != 0)
 	{
 		FileMap fm = _mapEntry->ImageMap.at(index);
-		pState->WaitingForMediaToFinish = TRUE;	// Set to break out of the script loop
+		pState->WaitingForMediaToFinish = true;	// Set to break out of the script loop
 		CModuleController::Push(new CPictureModule(fm.File, fm.Entry, this, pState));
 	}
 }
@@ -1580,12 +1582,12 @@ void CUAKMScript::SelectDialogueOption(CScriptState* pState, int option)
 	}
 	else
 	{
-		pState->AskAbout = pState->Offer = FALSE;
+		pState->AskAbout = pState->Offer = false;
 		if (pState->WaitingForInput)
 		{
 			pState->Mode = InteractionMode::None;
 			pState->SelectedOption = option;
-			Resume(pState, TRUE);
+			Resume(pState, true);
 		}
 	}
 }

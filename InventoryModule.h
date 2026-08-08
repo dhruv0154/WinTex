@@ -2,15 +2,16 @@
 
 #include "ModuleBase.h"
 #include <list>
-#include "D3D11-NoWarn.h"
 #include "DXButton.h"
 #include "AnimBase.h"
 #include "DXImageButton.h"
+#include "Structs.h"
+#include <cstdint>
 
-#define EXAMINE_FLAG_VIDEO			1
-#define EXAMINE_FLAG_IMAGE			2
-#define EXAMINE_FLAG_TEXT			4
-#define EXAMINE_FLAG_SPECIAL		8
+#define EXAMINE_FLAG_VIDEO          1
+#define EXAMINE_FLAG_IMAGE          2
+#define EXAMINE_FLAG_TEXT           4
+#define EXAMINE_FLAG_SPECIAL        8
 
 class CInventoryModule : public CModuleBase
 {
@@ -31,29 +32,31 @@ protected:
 	static CInventoryModule* Instance;
 	virtual void Initialize();
 
-	BOOL CheckButton(CDXButton* btn, float x, float y);
+	bool CheckButton(CDXButton* btn, float x, float y);
 
 	static int _selectedItemId;
 	static int _draggingItemId;
 	static int _mouseOverItemId;
-	POINT _mouseDownPoint;
-	BOOL _dragging;
-	static ULONGLONG _lastItemClick;
+	
+	int _mouseDownX;
+	int _mouseDownY;
+	bool _dragging;
+	static uint64_t _lastItemClick;
 
 	static CDXButton* _pBtnExamine;
 	static CDXButton* _pBtnUse;
 	static CDXButton* _pBtnResume;
 
-	static void OnExamine(LPVOID data);
-	static void OnUse(LPVOID data);
-	static void OnResume(LPVOID data);
+	static void OnExamine(void* data);
+	static void OnUse(void* data);
+	static void OnResume(void* data);
 
 	virtual void Examine();
 	virtual void Resume();
 
 	static ID3D11Buffer* _selectionRectangle;
 
-	static LPBYTE _examData;
+	static uint8_t* _examData;
 	static int _examStructSize;
 
 	enum class ExminationFlag
@@ -67,24 +70,24 @@ protected:
 	#pragma pack(1)
 	struct ExminationData
 	{
-		BYTE ItemId;
-		BYTE AddItemId;
-		BYTE ParameterAIndex;
-		BYTE ParameterAValue;
-		BYTE AskAbout1;
-		BYTE AskAbout2;
-		BYTE Travel1;
-		BYTE Travel2;
-		BYTE File;
-		BYTE Entry;
-		LONG DescriptionOffset;
-		BYTE Flags;
-		WORD Rate;
-		WORD HintState;
+		uint8_t ItemId;
+		uint8_t AddItemId;
+		uint8_t ParameterAIndex;
+		uint8_t ParameterAValue;
+		uint8_t AskAbout1;
+		uint8_t AskAbout2;
+		uint8_t Travel1;
+		uint8_t Travel2;
+		uint8_t File;
+		uint8_t Entry;
+		int32_t DescriptionOffset;
+		uint8_t Flags;
+		uint16_t Rate;
+		uint16_t HintState;
 	};
 	#pragma pack(8)
 
-	static WCHAR _examFileName[11];
+	static char _examFileName[16];
 	static CAnimBase* _anim;
 
 	static CDXText _text;
@@ -92,19 +95,19 @@ protected:
 	static CDXImageButton* _pBtnUp;
 	static CDXImageButton* _pBtnDown;
 
-	D3D11_RECT _fullRect;
-	static D3D11_RECT _limitedRect;
+	Rect _fullRect;
+	static Rect _limitedRect;
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void EndAction();
 	virtual void Back();
 	virtual void Next();
 	virtual void Prev();
 
-	static void ScrollUp(LPVOID data);
-	static void ScrollDown(LPVOID data);
+	static void ScrollUp(void* data);
+	static void ScrollDown(void* data);
 	static void UpdateButtons();
 
 	static int _lineAdjustment;

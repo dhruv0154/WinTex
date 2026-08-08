@@ -5,42 +5,51 @@
 #include "AnimationController.h"
 #include "GameController.h"
 #include "MainMenuModule.h"
+#include <vector>
+#include <cmath>
+
+#define VK_RETURN 0x0D
 
 CVideoModule::CVideoModule(VideoType type, int dmapIndex, int activeScript) : CModuleBase(ModuleType::Video)
 {
-	Type = type;
+    Type = type;
+    _scriptEngine = nullptr; 
+    _scriptState = nullptr;  
 
-	std::wstring test = CGameController::GetFileName(dmapIndex);
+    _scriptEngine = CGameController::GetScriptEngine();
+    _scriptEngine->_mapEntry = CModuleController::pDMap->Get(dmapIndex);
+    
+    std::string fileName = CGameController::GetFileName(_scriptEngine->_mapEntry->ScriptFileIndex);
 
-	// Get DMAPData, copy script, reset pointer or set to active script
-	_scriptEngine = CGameController::GetScriptEngine();
-	_scriptEngine->_mapEntry = CModuleController::pDMap->Get(dmapIndex);
-	std::wstring fileName = CGameController::GetFileName(_scriptEngine->_mapEntry->ScriptFileIndex);
-	if (fileName != L"")
-	{
-		BinaryData bd = LoadEntry(fileName.c_str(), _scriptEngine->_mapEntry->ScriptFileEntry);
-		_scriptState = CGameController::GetScriptState();
-		_scriptState->Init(bd.Data, bd.Length, fileName.c_str(), _scriptEngine->_mapEntry->ScriptFileEntry);
+    if (!fileName.empty())
+    {
+        BinaryData bd = LoadEntry(fileName.c_str(), _scriptEngine->_mapEntry->ScriptFileEntry);
+        
+        if (bd.Data != nullptr)
+        {
+            _scriptState = CGameController::GetScriptState();
+            _scriptState->Init(bd.Data, bd.Length, fileName.c_str(), _scriptEngine->_mapEntry->ScriptFileEntry);
 
-		//if (activeScript < 0)
-		{
-			activeScript = 0;
-		}
-		if (activeScript >= 0)
-		{
-			_scriptState->ExecutionPointer = _scriptState->GetScript(activeScript);
-		}
+            if (activeScript < 0)
+            {
+                activeScript = 0;
+            }
+            if (activeScript >= 0)
+            {
+                _scriptState->ExecutionPointer = _scriptState->GetScript(activeScript);
+            }
+            if (_scriptState->ExecutionPointer < 0)
+            {
+                _scriptState->ExecutionPointer = 0;
+            }
+        }
+    }
 
-		if (_scriptState->ExecutionPointer < 0)
-		{
-			_scriptState->ExecutionPointer = 0;
-		}
-	}
 
-	_askAboutBase = 0;
+    _askAboutBase = 0;
 }
 
-CVideoModule::CVideoModule(VideoType type, LPCWSTR fileName, int itemIndex) : CModuleBase(ModuleType::Video)
+CVideoModule::CVideoModule(VideoType type, const char* fileName, int itemIndex) : CModuleBase(ModuleType::Video)
 {
 	Type = type;
 
@@ -57,20 +66,20 @@ CVideoModule::~CVideoModule()
 
 void CVideoModule::Initialize()
 {
-	_cursorPosX = dx.GetWidth() / 2.0f;
-	_cursorPosY = dx.GetHeight() / 2.0f;
+    _cursorPosX = dx.GetWidth() / 2.0f;
+    _cursorPosY = dx.GetHeight() / 2.0f;
 
-	DialogueOptions[0].SetClick(DialogueOptionA);
-	DialogueOptions[1].SetClick(DialogueOptionB);
-	DialogueOptions[2].SetClick(DialogueOptionC);
+    DialogueOptions[0].SetClick(DialogueOptionA);
+    DialogueOptions[1].SetClick(DialogueOptionB);
+    DialogueOptions[2].SetClick(DialogueOptionC);
 
-	if (_scriptEngine != NULL)
-	{
-		_scriptEngine->Resume(_scriptState);
-	}
+    if (_scriptEngine != nullptr && _scriptState != nullptr)
+    {
+        _scriptEngine->Resume(_scriptState);
+    }
 }
 
-void CVideoModule::KeyDown(WPARAM key, LPARAM lParam)
+void CVideoModule::KeyDown(int key, int lParam)
 {
 	CModuleBase::KeyDown(key, lParam);
 
@@ -123,7 +132,7 @@ void CVideoModule::Render()
 
 			if (_scriptState->AskAbout || _scriptState->Offer || _scriptState->Buy)
 			{
-				BOOL recreate = ((_scriptState->AskAbout && CGameController::AskAboutChanged) || (_scriptState->Offer && CGameController::ItemsChanged) || (_scriptState->Buy && CGameController::BuyChanged));
+				bool recreate = ((_scriptState->AskAbout && CGameController::AskAboutChanged) || (_scriptState->Offer && CGameController::ItemsChanged) || (_scriptState->Buy && CGameController::BuyChanged));
 
 				if (_scriptState->TopItemOffset < 0 || recreate)
 				{
@@ -141,7 +150,7 @@ void CVideoModule::Render()
 							items.push_back(lbi);
 						}
 
-						CGameController::AskAboutChanged = FALSE;
+						CGameController::AskAboutChanged = false;
 						valToFind = 4;
 					}
 					else if (_scriptState->Offer)
@@ -155,7 +164,7 @@ void CVideoModule::Render()
 							items.push_back(lbi);
 						}
 
-						CGameController::ItemsChanged = FALSE;
+						CGameController::ItemsChanged = false;
 						valToFind = 7;
 					}
 					else if (_scriptState->Buy || (_scriptState->AskAbout && _scriptState->AskingAboutBuyables))
@@ -171,12 +180,11 @@ void CVideoModule::Render()
 							items.push_back(lbi);
 						}
 
-						CGameController::BuyChanged = FALSE;
+						CGameController::BuyChanged = false;
 						valToFind = _scriptState->Buy ? 6 : 4;
 					}
 
 					_scriptState->TopItemOffset = 0;
-					// Make list appear over the correct button
 					int ix = 0;
 					if (DialogueOptions[1].GetValue() == valToFind)
 					{
@@ -186,7 +194,7 @@ void CVideoModule::Render()
 					{
 						ix = 2;
 					}
-					_listBox.Init(items, floor(DialogueOptions[ix].GetX() + DialogueOptions[ix].GetWidth() / 2.0f));
+					_listBox.Init(items, std::floor(DialogueOptions[ix].GetX() + DialogueOptions[ix].GetWidth() / 2.0f));
 				}
 
 				_listBox.Render();
@@ -199,39 +207,43 @@ void CVideoModule::Render()
 	}
 
 	if (!CAnimationController::HasAnim() || CAnimationController::IsDone())
-	{
-		if (Type == VideoType::Single)
-		{
-			CAnimationController::Clear();
-			CModuleController::Pop(this);
-		}
-		else if (Type == VideoType::Scripted)
-		{
-			if (_scriptState->WaitingForMediaToFinish)
-			{
-				_scriptEngine->Resume(_scriptState, TRUE);
-			}
-			else if (_scriptState->ExecutionPointer == -1)
-			{
-				CAnimationController::Clear();
-				CModuleController::Pop(this);
-				// TODO: Should only clear when truly done
-			}
-		}
-	}
+    {
+        if (Type == VideoType::Single)
+        {
+            CAnimationController::Clear();
+            CModuleController::Pop(this);
+        }
+        else if (Type == VideoType::Scripted)
+        {
+            if (_scriptState == nullptr) 
+            {
+                CAnimationController::Clear();
+                CModuleController::Pop(this);
+            }
+            else if (_scriptState->WaitingForMediaToFinish)
+            {
+                _scriptEngine->Resume(_scriptState, true);
+            }
+            else if (_scriptState->ExecutionPointer == -1)
+            {
+                CAnimationController::Clear();
+                CModuleController::Pop(this);
+            }
+        }
+    }
 }
 
-void CVideoModule::DialogueOptionA(LPVOID data)
+void CVideoModule::DialogueOptionA(void* data)
 {
 	SelectOption(DialogueOptions[0].GetValue());
 }
 
-void CVideoModule::DialogueOptionB(LPVOID data)
+void CVideoModule::DialogueOptionB(void* data)
 {
 	SelectOption(DialogueOptions[1].GetValue());
 }
 
-void CVideoModule::DialogueOptionC(LPVOID data)
+void CVideoModule::DialogueOptionC(void* data)
 {
 	SelectOption(DialogueOptions[2].GetValue());
 }
@@ -257,21 +269,13 @@ void CVideoModule::Resize(int width, int height)
 
 void CVideoModule::Resume()
 {
-	//if (_scriptState->WaitingForMediaToFinish)
-	//{
-	//	//_scriptEngine->Resume(_scriptState, TRUE);
-	//}
-	//else if (_scriptState->WaitingForInput)
-	//{
-	//	_scriptEngine->Resume(_scriptState, TRUE);
-	//}
 	if (_scriptState->WaitingForExternalModule)
 	{
-		_scriptEngine->Resume(_scriptState, TRUE);
+		_scriptEngine->Resume(_scriptState, true);
 	}
 }
 
-void CVideoModule::Cursor(float x, float y, BOOL relative)
+void CVideoModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -280,12 +284,10 @@ void CVideoModule::Cursor(float x, float y, BOOL relative)
 		x = _cursorPosX;
 		y = _cursorPosY;
 
-		// Check mouse over options buttons (only the ones that are visible)
 		for (int i = 0; i < 3; i++)
 		{
 			if (DialogueOptionsCount > i)
 			{
-				// Check if mouse is over button...
 				DialogueOptions[i].SetMouseOver(DialogueOptions[i].HitTest(x, y) != NULL);
 			}
 		}
@@ -313,12 +315,11 @@ void CVideoModule::BeginAction()
 			int hitId = _listBox.HitTestLB(x, y);
 			if (hitId >= 0)
 			{
-				// Set item id and option and resume script
 				int option = _scriptState->AskAbout ? 4 : _scriptState->Offer ? 7 : _scriptState->Buy ? 6 : -1;
 				CGameController::SetSelectedItem(hitId + ((option == 4) ? _askAboutBase : 0));
 				_scriptState->SelectedOption = option;
 				_scriptState->SelectedValue = hitId + ((option == 4) ? _askAboutBase : 0);
-				_scriptEngine->Resume(_scriptState, TRUE);
+				_scriptEngine->Resume(_scriptState, true);
 			}
 		}
 

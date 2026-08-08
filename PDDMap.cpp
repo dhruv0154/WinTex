@@ -3,16 +3,16 @@
 #include "LZ.h"
 #include "Utilities.h"
 
-BOOL CPDDMap::Init()
+bool CPDDMap::Init()
 {
-	BinaryData dmap = CLZ::Decompress(L"DMAP.LZ");
+	BinaryData dmap = CLZ::Decompress("DMAP.LZ");
 
-	LPBYTE data = dmap.Data;
+	uint8_t* data = dmap.Data;
 	if (data != NULL && dmap.Length > 0)
 	{
 		// The Pandora Directive DMap
 		int offset = 0;
-		LPBYTE data = dmap.Data;
+		uint8_t* data = dmap.Data;
 		while (offset < dmap.Length)
 		{
 			CMapData* pMD = new CMapData();
@@ -92,8 +92,8 @@ BOOL CPDDMap::Init()
 
 		delete data;
 
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }

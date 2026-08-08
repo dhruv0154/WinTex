@@ -2,19 +2,23 @@
 #include "Utilities.h"
 #include "GameController.h"
 #include "PDGame.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <algorithm>
+#include <cstring>
 
-#define NEWSPAPER_PALETTE		0
-#define NEWSPAPER_PAGE			1
-#define NEWSPAPER_ARTICLE_1		2
-#define NEWSPAPER_ARTICLE_2		3
-#define NEWSPAPER_ARTICLE_3		4
-#define NEWSPAPER_ARTICLE_4		5
-#define NEWSPAPER_ARTICLE_5		6
-#define NEWSPAPER_ARTICLE_6		7
-#define NEWSPAPER_ARTICLE_7		8
-#define NEWSPAPER_ARTICLE_8		9
-#define NEWSPAPER_ARTICLE_9		10
-#define NEWSPAPER_ARTICLE_10	11
+#define NEWSPAPER_PALETTE       0
+#define NEWSPAPER_PAGE          1
+#define NEWSPAPER_ARTICLE_1     2
+#define NEWSPAPER_ARTICLE_2     3
+#define NEWSPAPER_ARTICLE_3     4
+#define NEWSPAPER_ARTICLE_4     5
+#define NEWSPAPER_ARTICLE_5     6
+#define NEWSPAPER_ARTICLE_6     7
+#define NEWSPAPER_ARTICLE_7     8
+#define NEWSPAPER_ARTICLE_8     9
+#define NEWSPAPER_ARTICLE_9     10
+#define NEWSPAPER_ARTICLE_10    11
 
 CPDNewspaperModule* CPDNewspaperModule::pPDNPM = NULL;
 
@@ -35,7 +39,7 @@ CPDNewspaperModule::CPDNewspaperModule() : CModuleBase(ModuleType::NewsPaper)
 	float _bottom = 0.0f;
 	float _scale = 0.0f;
 
-	ZeroMemory(_palette, 256 * sizeof(int));
+	memset(_palette, 0, 256 * sizeof(int));
 }
 
 CPDNewspaperModule::~CPDNewspaperModule()
@@ -61,10 +65,10 @@ void CPDNewspaperModule::Initialize()
 
 	// Load newspaper entries
 	CFile file;
-	if (file.Open(L"NEWS.AP"))
+	if (file.Open("NEWS.AP"))
 	{
-		DWORD length = file.Size();
-		LPBYTE data = new BYTE[length];
+		uint32_t length = file.Size();
+		uint8_t* data = new uint8_t[length];
 		if (data != NULL)
 		{
 			file.Read(data, length);
@@ -83,9 +87,9 @@ void CPDNewspaperModule::Initialize()
 						float r = data[offset + c * 3 + 0];
 						float g = data[offset + c * 3 + 1];
 						float b = data[offset + c * 3 + 2];
-						int ri = (byte)((r * 255.0f) / 63.0f);
-						int gi = (byte)((g * 255.0f) / 63.0f);
-						int bi = (byte)((b * 255.0f) / 63.0f);
+						int ri = (uint8_t)((r * 255.0f) / 63.0f);
+						int gi = (uint8_t)((g * 255.0f) / 63.0f);
+						int bi = (uint8_t)((b * 255.0f) / 63.0f);
 						int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
 						_palette[c] = col;
 					}
@@ -101,7 +105,7 @@ void CPDNewspaperModule::Initialize()
 							np->Width = GetInt(bd.Data, 2, 2);
 							np->Height = GetInt(bd.Data, 4, 2);
 							np->Texture.Init(np->Width, np->Height);
-							np->Data = new BYTE[np->Width * np->Height];
+							np->Data = new uint8_t[np->Width * np->Height];
 							memset(np->Data, 0, np->Width * np->Height);
 
 							int inPtr = 16;
@@ -119,7 +123,7 @@ void CPDNewspaperModule::Initialize()
 							UpdateTexture(np);
 
 							int width = np->Width, height = np->Height;
-							float scale = max(1.0f, min(((float)screenWidth) / (float)width, ((float)screenHeight) / height) * 0.75f);
+							float scale = std::max(1.0f, std::min(((float)screenWidth) / (float)width, ((float)screenHeight) / height) * 0.75f);
 							float sw = width * scale;
 							float sh = height * scale;
 							float ox = (screenWidth - sw);
@@ -142,24 +146,23 @@ void CPDNewspaperModule::Initialize()
 							TEXTURED_VERTEX* vertices = new TEXTURED_VERTEX[4];
 							if (vertices != NULL)
 							{
-								vertices[0].position = XMFLOAT3(right, top, 0.0f);
-								vertices[0].texture = XMFLOAT2(1.0f, 0.0f);
+								vertices[0].position = float3(right, top, 0.0f);
+								vertices[0].texture = float2(1.0f, 0.0f);
 
-								vertices[1].position = XMFLOAT3(right, bottom, 0.0f);
-								vertices[1].texture = XMFLOAT2(1.0f, 1.0f);
+								vertices[1].position = float3(right, bottom, 0.0f);
+								vertices[1].texture = float2(1.0f, 1.0f);
 
-								vertices[2].position = XMFLOAT3(left, top, 0.0f);
-								vertices[2].texture = XMFLOAT2(0.0f, 0.0f);
+								vertices[2].position = float3(left, top, 0.0f);
+								vertices[2].texture = float2(0.0f, 0.0f);
 
-								vertices[3].position = XMFLOAT3(left, bottom, 0.0f);
-								vertices[3].texture = XMFLOAT2(0.0f, 1.0f);
+								vertices[3].position = float3(left, bottom, 0.0f);
+								vertices[3].texture = float2(0.0f, 1.0f);
 
 								D3D11_BUFFER_DESC vertexBufferDesc;
 								vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 								vertexBufferDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 4;
 								vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 								vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-								vertexBufferDesc.MiscFlags = 0;
 								vertexBufferDesc.StructureByteStride = 0;
 
 								D3D11_SUBRESOURCE_DATA vertexData;
@@ -184,13 +187,12 @@ void CPDNewspaperModule::Initialize()
 		}
 	}
 
-	// Resume-button
-	char* pResume = "Resume";
+	const char* pResume = "Resume";
 	_pBtnResume = new CDXButton(pResume, TexFont.PixelWidth(pResume), 32.0f * pConfig->FontScale, OnResume);
 	_pBtnResume->SetPosition(dx.GetWidth() - _pBtnResume->GetWidth(), dx.GetHeight() - 40 * pConfig->FontScale);
 }
 
-void CPDNewspaperModule::OnResume(LPVOID data)
+void CPDNewspaperModule::OnResume(void* data)
 {
 	pPDNPM->Back();
 }
@@ -201,9 +203,8 @@ void CPDNewspaperModule::UpdateTexture(CNewsPaperView* np)
 	if (pTex != NULL)
 	{
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+		if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 		{
-			int inPtr = 16;
 			int* pScr = (int*)subRes.pData;
 			for (int y = 0; y < np->Height; y++)
 			{
@@ -214,10 +215,6 @@ void CPDNewspaperModule::UpdateTexture(CNewsPaperView* np)
 			}
 
 			dx.Unmap(pTex, 0);
-		}
-		else
-		{
-			int debug = 0;
 		}
 	}
 }
@@ -239,12 +236,12 @@ void CPDNewspaperModule::Render()
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &np->Buffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = np->Texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -263,7 +260,7 @@ void CPDNewspaperModule::Resize(int width, int height)
 {
 }
 
-void CPDNewspaperModule::Cursor(float x, float y, BOOL relative)
+void CPDNewspaperModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -283,7 +280,7 @@ void CPDNewspaperModule::Cursor(float x, float y, BOOL relative)
 				// Trace up or down from point, find byte with value >= 0x80
 				while (sy >= 0)
 				{
-					BYTE pixel = np->Data[sy * np->Width + sx];
+					uint8_t pixel = np->Data[sy * np->Width + sx];
 					if (pixel >= 0x80)
 					{
 						if (pixel != _highLight)

@@ -115,8 +115,6 @@ bool CTexture::Init(const char* file)
 
 	bool ret = false;
 
-	bool ret = false;
-
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = _width = 1; 
     desc.Height = _height = 1;
@@ -139,13 +137,17 @@ bool CTexture::Init(uint8_t* pImage, uint32_t size, const char* name)
 
     bool ret = false;
 
-    D3D11_TEXTURE2D_DESC desc = {};
-    desc.Width = _width = GetInt(pImage, 2, 2);
-    desc.Height = _height = GetInt(pImage, 4, 2);
-    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    D3DX11_IMAGE_LOAD_INFO li = {};
+    li.MipLevels = 1;
+    li.Usage = D3D11_USAGE_STAGING;
 
-    if (dx.CreateTexture2D(&desc, nullptr, &_texture) == 0)
+    if (D3DX11CreateTextureFromMemory(dx.GetDevice(), pImage, size, &li, nullptr, reinterpret_cast<ID3D11Resource**>(&_texture), nullptr) == 0)
     {
+        D3D11_TEXTURE2D_DESC desc;
+        _texture->GetDesc(&desc);
+        _width = desc.Width;
+        _height = desc.Height;
+
         if (dx.CreateShaderResourceView(_texture, nullptr, &_textureRV) == 0)
         {
             ret = true;

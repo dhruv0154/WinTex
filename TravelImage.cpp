@@ -1,15 +1,17 @@
 #include "TravelImage.h"
 #include "ShaderStructs.h"
 #include "Globals.h"
+#include "ConstantBuffers.h"
+#include <cmath>
 
 void CTravelImage::Render()
 {
 	if (Buffer != NULL)
 	{
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &Buffer, &stride, &offset);
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = Texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -21,10 +23,10 @@ void CTravelImage::Render(float x, float y)
 {
 	if (Buffer != NULL)
 	{
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &Buffer, &stride, &offset);
-		XMMATRIX wm = XMMatrixTranslation(floor(x) + 0.5f, floor(y), 0.0f);
+		float16 wm = Math::Translation(std::floor(x) + 0.5f, std::floor(y), 0.0f);
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = Texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);

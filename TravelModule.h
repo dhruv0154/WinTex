@@ -3,36 +3,38 @@
 #include "FullScreenModule.h"
 #include "TravelImage.h"
 #include "SubLocation.h"
+#include <unordered_map>
+#include <list>
 
 class CTravelModule : public CFullScreenModule
 {
 public:
-	CTravelModule();
-	virtual ~CTravelModule();
+    CTravelModule();
+    virtual ~CTravelModule();
 
-	virtual void Resize(int width, int height);
-	virtual void Dispose();
-	virtual void Render() = 0;
+    virtual void Resize(int width, int height);
+    virtual void Dispose();
+    virtual void Render() = 0;
 
-	// Input related
-	virtual void Initialize() = 0;
+    // Input related
+    virtual void Initialize() = 0;
 
-	int _travelDataOffset;
+    int _travelDataOffset;
 
-	int _selectedLocation;
-	int _selectedSubLocation;
-	int _selectedSubLocationEntry;
+    int _selectedLocation;
+    int _selectedSubLocation;
+    int _selectedSubLocationEntry;
 
-	std::unordered_map<int, CTravelImage*> _images;
-	std::list<CSubLocation*> _subLocations;
+    std::unordered_map<int, CTravelImage*> _images;
+    std::list<CSubLocation*> _subLocations;
 
-	ID3D11Buffer* _selectionIndicator;
+    ID3D11Buffer* _selectionIndicator;
 
-	// Input related
-	virtual void BeginAction();
-	virtual void Back();
+    // Input related
+    virtual void BeginAction();
+    virtual void Back();
 
-	const short* _coordinates;
-	const short* _hotspots;
-	const signed char* _resultTable;
+    const short* _coordinates;
+    const short* _hotspots;
+    const signed char* _resultTable;
 };

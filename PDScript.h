@@ -2,6 +2,7 @@
 
 #include "ScriptBase.h"
 #include <set>
+#include <cstdint>
 
 class CPDScript : public CScriptBase
 {
@@ -10,8 +11,7 @@ public:
 	virtual ~CPDScript();
 
 	virtual void Execute(CScriptState* pState, int id);
-	virtual void Resume(CScriptState* pState, BOOL breakWait = FALSE);
-	//virtual void Init(LPBYTE script, int length, bool owner);
+	virtual void Resume(CScriptState* pState, bool breakWait = false) override;
 	virtual ActionType GetCurrentActions(CScriptState* pState, int currentObjectIndex);
 	virtual void PermformAction(CScriptState* pState, int id, ActionType action, int item);
 
@@ -173,7 +173,7 @@ protected:
 	void PlayVideo(int index, int rate);
 	void Show(CScriptState* pState, int index);
 
-	void AddCaption(CScriptState* pState, BOOL TexTalk);
+	void AddCaption(CScriptState* pState, bool TexTalk);
 
 	int _alternatingIndex;
 

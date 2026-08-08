@@ -96,16 +96,10 @@ struct Size
 
 struct Rect
 {
-	float Top;
-	float Left;
-	float Bottom;
-	float Right;
-};
-
-struct Point2D 
-{ 
-    int32_t x; 
-    int32_t y; 
+	int Top;
+	int Left;
+	int Bottom;
+	int Right;
 };
 
 struct ListBoxItem

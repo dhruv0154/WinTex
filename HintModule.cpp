@@ -1,6 +1,7 @@
 #include "HintModule.h"
 #include "GameController.h"
 #include "Utilities.h"
+#include <algorithm>
 
 CHintModule::CHintModule() : CModuleBase(ModuleType::Hints)
 {
@@ -30,28 +31,26 @@ void CHintModule::Resize(int width, int height)
 
 void CHintModule::BeginAction()
 {
-	// Check mode
-	// If in catalog mode, check if a category has been selected
-	// If in category mode, check if an available hint has been selected
-
 	float y = (_hintTexture.Height() + 2) * pConfig->FontScale;
 	float hittesth = (_blankTexture.Height() - 2) * pConfig->FontScale;
-	float h = max(_blankTexture.Height() + 2, TexFont.Height()) * pConfig->FontScale;
+	float h = std::max(static_cast<float>(_blankTexture.Height() + 2), static_cast<float>(TexFont.Height())) * pConfig->FontScale;
 	float boxw = _blankTexture.Width() * pConfig->FontScale;
 	float hittestw = (_blankTexture.Width() - 2) * pConfig->FontScale;
 	float x = 9.0f * pConfig->FontScale;
 
 	if (_pCurrentHintCategory == NULL)
 	{
-		// Check if a hint category (questionmark box) was clicked (and select the category)
-
 		for (auto it : _activeHintCategories)
 		{
 			if (_cursorPosX >= x && _cursorPosX < (x + hittestw) && _cursorPosY >= y && _cursorPosY < (y + hittesth))
 			{
 				_pCurrentHintCategory = it;
 
-				Rect rect{ 0, 0, 1000, dx.GetWidth() - (x + boxw) * 2 };
+				Rect rect;
+				rect.Top = 0;
+				rect.Left = 0;
+				rect.Bottom = 1000;
+				rect.Right = dx.GetWidth() - static_cast<int>((x + boxw) * 2);
 
 				for (auto hit : _pCurrentHintCategory->Hints)
 				{
@@ -70,7 +69,6 @@ void CHintModule::BeginAction()
 			y += h;
 		}
 
-		// Check if the cancel/return button was clicked instead
 		if (_pBtnResume->GetMouseOver())
 		{
 			CModuleController::Pop(this);
@@ -78,10 +76,8 @@ void CHintModule::BeginAction()
 	}
 	else
 	{
-		// Check if a hint (questionmark box) was clicked (and show hint)
 		for (auto it : _pCurrentHintCategory->Hints)
 		{
-			// Only allow clicking on first hint that has hint state 0
 			int state = it->GetState();
 			if (state == 0)
 			{
@@ -101,7 +97,7 @@ void CHintModule::BeginAction()
 				break;
 			}
 
-			y += max(h, it->Height());
+			y += std::max(h, static_cast<float>(it->Height()));
 		}
 
 		if (_pBtnDirectory->GetMouseOver())
@@ -123,7 +119,7 @@ void CHintModule::Back()
 	}
 }
 
-void CHintModule::Cursor(float x, float y, BOOL relative)
+void CHintModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 

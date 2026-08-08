@@ -1,47 +1,45 @@
-#pragma once
 #include "BIC.h"
 #include "Utilities.h"
 #include "MediaIdentifiers.h"
+#include "DXSound.h"
+#include <algorithm>
 
-BOOL CBIC::Init(LPBYTE pData, int length)
+bool CBIC::Init(uint8_t* pData, int length)
 {
-	_embeddedAudioSize = 0;
-	_firstAudioFrame = 0;
-	_chunkTest = 0;
+    _embeddedAudioSize = 0;
+    _firstAudioFrame = 0;
+    _chunkTest = 0;
 
-	CAnimBase::Init(pData, length);
+    CAnimBase::Init(pData, length);
 
-	// Validate that the file is a BIC
-	if (GetInt(pData, 0, 4) == BIC)
-	{
-		_width = GetInt(pData, 10, 2);
-		_height = GetInt(pData, 12, 2);
-		//_bpp = GetInt(pData, 14, 2);
-		_rate = 6;
-		_frameTime = 100;
+    if (GetInt(pData, 0, 4) == BIC)
+    {
+        _width = GetInt(pData, 10, 2);
+        _height = GetInt(pData, 12, 2);
+        _rate = 6;
+        _frameTime = 100;
 
-		// Fix for some incorrect dimensions
-		if (videoMode == VideoMode::Embedded && _width == 640)
-		{
-			_width = 432;
-			_height = 324;
-		}
+        // Fix for some incorrect dimensions
+        if (videoMode == VideoMode::Embedded && _width == 640)
+        {
+            _width = 432;
+            _height = 324;
+        }
 
-		CreateBuffers(_width, _height, _factor);
-		_texture.Init(_width, _height);
+        CreateBuffers(_width, _height, _factor);
+        _texture.Init(_width, _height);
 
-		// Copy palette
-		for (int c = 0; c < 256; c++)
-		{
-			double r = pData[0x40 + c * 3 + 0];
-			double g = pData[0x40 + c * 3 + 1];
-			double b = pData[0x40 + c * 3 + 2];
-			int ri = (byte)((r * 255.0) / 63.0);
-			int gi = (byte)((g * 255.0) / 63.0);
-			int bi = (byte)((b * 255.0) / 63.0);
-			int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
-			_pPalette[c] = col;
-		}
+        for (int c = 0; c < 256; c++)
+        {
+            double r = pData[0x40 + c * 3 + 0];
+            double g = pData[0x40 + c * 3 + 1];
+            double b = pData[0x40 + c * 3 + 2];
+            int ri = static_cast<uint8_t>((r * 255.0) / 63.0);
+            int gi = static_cast<uint8_t>((g * 255.0) / 63.0);
+            int bi = static_cast<uint8_t>((b * 255.0) / 63.0);
+            int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
+            _pPalette[c] = col;
+        }
 
 		// Find video and audio pointers
 		_videoFramePointer = 0x340;
@@ -59,312 +57,300 @@ BOOL CBIC::Init(LPBYTE pData, int length)
 			_videoFramePointer += preload;
 		}
 
-		if (_audioFramePointer != NULL)
-		{
-			// This is a new audio buffer
-			_remainingAudioLength = GetInt(_pInputBuffer, 0x3c, 4);
+        if (_audioFramePointer != 0)
+        {
+            // This is a new audio buffer
+            _remainingAudioLength = GetInt(_pInputBuffer, 0x3c, 4);
 
-			char formatBuff[64];
-			WAVEFORMATEX* pwfx = reinterpret_cast<WAVEFORMATEX*>(&formatBuff);
-			pwfx->wFormatTag = GetInt(_pInputBuffer, 0x28, 2);// WAVE_FORMAT_PCM;
-			pwfx->nChannels = GetInt(_pInputBuffer, 0x2a, 2);
-			pwfx->nSamplesPerSec = GetInt(_pInputBuffer, 0x2c, 4);
-			pwfx->nAvgBytesPerSec = GetInt(_pInputBuffer, 0x30, 4);
-			pwfx->nBlockAlign = 2;
-			pwfx->wBitsPerSample = GetInt(_pInputBuffer, 0x36, 2);
-			pwfx->cbSize = 0;
+            AudioFormat fmt;
+            fmt.channels = GetInt(_pInputBuffer, 0x2a, 2);
+            fmt.samplesPerSec = GetInt(_pInputBuffer, 0x2c, 4);
+            fmt.bitsPerSample = GetInt(_pInputBuffer, 0x36, 2);
 
-			_sourceVoice = CDXSound::CreateSourceVoice(pwfx, 0, 1.0f, this);
-			if (_sourceVoice != NULL)
-			{
-				if (_chunkTest > 0)
-				{
-					XAUDIO2_BUFFER buf = { 0 };
-					int audioBytes = _videoFramePointer - 0x340;
-					buf.AudioBytes = audioBytes;
-					buf.pAudioData = _pInputBuffer + 0x340;
-					_remainingAudioLength -= audioBytes;
-					_sourceVoice->SubmitSourceBuffer(&buf);
+            _sourceVoice = CDXSound::CreateAudioStream(fmt);
+            if (_sourceVoice != nullptr)
+            {
+                if (_chunkTest > 0)
+                {
+                    int audioBytes = _videoFramePointer - 0x340;
+                    _remainingAudioLength -= audioBytes;
+                    
+                    _sourceVoice->SubmitBuffer(_pInputBuffer + 0x340, audioBytes);
+                    _audioFramesQueued++;
+                }
+            }
+        }
 
-					_audioFramesQueued++;
-				}
-			}
-		}
+        _framePointer = _videoFramePointer;
+        return true;
+    }
 
-		_framePointer = _videoFramePointer;
-
-		return TRUE;
-	}
-
-	return FALSE;
+    return false;
 }
 
 int CBIC::ProcessBICFrame(int inPtr, int chunkSize)
 {
-	int outPtr = 0;
-	int end = inPtr + chunkSize;
-	int currentRow = 0;
-	BOOL good = TRUE;
+    int outPtr = 0;
+    int end = inPtr + chunkSize;
+    int currentRow = 0;
+    bool good = true;
 
-	while (inPtr < end && good)
-	{
-		int type = *(_pInputBuffer + inPtr++);
-		if ((type & 1) != 0)
-		{
-			outPtr = currentRow * _width;
+    while (inPtr < end && good)
+    {
+        int type = *(_pInputBuffer + inPtr++);
+        
+        if ((type & 1) != 0)
+        {
+            outPtr = currentRow * _width;
 
-			BOOL readOffset = FALSE;
-			int chunks = *(short*)(_pInputBuffer + inPtr);
-			inPtr += 2;
-			if (chunks < 0)
-			{
-				chunks = -chunks;
-				readOffset = TRUE;
-			}
+            bool readOffset = false;
+            int chunks = *reinterpret_cast<int16_t*>(_pInputBuffer + inPtr);
+            inPtr += 2;
+            if (chunks < 0)
+            {
+                chunks = -chunks;
+                readOffset = true;
+            }
 
-			if (chunks >= 160)
-			{
-				good = FALSE;
-				break;
-			}
+            if (chunks >= 160)
+            {
+                good = false;
+                break;
+            }
 
-			while (chunks > 0)
-			{
-				if (readOffset)
-				{
-					outPtr += *(_pInputBuffer + inPtr++) * 4;
-					chunks--;
-				}
+            while (chunks > 0)
+            {
+                if (readOffset)
+                {
+                    outPtr += *(_pInputBuffer + inPtr++) * 4;
+                    chunks--;
+                }
 
-				int count = *(_pInputBuffer + inPtr++);
-				for (int i = 0; i < count; i++)
-				{
-					byte b = *(_pInputBuffer + inPtr++);
-					int copyOut = outPtr;
-					for (int y = 0; y < 4; y++)
-					{
-						for (int x = 0; x < 4; x++)
-						{
-							_pVideoOutputBuffer[copyOut + x] = b;
-						}
+                int count = *(_pInputBuffer + inPtr++);
+                for (int i = 0; i < count; i++)
+                {
+                    uint8_t b = *(_pInputBuffer + inPtr++);
+                    int copyOut = outPtr;
+                    for (int y = 0; y < 4; y++)
+                    {
+                        for (int x = 0; x < 4; x++)
+                        {
+                            _pVideoOutputBuffer[copyOut + x] = b;
+                        }
 
-						copyOut += _width;
-					}
+                        copyOut += _width;
+                    }
 
-					outPtr += 4;
-				}
+                    outPtr += 4;
+                }
 
-				chunks--;
-				readOffset = TRUE;
-			}
-		}
+                chunks--;
+                readOffset = true;
+            }
+        }
 
-		if (good && (type & 2) != 0)
-		{
-			outPtr = currentRow * _width;
+        if (good && (type & 2) != 0)
+        {
+            outPtr = currentRow * _width;
 
-			BOOL readOffset = FALSE;
-			int chunks = *(short*)(_pInputBuffer + inPtr);
-			inPtr += 2;
-			if (chunks < 0)
-			{
-				chunks = -chunks;
-				readOffset = TRUE;
-			}
+            bool readOffset = false;
+            int chunks = *reinterpret_cast<int16_t*>(_pInputBuffer + inPtr);
+            inPtr += 2;
+            if (chunks < 0)
+            {
+                chunks = -chunks;
+                readOffset = true;
+            }
 
-			if (chunks >= 160)
-			{
-				good = FALSE;
-				break;
-			}
+            if (chunks >= 160)
+            {
+                good = false;
+                break;
+            }
 
-			while (chunks > 0)
-			{
-				if (readOffset)
-				{
-					outPtr += *(_pInputBuffer + inPtr++) * 4;
-					chunks--;
-				}
+            while (chunks > 0)
+            {
+                if (readOffset)
+                {
+                    outPtr += *(_pInputBuffer + inPtr++) * 4;
+                    chunks--;
+                }
 
-				int count = *(_pInputBuffer + inPtr++);
-				for (int i = 0; i < count; i++)
-				{
-					int c1 = *(_pInputBuffer + inPtr++);
-					int c2 = *(_pInputBuffer + inPtr++);
-					int pattern = *(short*)(_pInputBuffer + inPtr);
-					inPtr += 2;
-					int copyOut = outPtr;
-					for (int y = 0; y < 4; y++)
-					{
-						_pVideoOutputBuffer[copyOut + 0] = (byte)(((pattern & 1) != 0) ? c2 : c1);
-						_pVideoOutputBuffer[copyOut + 1] = (byte)(((pattern & 2) != 0) ? c2 : c1);
-						_pVideoOutputBuffer[copyOut + 2] = (byte)(((pattern & 4) != 0) ? c2 : c1);
-						_pVideoOutputBuffer[copyOut + 3] = (byte)(((pattern & 8) != 0) ? c2 : c1);
+                int count = *(_pInputBuffer + inPtr++);
+                for (int i = 0; i < count; i++)
+                {
+                    int c1 = *(_pInputBuffer + inPtr++);
+                    int c2 = *(_pInputBuffer + inPtr++);
+                    int pattern = *reinterpret_cast<int16_t*>(_pInputBuffer + inPtr);
+                    inPtr += 2;
+                    int copyOut = outPtr;
+                    for (int y = 0; y < 4; y++)
+                    {
+                        _pVideoOutputBuffer[copyOut + 0] = static_cast<uint8_t>(((pattern & 1) != 0) ? c2 : c1);
+                        _pVideoOutputBuffer[copyOut + 1] = static_cast<uint8_t>(((pattern & 2) != 0) ? c2 : c1);
+                        _pVideoOutputBuffer[copyOut + 2] = static_cast<uint8_t>(((pattern & 4) != 0) ? c2 : c1);
+                        _pVideoOutputBuffer[copyOut + 3] = static_cast<uint8_t>(((pattern & 8) != 0) ? c2 : c1);
 
-						copyOut += _width;
+                        copyOut += _width;
+                        pattern >>= 4;
+                    }
 
-						pattern >>= 4;
-					}
+                    outPtr += 4;
+                }
 
-					outPtr += 4;
-				}
+                chunks--;
+                readOffset = true;
+            }
+        }
 
-				chunks--;
-				readOffset = TRUE;
-			}
-		}
+        if (good && (type & 4) != 0)
+        {
+            outPtr = currentRow * _width;
 
-		if (good && (type & 4) != 0)
-		{
-			outPtr = currentRow * _width;
+            bool readOffset = false;
+            int chunks = *reinterpret_cast<int16_t*>(_pInputBuffer + inPtr);
+            inPtr += 2;
+            if (chunks < 0)
+            {
+                chunks = -chunks;
+                readOffset = true;
+            }
 
-			BOOL readOffset = FALSE;
-			int chunks = *(short*)(_pInputBuffer + inPtr);
-			inPtr += 2;
-			if (chunks < 0)
-			{
-				chunks = -chunks;
-				readOffset = TRUE;
-			}
+            if (chunks >= 160)
+            {
+                good = false;
+                break;
+            }
 
-			if (chunks >= 160)
-			{
-				good = FALSE;
-				break;
-			}
+            while (chunks > 0)
+            {
+                if (readOffset)
+                {
+                    outPtr += *(_pInputBuffer + inPtr++) * 4;
+                    chunks--;
+                }
 
-			while (chunks > 0)
-			{
-				if (readOffset)
-				{
-					outPtr += *(_pInputBuffer + inPtr++) * 4;
-					chunks--;
-				}
+                int count = *(_pInputBuffer + inPtr++);
+                for (int i = 0; i < count; i++)
+                {
+                    int copyOut = outPtr;
+                    for (int y = 0; y < 4; y++)
+                    {
+                        for (int x = 0; x < 4; x++)
+                        {
+                            _pVideoOutputBuffer[copyOut + x] = *(_pInputBuffer + inPtr++);
+                        }
 
-				int count = *(_pInputBuffer + inPtr++);
-				for (int i = 0; i < count; i++)
-				{
-					int copyOut = outPtr;
-					for (int y = 0; y < 4; y++)
-					{
-						for (int x = 0; x < 4; x++)
-						{
-							_pVideoOutputBuffer[copyOut + x] = *(_pInputBuffer + inPtr++);
-						}
+                        copyOut += _width;
+                    }
 
-						copyOut += _width;
-					}
+                    outPtr += 4;
+                }
 
-					outPtr += 4;
-				}
+                chunks--;
+                readOffset = true;
+            }
+        }
 
-				chunks--;
-				readOffset = TRUE;
-			}
-		}
+        if (good && (type & 8) != 0)
+        {
+            outPtr = currentRow * _width;
 
-		if (good && (type & 8) != 0)
-		{
-			outPtr = currentRow * _width;
+            bool readOffset = false;
+            int chunks = *reinterpret_cast<int16_t*>(_pInputBuffer + inPtr);
+            inPtr += 2;
+            if (chunks < 0)
+            {
+                chunks = -chunks;
+                readOffset = true;
+            }
 
-			BOOL readOffset = FALSE;
-			int chunks = *(short*)(_pInputBuffer + inPtr);
-			inPtr += 2;
-			if (chunks < 0)
-			{
-				chunks = -chunks;
-				readOffset = TRUE;
-			}
+            if (chunks >= 160)
+            {
+                good = false;
+                break;
+            }
 
-			if (chunks >= 160)
-			{
-				good = FALSE;
-				break;
-			}
+            while (chunks > 0)
+            {
+                if (readOffset)
+                {
+                    outPtr += *(_pInputBuffer + inPtr++) * 4;
+                    chunks--;
+                }
 
-			while (chunks > 0)
-			{
-				if (readOffset)
-				{
-					outPtr += *(_pInputBuffer + inPtr++) * 4;
-					chunks--;
-				}
+                int count = *(_pInputBuffer + inPtr++);
+                for (int i = 0; i < count; i++)
+                {
+                    int c = *(_pInputBuffer + inPtr++);
+                    int c2 = (c >> 4) & 0xf;
+                    int c1 = c & 0xf;
+                    int pattern = *reinterpret_cast<int16_t*>(_pInputBuffer + inPtr);
+                    inPtr += 2;
 
-				int count = *(_pInputBuffer + inPtr++);
-				for (int i = 0; i < count; i++)
-				{
-					int c = *(_pInputBuffer + inPtr++);
-					int c2 = (c >> 4) & 0xf;
-					int c1 = c & 0xf;
-					int pattern = *(short*)(_pInputBuffer + inPtr);
-					inPtr += 2;
+                    int copyOut = outPtr;
+                    for (int y = 0; y < 4; y++)
+                    {
+                        _pVideoOutputBuffer[copyOut + 0] = static_cast<uint8_t>(((pattern & 1) != 0) ? c2 : c1);
+                        _pVideoOutputBuffer[copyOut + 1] = static_cast<uint8_t>(((pattern & 2) != 0) ? c2 : c1);
+                        _pVideoOutputBuffer[copyOut + 2] = static_cast<uint8_t>(((pattern & 4) != 0) ? c2 : c1);
+                        _pVideoOutputBuffer[copyOut + 3] = static_cast<uint8_t>(((pattern & 8) != 0) ? c2 : c1);
 
-					int copyOut = outPtr;
-					for (int y = 0; y < 4; y++)
-					{
-						_pVideoOutputBuffer[copyOut + 0] = (byte)(((pattern & 1) != 0) ? c2 : c1);
-						_pVideoOutputBuffer[copyOut + 1] = (byte)(((pattern & 2) != 0) ? c2 : c1);
-						_pVideoOutputBuffer[copyOut + 2] = (byte)(((pattern & 4) != 0) ? c2 : c1);
-						_pVideoOutputBuffer[copyOut + 3] = (byte)(((pattern & 8) != 0) ? c2 : c1);
+                        copyOut += _width;
+                        pattern >>= 4;
+                    }
 
-						copyOut += _width;
+                    outPtr += 4;
+                }
 
-						pattern >>= 4;
-					}
+                chunks--;
+                readOffset = true;
+            }
+        }
 
-					outPtr += 4;
-				}
+        currentRow += 4;
+    }
 
-				chunks--;
-				readOffset = TRUE;
-			}
-		}
-
-		currentRow += 4;
-	}
-
-	return end;
+    return end;
 }
 
-BOOL CBIC::DecodeFrame()
+bool CBIC::DecodeFrame()
 {
-	BOOL ret = FALSE;
+    bool ret = false;
 
-	if (_pInputBuffer != NULL && _framePointer >= 0 && _framePointer < _inputBufferLength)
-	{
-		int chunkSize = *(int*)(_pInputBuffer + _framePointer);
-		int end = ProcessBICFrame(_framePointer + 4, chunkSize);
+    if (_pInputBuffer != nullptr && _framePointer >= 0 && _framePointer < _inputBufferLength)
+    {
+        int chunkSize = *reinterpret_cast<int32_t*>(_pInputBuffer + _framePointer);
+        int end = ProcessBICFrame(_framePointer + 4, chunkSize);
 
-		if (end > _framePointer)
-		{
-			_framePointer += chunkSize + 4;
+        if (end > _framePointer)
+        {
+            _framePointer += chunkSize + 4;
 
-			// Play embedded audio...
-			_chunkTest++;
-			if (_chunkTest >= 1 && _remainingAudioLength > 0)
-			{
-				int remainingBufferLength = _inputBufferLength - _framePointer;
-				int waveChunkSize = (remainingBufferLength == _remainingAudioLength) ? _remainingAudioLength : min(_embeddedAudioSize, _remainingAudioLength);
-				_remainingAudioLength -= waveChunkSize;
+            _chunkTest++;
+            if (_chunkTest >= 1 && _remainingAudioLength > 0)
+            {
+                int remainingBufferLength = _inputBufferLength - _framePointer;
+                int waveChunkSize = (remainingBufferLength == _remainingAudioLength) ? _remainingAudioLength : std::min(_embeddedAudioSize, _remainingAudioLength);
+                _remainingAudioLength -= waveChunkSize;
 
-				if (_sourceVoice != NULL)
-				{
-					XAUDIO2_BUFFER buf = { 0 };
-					buf.AudioBytes = waveChunkSize;
-					buf.pAudioData = _pInputBuffer + _framePointer;
-					_sourceVoice->SubmitSourceBuffer(&buf);
+                if (_sourceVoice != nullptr)
+                {
+                    _sourceVoice->SubmitBuffer(_pInputBuffer + _framePointer, waveChunkSize);
+                    _audioFramesQueued++;
+                }
 
-					_audioFramesQueued++;
-				}
+                _framePointer += waveChunkSize;
+            }
 
-				_framePointer += waveChunkSize;
-			}
+            if (_frame == _firstAudioFrame && _sourceVoice != nullptr)
+            {
+                _sourceVoice->Start();
+            }
 
-			if (_frame == _firstAudioFrame && _sourceVoice != NULL) _sourceVoice->Start(0, 0);
+            ret = true;
+        }
+    }
 
-			ret = TRUE;
-		}
-	}
-
-	return ret;
+    return ret;
 }

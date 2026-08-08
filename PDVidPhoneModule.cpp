@@ -1,29 +1,32 @@
 #include "PDVidPhoneModule.h"
 #include "Utilities.h"
 #include "AnimationController.h"
-#include "resource.h"
 #include "GameController.h"
 #include "PDGame.h"
-#include <codecvt>
+#include "ConstantBuffers.h"
+#include "Shaders.h"
 #include <algorithm>
+#include <chrono>
+#include <cstring>
+#include <cmath>
 
-#define VIDPHONE_SCREEN				5
-#define VIDPHONE_BUTTONS			7
-#define VIDPHONE_SCREEN_RESET		9
+#define VIDPHONE_SCREEN             5
+#define VIDPHONE_BUTTONS            7
+#define VIDPHONE_SCREEN_RESET       9
 
-#define VIDPHONE_MODE_DEFAULT		0
-#define VIDPHONE_MODE_DIALLING		1
-#define VIDPHONE_MODE_IN_CALL		2
+#define VIDPHONE_MODE_DEFAULT       0
+#define VIDPHONE_MODE_DIALLING      1
+#define VIDPHONE_MODE_IN_CALL       2
 
-#define VIDPHONE_IMAGE_DIAL_DOWN	15
-#define VIDPHONE_IMAGE_DIAL_UP		19
-#define VIDPHONE_IMAGE_EXIT_DOWN	27
-#define VIDPHONE_IMAGE_EXIT_UP		31
-#define VIDPHONE_IMAGE_MESSAGE_DOWN	39
-#define VIDPHONE_IMAGE_MESSAGE_UP	43
+#define VIDPHONE_IMAGE_DIAL_DOWN    15
+#define VIDPHONE_IMAGE_DIAL_UP      19
+#define VIDPHONE_IMAGE_EXIT_DOWN    27
+#define VIDPHONE_IMAGE_EXIT_UP      31
+#define VIDPHONE_IMAGE_MESSAGE_DOWN 39
+#define VIDPHONE_IMAGE_MESSAGE_UP   43
 
-#define VIDPHONE_PHONE_NUMBERS		67
-#define VIDPHONE_SOUNDS				68
+#define VIDPHONE_PHONE_NUMBERS      67
+#define VIDPHONE_SOUNDS             68
 
 CPDVidPhoneModule::CPDVidPhoneModule() : CFullScreenModule(ModuleType::VidPhone)
 {
@@ -51,15 +54,15 @@ CPDVidPhoneModule::CPDVidPhoneModule() : CFullScreenModule(ModuleType::VidPhone)
 
 	_scriptEngine = CGameController::GetScriptEngine();
 
-	_screenResetData = NULL;
+	_screenResetData = nullptr;
 
 	_diallingIndex = -1;
 
-	_sourceVoice = NULL;
-	_readyForNextTone = FALSE;
-	_nextToneTime = NULL;
+	_audioStream = nullptr;
+	_readyForNextTone = false;
+	_nextToneTime = 0;
 
-	_highlighted = NULL;
+	_highlighted = nullptr;
 }
 
 CPDVidPhoneModule::~CPDVidPhoneModule()
@@ -69,17 +72,17 @@ CPDVidPhoneModule::~CPDVidPhoneModule()
 		delete pb;
 	}
 
-	if (_screenResetData != NULL)
+	if (_screenResetData != nullptr)
 	{
 		delete[] _screenResetData;
-		_screenResetData = NULL;
+		_screenResetData = nullptr;
 	}
 
-	if (_sourceVoice != NULL)
+	if (_audioStream != nullptr)
 	{
-		_sourceVoice->Stop();
-		_sourceVoice->DestroyVoice();
-		_sourceVoice = NULL;
+		_audioStream->Stop();
+		delete _audioStream;
+		_audioStream = nullptr;
 	}
 
 	Dispose();
@@ -94,13 +97,13 @@ void CPDVidPhoneModule::Initialize()
 	_pdRawFont.Init(IDR_RAWFONT_PD);
 	_uakmRawFont.Init(IDR_RAWFONT_UAKM);
 
-	DoubleData dd = LoadDoubleEntry(L"GRAPHICS.AP", VIDPHONE_SCREEN);
+	DoubleData dd = LoadDoubleEntry("GRAPHICS.AP", VIDPHONE_SCREEN);
 	ReadPalette(dd.File1.Data);
 
 	delete[] dd.File1.Data;
 
 	_screen = dd.File2.Data;
-	FillMemory(_screen + 640 * 366, 640 * 114, 0);
+	memset(_screen + 640 * 366, 0, 640 * 114);
 
 	int w = dx.GetWidth();
 	int h = dx.GetHeight();
@@ -113,8 +116,8 @@ void CPDVidPhoneModule::Initialize()
 	_cursorMinY = 0;
 	_cursorMaxY = h;
 
-	BinaryData bd = LoadEntry(L"GRAPHICS.AP", VIDPHONE_BUTTONS);
-	if (bd.Data != NULL)
+	BinaryData bd = LoadEntry("GRAPHICS.AP", VIDPHONE_BUTTONS);
+	if (bd.Data != nullptr)
 	{
 		_data = bd.Data;
 		int count = GetInt(_data, 0, 2) - 1;
@@ -124,8 +127,8 @@ void CPDVidPhoneModule::Initialize()
 		}
 	}
 
-	bd = LoadEntry(L"GRAPHICS.AP", VIDPHONE_SCREEN_RESET);
-	if (bd.Data != NULL)
+	bd = LoadEntry("GRAPHICS.AP", VIDPHONE_SCREEN_RESET);
+	if (bd.Data != nullptr)
 	{
 		_screenResetData = bd.Data;
 	}
@@ -153,41 +156,51 @@ void CPDVidPhoneModule::Render()
 {
 	if (_mode == VIDPHONE_MODE_IN_CALL)
 	{
-		if (CAnimationController::Exists() && CAnimationController::IsDone() && _scriptState.WaitingForInput == FALSE && _scriptState.ExecutionPointer == -1)
+		if (CAnimationController::Exists() && CAnimationController::IsDone() && _scriptState.WaitingForInput == false && _scriptState.ExecutionPointer == -1)
 		{
-			// Reset screen
 			_mode = VIDPHONE_MODE_DEFAULT;
 			RenderRaw(_screenResetData, 62, 42, 296, 228);
 
-			// Reset vidphone buttons
 			RenderItem(VIDPHONE_IMAGE_DIAL_DOWN, 296, 325);
 			RenderItem(VIDPHONE_IMAGE_EXIT_UP, 38, 325);
-			RenderItem(VIDPHONE_IMAGE_MESSAGE_DOWN, 124, 325);	// TODO: Render up if messages exist
+			RenderItem(VIDPHONE_IMAGE_MESSAGE_DOWN, 124, 325);
 
 			_callerIndex = -1;
 			for (auto pb : _phonebook)
 			{
-				pb->IsSelected = FALSE;
+				pb->IsSelected = false;
 			}
 
 			RenderPhonebook();
-
 			RenderEnterPhoneNumber();
-
 			UpdateTexture();
 		}
 	}
-	else if (_mode == VIDPHONE_MODE_DIALLING && GetTickCount64() > _nextToneTime)
+	else if (_mode == VIDPHONE_MODE_DIALLING)
 	{
+		uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
 		if (_diallingIndex == -1)
 		{
 			_mode = VIDPHONE_MODE_IN_CALL;
-
 			LoadVideo(_callerIndex);
 		}
-		else if (_readyForNextTone)
+		else 
 		{
-			PlayNextTone();
+			// Poll the stream to emulate the old OnBufferEnd callback
+			if (!_readyForNextTone && _audioStream != nullptr)
+			{
+				if (_audioStream->GetPendingBufferCount() == 0)
+				{
+					_nextToneTime = now + 100;
+					_readyForNextTone = true;
+				}
+			}
+
+			if (_readyForNextTone && now > _nextToneTime)
+			{
+				PlayNextTone();
+			}
 		}
 	}
 
@@ -220,7 +233,7 @@ void CPDVidPhoneModule::Render()
 
 			if (_scriptState.AskAbout || _scriptState.Offer || _scriptState.Buy)
 			{
-				BOOL recreate = ((_scriptState.AskAbout && CGameController::AskAboutChanged) || (_scriptState.Offer && CGameController::ItemsChanged) || (_scriptState.Buy && CGameController::BuyChanged));
+				bool recreate = ((_scriptState.AskAbout && CGameController::AskAboutChanged) || (_scriptState.Offer && CGameController::ItemsChanged) || (_scriptState.Buy && CGameController::BuyChanged));
 
 				if (_scriptState.TopItemOffset < 0 || recreate)
 				{
@@ -238,7 +251,7 @@ void CPDVidPhoneModule::Render()
 							items.push_back(lbi);
 						}
 
-						CGameController::AskAboutChanged = FALSE;
+						CGameController::AskAboutChanged = false;
 						valToFind = 4;
 					}
 					else if (_scriptState.Offer)
@@ -252,7 +265,7 @@ void CPDVidPhoneModule::Render()
 							items.push_back(lbi);
 						}
 
-						CGameController::ItemsChanged = FALSE;
+						CGameController::ItemsChanged = false;
 						valToFind = 7;
 					}
 					else if (_scriptState.Buy || (_scriptState.AskAbout && _scriptState.AskingAboutBuyables))
@@ -268,12 +281,11 @@ void CPDVidPhoneModule::Render()
 							items.push_back(lbi);
 						}
 
-						CGameController::BuyChanged = FALSE;
+						CGameController::BuyChanged = false;
 						valToFind = _scriptState.Buy ? 6 : 4;
 					}
 
 					_scriptState.TopItemOffset = 0;
-					// Make list appear over the correct button
 					int ix = 0;
 					if (DialogueOptions[1].GetValue() == valToFind)
 					{
@@ -283,13 +295,12 @@ void CPDVidPhoneModule::Render()
 					{
 						ix = 2;
 					}
-					_listBox.Init(items, floor(DialogueOptions[ix].GetX() + DialogueOptions[ix].GetWidth() / 2.0f));
+					_listBox.Init(items, std::floor(DialogueOptions[ix].GetX() + DialogueOptions[ix].GetWidth() / 2.0f));
 				}
 
 				_listBox.Render();
 			}
 
-			// Render arrow cursor
 			CModuleController::Cursors[0].SetPosition(_cursorPosX, _cursorPosY);
 			CModuleController::Cursors[0].Render();
 		}
@@ -303,7 +314,7 @@ void CPDVidPhoneModule::Render()
 	{
 		if (_scriptState.WaitingForMediaToFinish)
 		{
-			_scriptEngine->Resume(&_scriptState, TRUE);
+			_scriptEngine->Resume(&_scriptState, true);
 		}
 		else if (_scriptState.ExecutionPointer == -1)
 		{
@@ -318,12 +329,12 @@ void CPDVidPhoneModule::RenderScreen()
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -347,10 +358,9 @@ void CPDVidPhoneModule::BeginAction()
 		{
 			if (x >= 450 && x < 640 && y >= 1 && y < 142)
 			{
-				// Check if a phonebook entry has been clicked
 				for (auto pb : _phonebook)
 				{
-					pb->IsSelected = (y >= pb->Box.top && y < pb->Box.bottom);
+					pb->IsSelected = (y >= pb->Box.Top && y < pb->Box.Bottom);
 					if (pb->IsSelected)
 					{
 						_callerIndex = pb->Index;
@@ -368,7 +378,6 @@ void CPDVidPhoneModule::BeginAction()
 			{
 				if (x >= 38 && x <= 120)
 				{
-					// Exit
 					CModuleController::Pop(this);
 				}
 				else if (x >= 123 && x <= 206)
@@ -381,20 +390,17 @@ void CPDVidPhoneModule::BeginAction()
 				}
 				else if (x >= 296 && x <= 378)
 				{
-					// Dial
 					if (_callerIndex >= 0)
 					{
 						_mode = VIDPHONE_MODE_DIALLING;
 
-						// Disable vidphone buttons
 						RenderItem(VIDPHONE_IMAGE_DIAL_DOWN, 296, 325);
 						RenderItem(VIDPHONE_IMAGE_EXIT_DOWN, 38, 325);
 						RenderItem(VIDPHONE_IMAGE_MESSAGE_DOWN, 124, 325);
 						UpdateTexture();
 
-						// Start playing dialling sounds
 						_diallingIndex = _callerIndex * 20;
-						_readyForNextTone = TRUE;
+						_readyForNextTone = true;
 					}
 				}
 			}
@@ -412,12 +418,11 @@ void CPDVidPhoneModule::BeginAction()
 					int hitId = _listBox.HitTestLB(x, y);
 					if (hitId >= 0)
 					{
-						// Set item id and option and resume script
 						int option = _scriptState.AskAbout ? 4 : _scriptState.Offer ? 7 : _scriptState.Buy ? 6 : -1;
 						CGameController::SetSelectedItem(hitId + ((option == 4) ? _askAboutBase : 0));
 						_scriptState.SelectedOption = option;
 						_scriptState.SelectedValue = hitId + ((option == 4) ? _askAboutBase : 0);
-						_scriptEngine->Resume(&_scriptState, TRUE);
+						_scriptEngine->Resume(&_scriptState, true);
 					}
 				}
 
@@ -444,7 +449,6 @@ void CPDVidPhoneModule::Back()
 
 void CPDVidPhoneModule::UpdatePhonebook()
 {
-	// Names come from save situation, dialog table
 	int y = 1;
 	int phonebookSize = CGameController::GetWord(PD_SAVE_VIDPHONE_ENTRIES_COUNT);
 	for (int i = 0; i < phonebookSize; i++)
@@ -458,20 +462,18 @@ void CPDVidPhoneModule::UpdatePhonebook()
 
 void CPDVidPhoneModule::RenderPhonebook()
 {
-	// Names come from save situation, dialog table
 	int y = 1;
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
 	std::unordered_map<int, int> colourMap;
 	for (auto pb : _phonebook)
 	{
-		std::wstring name = CGameController::GetSituationDescriptionD(pb->Index + 1);
+		std::string name = CGameController::GetSituationDescriptionD(pb->Index + 1);
 		colourMap[2] = pb->IsSelected ? 15 : 13;
-		pb->Box = _pdRawFont.Render(_screen, 640, 480, 462, y, (char*)conv.to_bytes(name).c_str(), colourMap, -1, -1, TRUE);
+		pb->Box = _pdRawFont.Render(_screen, 640, 480, 462, y, name.c_str(), colourMap, -1, -1, true);
 		y += _pdRawFont.GetHeight();
 	}
 }
 
-void CPDVidPhoneModule::Cursor(float x, float y, BOOL relative)
+void CPDVidPhoneModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -480,12 +482,10 @@ void CPDVidPhoneModule::Cursor(float x, float y, BOOL relative)
 
 	if (_scriptState.WaitingForInput)
 	{
-		// Check mouse over options buttons (only the ones that are visible)
 		for (int i = 0; i < 3; i++)
 		{
 			if (DialogueOptionsCount > i)
 			{
-				// Check if mouse is over button...
 				DialogueOptions[i].SetMouseOver(DialogueOptions[i].HitTest(x, y) != NULL);
 			}
 		}
@@ -497,23 +497,22 @@ void CPDVidPhoneModule::Cursor(float x, float y, BOOL relative)
 	}
 	else if (_mode == VIDPHONE_MODE_DEFAULT)
 	{
-		BOOL update = FALSE;
-		if (_highlighted != NULL)
+		bool update = false;
+		if (_highlighted != nullptr)
 		{
-			DrawRectangle(_highlighted->Box.left - 3, _highlighted->Box.top - 1, _highlighted->Box.right + 3, _highlighted->Box.bottom - 2, 0);
-			update = TRUE;
+			DrawRectangle(static_cast<int>(_highlighted->Box.Left - 3), static_cast<int>(_highlighted->Box.Top - 1), static_cast<int>(_highlighted->Box.Right + 3), static_cast<int>(_highlighted->Box.Bottom - 2), 0);
+			update = true;
 		}
 
 		if (x >= 450 && x < 640 && y >= 1 && y < 142)
 		{
-			// Check if a phonebook entry has been clicked
 			for (auto pb : _phonebook)
 			{
-				if (y >= pb->Box.top && y < pb->Box.bottom)
+				if (y >= pb->Box.Top && y < pb->Box.Bottom)
 				{
-					DrawRectangle(pb->Box.left - 3, pb->Box.top - 1, pb->Box.right + 3, pb->Box.bottom - 2, 15);
+					DrawRectangle(static_cast<int>(pb->Box.Left - 3), static_cast<int>(pb->Box.Top - 1), static_cast<int>(pb->Box.Right + 3), static_cast<int>(pb->Box.Bottom - 2), 15);
 					_highlighted = pb;
-					update = TRUE;
+					update = true;
 				}
 			}
 		}
@@ -525,17 +524,17 @@ void CPDVidPhoneModule::Cursor(float x, float y, BOOL relative)
 	}
 }
 
-void CPDVidPhoneModule::DialogueOptionA(LPVOID data)
+void CPDVidPhoneModule::DialogueOptionA(void* data)
 {
 	SelectOption(DialogueOptions[0].GetValue());
 }
 
-void CPDVidPhoneModule::DialogueOptionB(LPVOID data)
+void CPDVidPhoneModule::DialogueOptionB(void* data)
 {
 	SelectOption(DialogueOptions[1].GetValue());
 }
 
-void CPDVidPhoneModule::DialogueOptionC(LPVOID data)
+void CPDVidPhoneModule::DialogueOptionC(void* data)
 {
 	SelectOption(DialogueOptions[2].GetValue());
 }
@@ -558,16 +557,14 @@ void CPDVidPhoneModule::LoadVideo(int caller)
 {
 	int dmapIndex = _callMap[caller];
 
-	// Get DMAPData, copy script, reset pointer or set to active script
 	_scriptEngine->_mapEntry = CModuleController::pDMap->Get(dmapIndex);
-	std::wstring fileName = CGameController::GetFileName(_scriptEngine->_mapEntry->ScriptFileIndex);
-	if (fileName != L"")
+	std::string fileName = CGameController::GetFileName(_scriptEngine->_mapEntry->ScriptFileIndex);
+	if (fileName != "")
 	{
 		BinaryData bd = LoadEntry(fileName.c_str(), _scriptEngine->_mapEntry->ScriptFileEntry);
-		//_scriptState = CGameController::GetScriptState();
 		_scriptState.Init(bd.Data, bd.Length, fileName.c_str(), _scriptEngine->_mapEntry->ScriptFileEntry);
 
-		_scriptState.ExecutionPointer = _scriptState.GetScript(50);	// 50 on startup, 51 on exit?
+		_scriptState.ExecutionPointer = _scriptState.GetScript(50); 
 
 		if (_scriptState.ExecutionPointer < 0)
 		{
@@ -585,8 +582,6 @@ void CPDVidPhoneModule::RenderEnterPhoneNumber()
 	Fill(135, 143, 284, 170, 0);
 	DrawRectangle(135, 143, 284, 170, 13);
 
-	// Inside green rectangle (150x28) from 136x172
-	// Colours 8 & 9, UAKM font
 	std::unordered_map<int, int> colourMap;
 	colourMap[2] = 9;
 	colourMap[3] = 8;
@@ -598,41 +593,36 @@ void CPDVidPhoneModule::PlayNextTone()
 {
 	if (_diallingIndex >= 0)
 	{
-		LPBYTE pNumbers = _files[VIDPHONE_PHONE_NUMBERS];
-		if (pNumbers != NULL)
+		uint8_t* pNumbers = _files[VIDPHONE_PHONE_NUMBERS];
+		if (pNumbers != nullptr)
 		{
 			while (pNumbers[_diallingIndex] != '.')
 			{
 				char n = pNumbers[_diallingIndex++];
 				if (n >= '0' && n <= '9')
 				{
-					LPBYTE wave = _files[VIDPHONE_SOUNDS + n - '0'];
-					if (wave != NULL)
+					uint8_t* wave = _files[VIDPHONE_SOUNDS + n - '0'];
+					if (wave != nullptr)
 					{
-						if (_sourceVoice == NULL)
+						if (_audioStream == nullptr)
 						{
-							char formatBuff[64];
-							WAVEFORMATEX* pwfx = reinterpret_cast<WAVEFORMATEX*>(&formatBuff);
-							pwfx->wFormatTag = GetInt(wave, 0x14, 2);
-							pwfx->nChannels = GetInt(wave, 0x16, 2);
-							pwfx->nSamplesPerSec = GetInt(wave, 0x18, 4);
-							pwfx->nAvgBytesPerSec = GetInt(wave, 0x1c, 4);
-							pwfx->nBlockAlign = 2;
-							pwfx->wBitsPerSample = GetInt(wave, 0x22, 2);
-							pwfx->cbSize = 0;
-							_sourceVoice = CDXSound::CreateSourceVoice(pwfx, 0, 1.0f, this);
+							AudioFormat formatBuff;
+							formatBuff.channels = GetInt(wave, 0x16, 2);
+							formatBuff.samplesPerSec = GetInt(wave, 0x18, 4);
+							formatBuff.bitsPerSample = GetInt(wave, 0x22, 2);
+							
+							_audioStream = CDXSound::CreateAudioStream(formatBuff);
 						}
 
-						if (_sourceVoice != NULL)
+						if (_audioStream != nullptr)
 						{
-							_sourceVoice->Start(0, 0);
+							uint32_t audioBytes = GetInt(wave, 0x28, 4);
+							const uint8_t* audioData = wave + 0x28;
+							
+							_audioStream->SubmitBuffer(audioData, audioBytes);
+							_audioStream->Start();
 
-							XAUDIO2_BUFFER buf = { 0 };
-							buf.AudioBytes = GetInt(wave, 0x28, 4);
-							buf.pAudioData = wave + 0x28;
-							_sourceVoice->SubmitSourceBuffer(&buf);
-
-							_readyForNextTone = FALSE;
+							_readyForNextTone = false;
 						}
 					}
 					break;

@@ -2,9 +2,9 @@
 
 #include "FullScreenModule.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
 #include "Texture.h"
 #include "AmbientAudio.h"
+#include <cstdint>
 
 class CUAKMCodePanelModule : public CFullScreenModule
 {
@@ -13,7 +13,7 @@ public:
 	virtual ~CUAKMCodePanelModule();
 
 	virtual void Render();
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 
 protected:
 	virtual void Initialize();
@@ -29,14 +29,14 @@ protected:
 
 	CAmbientAudio _sound;
 
-	ULONGLONG _passwordMessageTime;
+	uint64_t _passwordMessageTime;
 	int _lastMessageOffset;
 
 	int _wrongFrame;
-	ULONGLONG _wrongFrameTime;
+	uint64_t _wrongFrameTime;
 
 	int _correctFrame;
-	ULONGLONG _correctFrameTime;
+	uint64_t _correctFrameTime;
 
 	void Render(int entry, int offset_x, int offset_y);
 

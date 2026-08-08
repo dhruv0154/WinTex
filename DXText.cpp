@@ -2,10 +2,14 @@
 #include "Globals.h"
 #include "Utilities.h"
 #include "DXScreen.h"
+#include "ConstantBuffers.h"
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 
 CDXText::CDXText()
 {
-	_vertexBuffer = NULL;
+	_vertexBuffer = nullptr;
 
 	// TODO: Allow tab character
 	// TODO: Compress multiple spaces? (This is currently done, but should be optional)
@@ -24,735 +28,670 @@ CDXText::CDXText()
 
 CDXText::~CDXText()
 {
-	if (_vertexBuffer != NULL)
-	{
-		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
-	}
+    if (_vertexBuffer != nullptr)
+    {
+        _vertexBuffer->Release();
+        _vertexBuffer = nullptr;
+    }
 }
 
 void CDXText::Render(float x, float y, float z)
 {
-	if (_vertexBuffer == NULL) return;
+    if (_vertexBuffer == nullptr || _printableCharacters <= 0) return;
 
-	UINT stride = sizeof(TEXTURED_VERTEX);
-	UINT offset = 0;
-	dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
-	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    uint32_t stride = sizeof(TEXTURED_VERTEX_ORTHO);
+    uint32_t offset = 0;
+    dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
+    dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	ID3D11ShaderResourceView* pRV = TexFont.GetTextureRV();
-	XMMATRIX wm = XMMatrixTranslation(floor(x), -floor(y), z);
+    ID3D11ShaderResourceView* pRV = TexFont.GetTextureRV();
+    
+    float16 wm = Math::Translation(std::floor(x), -std::floor(y), z);
 
-	CShaders::SelectTexFontShader();
-
-	CDXFont::SelectFontColour(_colour1, _colour2, _colour3, _colour4);
-	CConstantBuffers::SetWorld(dx, &wm);
-	dx.SetShaderResources(0, 1, &pRV);
-	dx.Draw(_printableCharacters * 6, 0);
+    CShaders::SelectTexFontShader();
+    CDXFont::SelectFontColour(_colour1, _colour2, _colour3, _colour4);
+    CConstantBuffers::SetWorld(dx, &wm);
+    dx.SetShaderResources(0, 1, &pRV);
+    
+    dx.Draw(_printableCharacters * 6, 0);
 }
 
 CDXText::CWordList::CWordList()
 {
-	_text = NULL;
-	_chars = NULL;
-	_pixels = NULL;
-	_next = NULL;
-	_last = NULL;
+    _text = nullptr;
+    _chars = 0;
+    _pixels = 0.0f;
+    _next = nullptr;
+    _last = nullptr;
 }
 
-CDXText::CWordList::CWordList(char const* text, int chars, float pixels)
+CDXText::CWordList::CWordList(const char* text, int chars, float pixels)
 {
-	_text = text;
-	_chars = chars;
-	_pixels = pixels;
-	_next = NULL;
-	_last = NULL;
+    _text = text;
+    _chars = chars;
+    _pixels = pixels;
+    _next = nullptr;
+    _last = nullptr;
 }
 
-void CDXText::CWordList::Add(char const* text, int chars, float pixels)
+void CDXText::CWordList::Add(const char* text, int chars, float pixels)
 {
-	CWordList* pWL = new CWordList(text, chars, pixels);
-	if (_next == NULL) _next = pWL;
-	if (_last != NULL) _last->_next = pWL;
-	_last = pWL;
+    CWordList* pWL = new CWordList(text, chars, pixels);
+    if (_next == nullptr) _next = pWL;
+    if (_last != nullptr) _last->_next = pWL;
+    _last = pWL;
 }
 
 CDXText::CWordList::~CWordList()
 {
-	while (_next != NULL)
-	{
-		CWordList* next = _next;
-		_next = next->_next;
-		next->_next = NULL;
-		delete next;
-	}
+    while (_next != nullptr)
+    {
+        CWordList* next = _next;
+        _next = next->_next;
+        next->_next = nullptr;
+        delete next;
+    }
 }
 
 CDXText::CWordList* CDXText::CWordList::Next()
 {
-	return _next;
+    return _next;
 }
 
-float CDXText::CWordList::Pixels()
+float CDXText::CWordList::Pixels() const
 {
-	return _pixels;
+    return _pixels;
 }
 
-char const* CDXText::CWordList::Text()
+const char* CDXText::CWordList::Text() const
 {
-	return _text;
+    return _text;
 }
 
-int CDXText::CWordList::Chars()
+int CDXText::CWordList::Chars() const
 {
-	return _chars;
+    return _chars;
 }
 
-void CDXText::SetText(LPCWSTR text, Alignment alignment)
+void CDXText::SetText(const wchar_t* text, Alignment alignment)
 {
-	_wstring = text;
+    _wstring = text;
 
-	Rect rc;
-	rc.Top = 0;
-	rc.Left = 10.0f;
-	rc.Bottom = static_cast<float>(-dx.GetHeight());
-	rc.Right = static_cast<float>(dx.GetWidth() - 10.0f);
-	SetText(text, rc, alignment);
+    Rect rc;
+    rc.Top = 0.0f;
+    rc.Left = 10.0f;
+    rc.Bottom = static_cast<float>(-dx.GetHeight());
+    rc.Right = static_cast<float>(dx.GetWidth() - 10.0f);
+    SetText(text, rc, alignment);
 }
 
-void CDXText::SetText(char const* text, Alignment alignment)
+void CDXText::SetText(const char* text, Alignment alignment)
 {
-	_string = text;
+    _string = text;
 
-	Rect rc;
-	rc.Top = 0;
-	rc.Left = 10.0f;
-	rc.Bottom = static_cast<float>(-dx.GetHeight());
-	rc.Right = dx.GetWidth() - 10.0f;
-	SetText(text, rc, alignment);
+    Rect rc;
+    rc.Top = 0.0f;
+    rc.Left = 10.0f;
+    rc.Bottom = static_cast<float>(-dx.GetHeight());
+    rc.Right = static_cast<float>(dx.GetWidth() - 10.0f);
+    SetText(text, rc, alignment);
 }
 
-void CDXText::SetText(char const* text, Rect rect, Alignment alignment)
+void CDXText::SetText(const char* text, Rect rect, Alignment alignment)
 {
-	_string = text;
+    _string = text;
 
-	// TODO: Refactor to take a std::string text argument rather than char* ?
-	if (_vertexBuffer != NULL)
-	{
-		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
-	}
+    if (_vertexBuffer != nullptr)
+    {
+        _vertexBuffer->Release();
+        _vertexBuffer = nullptr;
+    }
 
-	_lines = 0;
-	_width = 0;
+    _lines = 0;
+    _width = 0.0f;
 
-	CWordList wl;
-	auto scan = text;
-	auto start = scan;
-	float pixels = 0.0f;
-	_printableCharacters = 0;
+    CWordList wl;
+    const char* scan = text;
+    const char* start = scan;
+    float pixels = 0.0f;
+    _printableCharacters = 0;
 
-	float* pWidths = TexFont.Widths();
-	float spaceWidth = pWidths[0] * pConfig->FontScale;
+    float* pWidths = TexFont.Widths();
+    float spaceWidth = pWidths[0] * pConfig->FontScale;
 
-	while (TRUE)
-	{
-		char c = *(scan++);
-		if (c == 0) break;
-		else if (c == 0x20 || c == 0xa || c == 0xd)
-		{
-			// space, add word to list
-			int len = static_cast<int>(scan - start - 1);
-			if (len > 0)
-			{
-				wl.Add(start, len, pixels);
-			}
+    while (true)
+    {
+        char c = *(scan++);
+        if (c == 0) break;
+        else if (c == 0x20 || c == 0xa || c == 0xd)
+        {
+            int len = static_cast<int>(scan - start - 1);
+            if (len > 0)
+            {
+                wl.Add(start, len, pixels);
+            }
 
-			if (c == 0xa || c == 0xd)
-			{
-				wl.Add(NULL, 0, 0);
-			}
+            if (c == 0xa || c == 0xd)
+            {
+                wl.Add(nullptr, 0, 0.0f);
+            }
 
-			start = scan;
-			pixels = 0.0f;
-		}
-		else if (c > 0x20 && c <= 0xff)
-		{
-			pixels += ((float)pWidths[c - 0x20]) * pConfig->FontScale;
-			_printableCharacters++;
-		}
-	}
+            start = scan;
+            pixels = 0.0f;
+        }
+        else if (c > 0x20 && static_cast<unsigned char>(c) <= 0xff)
+        {
+            pixels += static_cast<float>(pWidths[c - 0x20]) * pConfig->FontScale;
+            _printableCharacters++;
+        }
+    }
 
-	// Add last word to list
-	int len = static_cast<int>(scan - start - 1);
-	if (len > 0)
-	{
-		wl.Add(start, len, pixels);
-	}
+    int len = static_cast<int>(scan - start - 1);
+    if (len > 0)
+    {
+        wl.Add(start, len, pixels);
+    }
 
-	if (_printableCharacters > 0)
-	{
-		TEXTURED_VERTEX* pVB = new TEXTURED_VERTEX[6 * _printableCharacters];
-		if (pVB != NULL)
-		{
-			// Calculate how many lines are required
-			_lines = 0;
-			CWordList* pWL = wl.Next();
-			float maxw = rect.Right - rect.Left;
-			float pixelsLeft = 0.0f;
-			CWordList* print = NULL;
-			int wordsInLine = 0;
+    if (_printableCharacters > 0)
+    {
+        std::vector<TEXTURED_VERTEX_ORTHO> pVB(6 * _printableCharacters);
 
-			float sy = 0.0f;
-			int cix = 0;
-			float fcw = 1 / 224.0f;
-			float y1 = TexFont.Y1();
-			float y2 = TexFont.Y2();
-			float fh = TexFont.Height() * pConfig->FontScale;
+        _lines = 0;
+        CWordList* pWL = wl.Next();
+        float maxw = rect.Right - rect.Left;
+        float pixelsLeft = 0.0f;
+        CWordList* print = nullptr;
+        int wordsInLine = 0;
 
-			while (pWL != NULL)
-			{
-				if (pWL->Pixels() == 0)
-				{
-					// Forced new line
-					_lines++;
-					pWL = pWL->Next();
-				}
-				else
-				{
-					if (pWL->Pixels() > pixelsLeft)
-					{
-						// New line required
-						_lines++;
-						pixelsLeft = maxw - pWL->Pixels();
-						print = pWL;
-						pWL = pWL->Next();
-						wordsInLine = 1;
-					}
+        float sy = 0.0f;
+        int cix = 0;
+        float fcw = 1.0f / 224.0f;
+        float y1 = TexFont.Y1();
+        float y2 = TexFont.Y2();
+        float fh = TexFont.Height() * pConfig->FontScale;
 
-					while (pWL != NULL && pWL->Pixels() > 0 && (pixelsLeft - (pWL->Pixels() + spaceWidth)) > -0.01)	// Enough room for the next word?
-					{
-						wordsInLine++;
-						pixelsLeft -= pWL->Pixels() + spaceWidth;
-						pWL = pWL->Next();
-					}
+        while (pWL != nullptr)
+        {
+            if (pWL->Pixels() == 0.0f)
+            {
+                _lines++;
+                pWL = pWL->Next();
+            }
+            else
+            {
+                if (pWL->Pixels() > pixelsLeft)
+                {
+                    _lines++;
+                    pixelsLeft = maxw - pWL->Pixels();
+                    print = pWL;
+                    pWL = pWL->Next();
+                    wordsInLine = 1;
+                }
 
-					// Print this line...
-					float sx = floor(rect.Left);
-					float justifyadjust = 0.0f;
-					switch (alignment)
-					{
-						case Alignment::Left:
-						{
-							break;
-						}
-						case Alignment::Center:
-						{
-							sx = pixelsLeft / 2.0f;
-							break;
-						}
-						case Alignment::Right:
-						{
-							sx = maxw - (pixelsLeft + (wordsInLine > 1 ? spaceWidth : 0));
-							break;
-						}
-						case Alignment::Justify:
-						{
-							justifyadjust = (wordsInLine > 1 && pWL != NULL) ? pixelsLeft / ((float)(wordsInLine - 1)) : 0.0f;
-							break;
-						}
-						case Alignment::JustifyAlways:
-						{
-							justifyadjust = (wordsInLine > 1) ? pixelsLeft / ((float)(wordsInLine - 1)) : 0.0f;
-							break;
-						}
-					}
+                while (pWL != nullptr && pWL->Pixels() > 0.0f && (pixelsLeft - (pWL->Pixels() + spaceWidth)) > -0.01f)
+                {
+                    wordsInLine++;
+                    pixelsLeft -= pWL->Pixels() + spaceWidth;
+                    pWL = pWL->Next();
+                }
 
-					if (pWL != NULL && pWL->Pixels() == 0)
-					{
-						justifyadjust = 0.0f;
-					}
+                float sx = std::floor(rect.Left);
+                float justifyadjust = 0.0f;
+                switch (alignment)
+                {
+                    case Alignment::Left: break;
+                    case Alignment::Center:
+                        sx = pixelsLeft / 2.0f;
+                        break;
+                    case Alignment::Right:
+                        sx = maxw - (pixelsLeft + (wordsInLine > 1 ? spaceWidth : 0.0f));
+                        break;
+                    case Alignment::Justify:
+                        justifyadjust = (wordsInLine > 1 && pWL != nullptr) ? pixelsLeft / static_cast<float>(wordsInLine - 1) : 0.0f;
+                        break;
+                    case Alignment::JustifyAlways:
+                        justifyadjust = (wordsInLine > 1) ? pixelsLeft / static_cast<float>(wordsInLine - 1) : 0.0f;
+                        break;
+                }
 
-					while (print != NULL && wordsInLine-- > 0)
-					{
-						//sx = floor(sx);
+                if (pWL != nullptr && pWL->Pixels() == 0.0f)
+                {
+                    justifyadjust = 0.0f;
+                }
 
-						for (int c = 0; c < print->Chars(); c++)
-						{
-							char ch = print->Text()[c];
-							if (ch >= 0x20 && ch <= 0x7f)
-							{
-								ch -= 0x20;
-								// Create vertices and indexes for this character...
-								float fx = pWidths[ch];
+                while (print != nullptr && wordsInLine-- > 0)
+                {
+                    for (int c = 0; c < print->Chars(); c++)
+                    {
+                        char ch = print->Text()[c];
+                        if (ch >= 0x20 && static_cast<unsigned char>(ch) <= 0x7f)
+                        {
+                            ch -= 0x20;
+                            float fx = pWidths[static_cast<int>(ch)];
+                            float x1 = fcw * static_cast<float>(ch);
+                            float x2 = x1 + fx / 3584.0f;
 
-								float x1 = fcw * (float)ch;
-								float x2 = x1 + fx / 3584.0f;
+                            fx *= pConfig->FontScale;
 
-								fx *= pConfig->FontScale;
+                            float rsx = std::floor(sx);
+                            pVB[cix].position = { rsx, sy, -1.5f };
+                            pVB[cix++].texture = { x1, y1 };
+                            pVB[cix].position = { rsx + fx, sy, -1.5f };
+                            pVB[cix++].texture = { x2, y1 };
+                            pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                            pVB[cix++].texture = { x2, y2 };
 
-								// Create 6 vertices and 6 indexes per char
-								float rsx = floor(sx);
-								pVB[cix].position = XMFLOAT3(rsx, sy, -1.5f);
-								pVB[cix++].texture = XMFLOAT2(x1, y1);
-								pVB[cix].position = XMFLOAT3(rsx + fx, sy, -1.5f);
-								pVB[cix++].texture = XMFLOAT2(x2, y1);
-								pVB[cix].position = XMFLOAT3(rsx + fx, sy - fh, -1.5f);
-								pVB[cix++].texture = XMFLOAT2(x2, y2);
+                            pVB[cix].position = { rsx, sy, -1.5f };
+                            pVB[cix++].texture = { x1, y1 };
+                            pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                            pVB[cix++].texture = { x2, y2 };
+                            pVB[cix].position = { rsx, sy - fh, -1.5f };
+                            pVB[cix++].texture = { x1, y2 };
 
-								pVB[cix].position = XMFLOAT3(rsx, sy, -1.5f);
-								pVB[cix++].texture = XMFLOAT2(x1, y1);
-								pVB[cix].position = XMFLOAT3(rsx + fx, sy - fh, -1.5f);
-								pVB[cix++].texture = XMFLOAT2(x2, y2);
-								pVB[cix].position = XMFLOAT3(rsx, sy - fh, -1.5f);
-								pVB[cix++].texture = XMFLOAT2(x1, y2);
+                            sx += fx;
+                        }
+                    }
 
-								sx += fx;
-							}
-						}
+                    sx += spaceWidth + justifyadjust;
+                    print = print->Next();
+                }
 
-						sx += spaceWidth + justifyadjust;
-						print = print->Next();
-					}
+                if (_width < (sx - spaceWidth - justifyadjust - rect.Left))
+                {
+                    _width = sx - spaceWidth - justifyadjust - rect.Left;
+                }
+            }
 
-					if (_width < (sx - spaceWidth - justifyadjust - rect.Left))
-					{
-						_width = sx - spaceWidth - justifyadjust - rect.Left;
-					}
-				}
+            sy -= TexFont.Height() * pConfig->FontScale;
+            wordsInLine = 0;
+            pixelsLeft = 0.0f;
+        }
 
-				sy -= TexFont.Height() * pConfig->FontScale;
+        D3D11_BUFFER_DESC vbDesc = {};
+        vbDesc.Usage = D3D11_USAGE_DYNAMIC;
+        vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 6 * _printableCharacters;
+        vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        vbDesc.StructureByteStride = 0;
 
-				wordsInLine = 0;
-				pixelsLeft = 0.0f;
-			}
+        D3D11_SUBRESOURCE_DATA vData = {};
+        vData.pSysMem = pVB.data();
+        vData.SysMemPitch = 0;
+        vData.SysMemSlicePitch = 0;
 
-			D3D11_BUFFER_DESC vbDesc;
-			vbDesc.Usage = D3D11_USAGE_DYNAMIC;
-			vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 6 * _printableCharacters;
-			vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vbDesc.MiscFlags = 0;
-			vbDesc.StructureByteStride = 0;
-
-			D3D11_SUBRESOURCE_DATA vData;
-			vData.pSysMem = pVB;
-			vData.SysMemPitch = 0;
-			vData.SysMemSlicePitch = 0;
-
-			dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
-
-			delete[] pVB;
-		}
-	}
+        dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
+    
+    }
 }
 
-void CDXText::SetText(LPCWSTR text, Rect rect, Alignment alignment)
+void CDXText::SetText(const wchar_t* text, Rect rect, Alignment alignment)
 {
-	_wstring = text;
+    _wstring = text;
 
-	if (_vertexBuffer != NULL)
-	{
-		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
-	}
+    if (_vertexBuffer != nullptr)
+    {
+        _vertexBuffer->Release();
+        _vertexBuffer = nullptr;
+    }
 
-	_lines = 0;
-	_width = 0;
+    _lines = 0;
+    _width = 0.0f;
 
-	CWordList wl;
-	LPCWSTR scan = text;
-	LPCWSTR start = scan;
-	float pixels = 0.0f;
-	_printableCharacters = 0;
+    CWordList wl;
+    const wchar_t* scan = text;
+    const wchar_t* start = scan;
+    float pixels = 0.0f;
+    _printableCharacters = 0;
 
-	float* pWidths = TexFont.Widths();
-	float spaceWidth = pWidths[0] * pConfig->FontScale;
+    float* pWidths = TexFont.Widths();
+    float spaceWidth = pWidths[0] * pConfig->FontScale;
 
-	while (TRUE)
-	{
-		char c = *(scan++) & 0xFF;
-		if (c == 0) break;
-		else if (c == 0x20)
-		{
-			// Space, add word to list
-			int len = static_cast<int>(scan - start - 1);
-			if (len > 0)
-			{
-				wl.Add((char*)start, len, pixels);
-			}
-			start = scan;
-			pixels = 0.0f;
-		}
-		else if (c > 0x20 && c <= 0x7f)
-		{
-			pixels += ((float)pWidths[c - 0x20]) * pConfig->FontScale;
-			_printableCharacters++;
-		}
-	}
+    while (true)
+    {
+        char c = static_cast<char>(*(scan++) & 0xFF);
+        if (c == 0) break;
+        else if (c == 0x20)
+        {
+            int len = static_cast<int>(scan - start - 1);
+            if (len > 0)
+            {
+                wl.Add(reinterpret_cast<const char*>(start), len, pixels);
+            }
+            start = scan;
+            pixels = 0.0f;
+        }
+        else if (c > 0x20 && static_cast<unsigned char>(c) <= 0x7f)
+        {
+            pixels += static_cast<float>(pWidths[c - 0x20]) * pConfig->FontScale;
+            _printableCharacters++;
+        }
+    }
 
-	// Add last word to list
-	int len = static_cast<int>(scan - start - 1);
-	if (len > 0)
-	{
-		wl.Add((char*)start, len, pixels);
-	}
+    int len = static_cast<int>(scan - start - 1);
+    if (len > 0)
+    {
+        wl.Add(reinterpret_cast<const char*>(start), len, pixels);
+    }
 
-	if (_printableCharacters > 0)
-	{
-		TEXTURED_VERTEX* pVB = new TEXTURED_VERTEX[6 * _printableCharacters];
-		if (pVB != NULL)
-		{
-			// Calculate how many lines are required
-			_lines = 0;
-			CWordList* pWL = wl.Next();
-			float maxw = rect.Right - rect.Left;
-			float pixelsLeft = 0.0f;
-			CWordList* print = NULL;
-			int wordsInLine = 0;
+    if (_printableCharacters > 0)
+    {
+        std::vector<TEXTURED_VERTEX_ORTHO> pVB(6 * _printableCharacters);
 
-			float sy = 0.0f;
-			int cix = 0;
-			float fcw = 1.0f / 224.0f;// 96.0f;
-			float y1 = TexFont.Y1();
-			float y2 = TexFont.Y2();
-			float fh = TexFont.Height() * pConfig->FontScale;
+        _lines = 0;
+        CWordList* pWL = wl.Next();
+        float maxw = rect.Right - rect.Left;
+        float pixelsLeft = 0.0f;
+        CWordList* print = nullptr;
+        int wordsInLine = 0;
 
-			while (pWL != NULL)
-			{
-				if (pWL->Pixels() > pixelsLeft)
-				{
-					// New line required
-					_lines++;
-					pixelsLeft = maxw - pWL->Pixels();
-					print = pWL;
-					pWL = pWL->Next();
-					wordsInLine = 1;
-				}
+        float sy = 0.0f;
+        int cix = 0;
+        float fcw = 1.0f / 224.0f;
+        float y1 = TexFont.Y1();
+        float y2 = TexFont.Y2();
+        float fh = TexFont.Height() * pConfig->FontScale;
 
-				while (pWL != NULL && (pixelsLeft - (pWL->Pixels() + spaceWidth)) > -0.01)	// Enough room for the next word?
-				{
-					wordsInLine++;
-					pixelsLeft -= pWL->Pixels() + spaceWidth;
-					pWL = pWL->Next();
-				}
+        while (pWL != nullptr)
+        {
+            if (pWL->Pixels() > pixelsLeft)
+            {
+                _lines++;
+                pixelsLeft = maxw - pWL->Pixels();
+                print = pWL;
+                pWL = pWL->Next();
+                wordsInLine = 1;
+            }
 
-				// Print this line...
-				float sx = rect.Left;
-				float justifyadjust = 0.0f;
-				switch (alignment)
-				{
-					case Alignment::Left:
-					{
-						break;
-					}
-					case Alignment::Center:
-					{
-						sx = pixelsLeft / 2.0f;
-						break;
-					}
-					case Alignment::Right:
-					{
-						sx = maxw - (pixelsLeft + (wordsInLine > 1 ? spaceWidth : 0));
-						break;
-					}
-					case Alignment::Justify:
-					{
-						justifyadjust = (wordsInLine > 1 && pWL != NULL) ? pixelsLeft / ((float)(wordsInLine - 1)) : 0.0f;
-						break;
-					}
-					case Alignment::JustifyAlways:
-					{
-						justifyadjust = (wordsInLine > 1) ? pixelsLeft / ((float)(wordsInLine - 1)) : 0.0f;
-						break;
-					}
-				}
+            while (pWL != nullptr && (pixelsLeft - (pWL->Pixels() + spaceWidth)) > -0.01f)
+            {
+                wordsInLine++;
+                pixelsLeft -= pWL->Pixels() + spaceWidth;
+                pWL = pWL->Next();
+            }
 
-				while (print != NULL && wordsInLine-- > 0)
-				{
-					sx = floor(sx);
+            float sx = rect.Left;
+            float justifyadjust = 0.0f;
+            switch (alignment)
+            {
+                case Alignment::Left: break;
+                case Alignment::Center:
+                    sx = pixelsLeft / 2.0f;
+                    break;
+                case Alignment::Right:
+                    sx = maxw - (pixelsLeft + (wordsInLine > 1 ? spaceWidth : 0.0f));
+                    break;
+                case Alignment::Justify:
+                    justifyadjust = (wordsInLine > 1 && pWL != nullptr) ? pixelsLeft / static_cast<float>(wordsInLine - 1) : 0.0f;
+                    break;
+                case Alignment::JustifyAlways:
+                    justifyadjust = (wordsInLine > 1) ? pixelsLeft / static_cast<float>(wordsInLine - 1) : 0.0f;
+                    break;
+            }
 
-					for (int c = 0; c < print->Chars(); c++)
-					{
-						char ch = ((WCHAR*)print->Text())[c] & 0xFF;
-						if (ch >= 0x20 && ch <= 0x7f)
-						{
-							ch -= 0x20;
-							// Create vertices and indexes for this character...
-							float fx = pWidths[ch];
+            while (print != nullptr && wordsInLine-- > 0)
+            {
+                sx = std::floor(sx);
 
-							float x1 = fcw * (float)ch;
-							float x2 = x1 + fx / 3584.0f;// 5760.0f;
-							float scaledFx = fx * pConfig->FontScale;
+                for (int c = 0; c < print->Chars(); c++)
+                {
+                    char ch = static_cast<char>(reinterpret_cast<const wchar_t*>(print->Text())[c] & 0xFF);
+                    if (ch >= 0x20 && static_cast<unsigned char>(ch) <= 0x7f)
+                    {
+                        ch -= 0x20;
+                        float fx = pWidths[static_cast<int>(ch)];
+                        float x1 = fcw * static_cast<float>(ch);
+                        float x2 = x1 + fx / 3584.0f;
 
-							// Create 6 vertices and 6 indexes per char
-							pVB[cix].position = XMFLOAT3(sx, sy, -1.5f);
-							pVB[cix++].texture = XMFLOAT2(x1, y1);
-							pVB[cix].position = XMFLOAT3(sx + scaledFx, sy, -1.5f);
-							pVB[cix++].texture = XMFLOAT2(x2, y1);
-							pVB[cix].position = XMFLOAT3(sx + scaledFx, sy - fh, -1.5f);
-							pVB[cix++].texture = XMFLOAT2(x2, y2);
+                        fx *= pConfig->FontScale;
 
-							pVB[cix].position = XMFLOAT3(sx, sy, -1.5f);
-							pVB[cix++].texture = XMFLOAT2(x1, y1);
-							pVB[cix].position = XMFLOAT3(sx + scaledFx, sy - fh, -1.5f);
-							pVB[cix++].texture = XMFLOAT2(x2, y2);
-							pVB[cix].position = XMFLOAT3(sx, sy - fh, -1.5f);
-							pVB[cix++].texture = XMFLOAT2(x1, y2);
+                        float rsx = std::floor(sx);
+                        pVB[cix].position = { rsx, sy, -1.5f };
+                        pVB[cix++].texture = { x1, y1 };
+                        pVB[cix].position = { rsx + fx, sy, -1.5f };
+                        pVB[cix++].texture = { x2, y1 };
+                        pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                        pVB[cix++].texture = { x2, y2 };
 
-							sx += scaledFx;
-						}
-					}
+                        pVB[cix].position = { rsx, sy, -1.5f };
+                        pVB[cix++].texture = { x1, y1 };
+                        pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                        pVB[cix++].texture = { x2, y2 };
+                        pVB[cix].position = { rsx, sy - fh, -1.5f };
+                        pVB[cix++].texture = { x1, y2 };
 
-					sx += spaceWidth + justifyadjust;
-					print = print->Next();
-				}
+                        sx += fx;
+                    }
+                }
 
-				if (_width < (sx - spaceWidth - justifyadjust - rect.Left))
-				{
-					_width = sx - spaceWidth - justifyadjust - rect.Left;
-				}
+                sx += spaceWidth + justifyadjust;
+                print = print->Next();
+            }
 
-				sy -= TexFont.Height() * pConfig->FontScale;
+            if (_width < (sx - spaceWidth - justifyadjust - rect.Left))
+            {
+                _width = sx - spaceWidth - justifyadjust - rect.Left;
+            }
 
-				wordsInLine = 0;
-				pixelsLeft = 0.0f;
-			}
+            sy -= TexFont.Height() * pConfig->FontScale;
+            wordsInLine = 0;
+            pixelsLeft = 0.0f;
+        }
 
-			D3D11_BUFFER_DESC vbDesc;
-			vbDesc.Usage = D3D11_USAGE_DYNAMIC;
-			vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 6 * _printableCharacters;
-			vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vbDesc.MiscFlags = 0;
-			vbDesc.StructureByteStride = 0;
+        D3D11_BUFFER_DESC vbDesc = {};
+        vbDesc.Usage = D3D11_USAGE_DYNAMIC;
+        vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 6 * _printableCharacters;
+        vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        vbDesc.StructureByteStride = 0;
 
-			D3D11_SUBRESOURCE_DATA vData;
-			vData.pSysMem = pVB;
-			vData.SysMemPitch = 0;
-			vData.SysMemSlicePitch = 0;
+        D3D11_SUBRESOURCE_DATA vData = {};
+        vData.pSysMem = pVB.data();
+        vData.SysMemPitch = 0;
+        vData.SysMemSlicePitch = 0;
 
-			dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
-
-			delete[] pVB;
-		}
-	}
+        dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
+    }
 }
 
-void CDXText::SetTextUnmodified(char const* text)
+void CDXText::SetTextUnmodified(const char* text)
 {
-	_string = text;
+    _string = text;
 
-	if (_vertexBuffer != NULL)
-	{
-		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
-	}
+    if (_vertexBuffer != nullptr)
+    {
+        _vertexBuffer->Release();
+        _vertexBuffer = nullptr;
+    }
 
-	_lines = 0;
-	_width = 0;
+    _lines = 0;
+    _width = 0.0f;
+    _printableCharacters = static_cast<int>(std::strlen(text));
 
-	_printableCharacters = strlen(text);
+    float* pWidths = TexFont.Widths();
 
-	float* pWidths = TexFont.Widths();
+    if (_printableCharacters > 0)
+    {
+        std::vector<TEXTURED_VERTEX_ORTHO> pVB(6 * _printableCharacters);
 
-	if (_printableCharacters > 0)
-	{
-		TEXTURED_VERTEX* pVB = new TEXTURED_VERTEX[6 * _printableCharacters];
-		if (pVB != NULL)
-		{
-			float sy = 0.0f;
-			float sx = 0.0f;
-			int cix = 0;
-			float fcw = 1 / 224.0f;
-			float y1 = TexFont.Y1();
-			float y2 = TexFont.Y2();
-			float fh = TexFont.Height() * pConfig->FontScale;
-			auto scan = text;
-			char ch;
-			while ((ch = *scan++))
-			{
-				if (ch >= 0x20 && ch <= 0x7f)
-				{
-					ch -= 0x20;
-					// Create vertices and indexes for this character...
-					float fx = pWidths[ch];
+        float sy = 0.0f;
+        float sx = 0.0f;
+        int cix = 0;
+        float fcw = 1.0f / 224.0f;
+        float y1 = TexFont.Y1();
+        float y2 = TexFont.Y2();
+        float fh = TexFont.Height() * pConfig->FontScale;
+        const char* scan = text;
+        char ch;
+        
+        while ((ch = *scan++))
+        {
+            if (ch >= 0x20 && static_cast<unsigned char>(ch) <= 0x7f)
+            {
+                ch -= 0x20;
+                float fx = pWidths[static_cast<int>(ch)];
+                float x1 = fcw * static_cast<float>(ch);
+                float x2 = x1 + fx / 3584.0f;
 
-					float x1 = fcw * (float)ch;
-					float x2 = x1 + fx / 3584.0f;
+                fx *= pConfig->FontScale;
 
-					fx *= pConfig->FontScale;
+                float rsx = std::floor(sx);
+                pVB[cix].position = { rsx, sy, -1.5f };
+                pVB[cix++].texture = { x1, y1 };
+                pVB[cix].position = { rsx + fx, sy, -1.5f };
+                pVB[cix++].texture = { x2, y1 };
+                pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                pVB[cix++].texture = { x2, y2 };
 
-					// Create 6 vertices and 6 indexes per char
-					float rsx = floor(sx);
-					pVB[cix].position = XMFLOAT3(rsx, sy, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x1, y1);
-					pVB[cix].position = XMFLOAT3(rsx + fx, sy, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x2, y1);
-					pVB[cix].position = XMFLOAT3(rsx + fx, sy - fh, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x2, y2);
+                pVB[cix].position = { rsx, sy, -1.5f };
+                pVB[cix++].texture = { x1, y1 };
+                pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                pVB[cix++].texture = { x2, y2 };
+                pVB[cix].position = { rsx, sy - fh, -1.5f };
+                pVB[cix++].texture = { x1, y2 };
 
-					pVB[cix].position = XMFLOAT3(rsx, sy, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x1, y1);
-					pVB[cix].position = XMFLOAT3(rsx + fx, sy - fh, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x2, y2);
-					pVB[cix].position = XMFLOAT3(rsx, sy - fh, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x1, y2);
+                sx += fx;
+            }
+        }
 
-					sx += fx;
-				}
-			}
+        _width = sx;
 
-			_width = sx;
+        D3D11_BUFFER_DESC vbDesc = {};
+        vbDesc.Usage = D3D11_USAGE_DYNAMIC;
+        vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 6 * _printableCharacters;
+        vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        vbDesc.StructureByteStride = 0;
 
-			D3D11_BUFFER_DESC vbDesc;
-			vbDesc.Usage = D3D11_USAGE_DYNAMIC;
-			vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 6 * _printableCharacters;
-			vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vbDesc.MiscFlags = 0;
-			vbDesc.StructureByteStride = 0;
+        D3D11_SUBRESOURCE_DATA vData = {};
+        vData.pSysMem = pVB.data();
+        vData.SysMemPitch = 0;
+        vData.SysMemSlicePitch = 0;
 
-			D3D11_SUBRESOURCE_DATA vData;
-			vData.pSysMem = pVB;
-			vData.SysMemPitch = 0;
-			vData.SysMemSlicePitch = 0;
-
-			dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
-
-			delete[] pVB;
-		}
-	}
+        dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
+    }
 }
 
-void CDXText::SetTextUnmodified(WCHAR const* text)
+void CDXText::SetTextUnmodified(const wchar_t* text)
 {
-	_wstring = text;
+    _wstring = text;
 
-	if (_vertexBuffer != NULL)
-	{
-		_vertexBuffer->Release();
-		_vertexBuffer = NULL;
-	}
+    if (_vertexBuffer != nullptr)
+    {
+        _vertexBuffer->Release();
+        _vertexBuffer = nullptr;
+    }
 
-	_lines = 0;
-	_width = 0;
+    _lines = 0;
+    _width = 0.0f;
+    _printableCharacters = static_cast<int>(_wstring.size());
 
-	_printableCharacters = _wstring.size();
+    float* pWidths = TexFont.Widths();
 
-	float* pWidths = TexFont.Widths();
+    if (_printableCharacters > 0)
+    {
+        std::vector<TEXTURED_VERTEX_ORTHO> pVB(6 * _printableCharacters);
 
-	if (_printableCharacters > 0)
-	{
-		TEXTURED_VERTEX* pVB = new TEXTURED_VERTEX[6 * _printableCharacters];
-		if (pVB != NULL)
-		{
-			float sy = 0.0f;
-			float sx = 10.0f;
-			int cix = 0;
-			float fcw = 1 / 224.0f;
-			float y1 = TexFont.Y1();
-			float y2 = TexFont.Y2();
-			float fh = TexFont.Height() * pConfig->FontScale;
-			auto scan = text;
-			char ch;
-			while ((ch = *scan++))
-			{
-				if (ch >= 0x20 && ch <= 0x7f)
-				{
-					ch -= 0x20;
-					// Create vertices and indexes for this character...
-					float fx = pWidths[ch];
+        float sy = 0.0f;
+        float sx = 10.0f;
+        int cix = 0;
+        float fcw = 1.0f / 224.0f;
+        float y1 = TexFont.Y1();
+        float y2 = TexFont.Y2();
+        float fh = TexFont.Height() * pConfig->FontScale;
+        const wchar_t* scan = text;
+        wchar_t wch;
+        
+        while ((wch = *scan++))
+        {
+            char ch = static_cast<char>(wch & 0xFF);
+            if (ch >= 0x20 && static_cast<unsigned char>(ch) <= 0x7f)
+            {
+                ch -= 0x20;
+                float fx = pWidths[static_cast<int>(ch)];
+                float x1 = fcw * static_cast<float>(ch);
+                float x2 = x1 + fx / 3584.0f;
 
-					float x1 = fcw * (float)ch;
-					float x2 = x1 + fx / 3584.0f;
+                fx *= pConfig->FontScale;
 
-					fx *= pConfig->FontScale;
+                float rsx = std::floor(sx);
+                pVB[cix].position = { rsx, sy, -1.5f };
+                pVB[cix++].texture = { x1, y1 };
+                pVB[cix].position = { rsx + fx, sy, -1.5f };
+                pVB[cix++].texture = { x2, y1 };
+                pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                pVB[cix++].texture = { x2, y2 };
 
-					// Create 6 vertices and 6 indexes per char
-					float rsx = floor(sx);
-					pVB[cix].position = XMFLOAT3(rsx, sy, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x1, y1);
-					pVB[cix].position = XMFLOAT3(rsx + fx, sy, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x2, y1);
-					pVB[cix].position = XMFLOAT3(rsx + fx, sy - fh, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x2, y2);
+                pVB[cix].position = { rsx, sy, -1.5f };
+                pVB[cix++].texture = { x1, y1 };
+                pVB[cix].position = { rsx + fx, sy - fh, -1.5f };
+                pVB[cix++].texture = { x2, y2 };
+                pVB[cix].position = { rsx, sy - fh, -1.5f };
+                pVB[cix++].texture = { x1, y2 };
 
-					pVB[cix].position = XMFLOAT3(rsx, sy, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x1, y1);
-					pVB[cix].position = XMFLOAT3(rsx + fx, sy - fh, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x2, y2);
-					pVB[cix].position = XMFLOAT3(rsx, sy - fh, -1.5f);
-					pVB[cix++].texture = XMFLOAT2(x1, y2);
+                sx += fx;
+            }
+        }
 
-					sx += fx;
-				}
-			}
+        _width = sx - 10.0f;
 
-			_width = sx - 10;
+        D3D11_BUFFER_DESC vbDesc = {};
+        vbDesc.Usage = D3D11_USAGE_DYNAMIC;
+        vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 6 * _printableCharacters;
+        vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        vbDesc.StructureByteStride = 0;
 
-			D3D11_BUFFER_DESC vbDesc;
-			vbDesc.Usage = D3D11_USAGE_DYNAMIC;
-			vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 6 * _printableCharacters;
-			vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vbDesc.MiscFlags = 0;
-			vbDesc.StructureByteStride = 0;
+        D3D11_SUBRESOURCE_DATA vData = {};
+        vData.pSysMem = pVB.data();
+        vData.SysMemPitch = 0;
+        vData.SysMemSlicePitch = 0;
 
-			D3D11_SUBRESOURCE_DATA vData;
-			vData.pSysMem = pVB;
-			vData.SysMemPitch = 0;
-			vData.SysMemSlicePitch = 0;
-
-			dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
-
-			delete[] pVB;
-		}
-	}
+        dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "Text");
+    }
 }
 
-float CDXText::PixelWidth(char* text)
+float CDXText::PixelWidth(const char* text)
 {
-	return TexFont.PixelWidth(text);
+    return TexFont.PixelWidth(text);
 }
 
-float CDXText::Width()
+float CDXText::Width() const
 {
-	return _width;
+    return _width;
 }
 
 void CDXText::Width(float w)
 {
-	_width = w;
+    _width = w;
 }
 
-float CDXText::Height()
+float CDXText::Height() const
 {
-	return TexFont.Height() * _lines * pConfig->FontScale;
+    return TexFont.Height() * static_cast<float>(_lines) * pConfig->FontScale;
 }
 
 void CDXText::SetColours(int colour)
 {
-	_colour1 = _colour4 = 0;
-	_colour2 = _colour3 = colour;
+    _colour1 = _colour4 = 0;
+    _colour2 = _colour3 = colour;
 }
 
 void CDXText::SetColours(int colour1, int colour2)
 {
-	_colour1 = _colour4 = 0;
-	_colour2 = colour1;
-	_colour3 = colour2;
+    _colour1 = _colour4 = 0;
+    _colour2 = colour1;
+    _colour3 = colour2;
 }
 
 void CDXText::SetColours(int colour1, int colour2, int colour3, int colour4)
 {
-	_colour1 = colour1;
-	_colour2 = colour2;
-	_colour3 = colour3;
-	_colour4 = colour4;
+    _colour1 = colour1;
+    _colour2 = colour2;
+    _colour3 = colour3;
+    _colour4 = colour4;
 }
 
 void CDXText::ResetText()
 {
-	SetText(_wstring.c_str());
+    SetText(_wstring.c_str());
 }

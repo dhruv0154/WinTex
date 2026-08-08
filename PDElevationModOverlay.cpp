@@ -1,5 +1,6 @@
 #include "PDElevationModOverlay.h"
 #include "Utilities.h"
+#include <chrono>
 
 CPDElevationModOverlay::CPDElevationModOverlay()
 {
@@ -10,7 +11,7 @@ CPDElevationModOverlay::CPDElevationModOverlay()
 
 void CPDElevationModOverlay::Render()
 {
-	ULONGLONG now = GetTickCount64();
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	float diff = (float)(now - _lastUpdate);
 	if (diff > 0.0f)
 	{
@@ -26,12 +27,12 @@ void CPDElevationModOverlay::Render()
 void CPDElevationModOverlay::BeginAction()
 {
 	CLocation::_y_player_adjustment = _targetY;
-	pOverlay = NULL;
+	pOverlay = nullptr;
 }
 
 void CPDElevationModOverlay::SetData(int p1, int p2)
 {
 	_targetY = -From12_4(p1);
 	_speed = From12_4(p2) * 3;
-	_lastUpdate = GetTickCount64();
+	_lastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }

@@ -5,5 +5,5 @@
 class CPDMap : public CMap
 {
 public:
-	virtual BOOL Init();
+	virtual bool Init() override;
 };

@@ -1,33 +1,35 @@
 #pragma once
+
 #include "DXControl.h"
-#include <list>
+#include "DXContainer.h"
 #include "DXFont.h"
 #include "Globals.h"
-#include "DXControls.h"
-#include "DXContainer.h"
+#include "ConstantBuffers.h"
+#include <list>
+#include <cstdint>
 
 class CDXScreen : public CDXContainer
 {
-	friend class CDXControl;
+    friend class CDXControl;
 
 public:
-	CDXScreen();
-	~CDXScreen();
+    CDXScreen();
+    virtual ~CDXScreen();
 
-	static void Init();
-	static void Dispose();
+    static void Init();
+    static void Dispose();
 
-	void ClearMouseOver();
+    void ClearMouseOver();
 
-	static XMMATRIX WorldMatrix;
-	static XMMATRIX ViewMatrix;
-	static XMMATRIX ProjectionMatrix;
-	static XMMATRIX OrthoMatrix;
+    static float16 WorldMatrix;
+    static float16 ViewMatrix;
+    static float16 ProjectionMatrix;
+    static float16 OrthoMatrix;
 
-	static XMVECTOR UpVector;
-	static XMVECTOR PositionVector;
-	static XMVECTOR LookAtVector;
+    static Math::vec3 UpVector;
+    static Math::vec3 PositionVector;
+    static Math::vec3 LookAtVector;
 
-	static float FieldOfView;
-	static float ScreenAspect;
+    static float FieldOfView;
+    static float ScreenAspect;
 };

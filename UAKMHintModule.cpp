@@ -2,6 +2,9 @@
 #include "GameController.h"
 #include "File.h"
 #include "Utilities.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <algorithm>
 
 void CUAKMHintModule::Initialize()
 {
@@ -28,24 +31,23 @@ void CUAKMHintModule::Initialize()
 
 	// Load hint graphics
 	CFile file;
-	if (file.Open(L"HINT.AP"))
+	if (file.Open("HINT.AP"))
 	{
 		int size = file.Size();
-		LPBYTE buffer = new BYTE[size];
+		uint8_t* buffer = new uint8_t[size];
 		if (buffer != NULL)
 		{
 			file.Read(buffer, size);
 
-			// Read palette
-			LPBYTE pPal = buffer + GetInt(buffer, 2, 4);
+			uint8_t* pPal = buffer + GetInt(buffer, 2, 4);
 			for (int c = 0; c < 256; c++)
 			{
 				double r = pPal[c * 3 + 0];
 				double g = pPal[c * 3 + 1];
 				double b = pPal[c * 3 + 2];
-				int ri = (byte)((r * 255.0) / 63.0);
-				int gi = (byte)((g * 255.0) / 63.0);
-				int bi = (byte)((b * 255.0) / 63.0);
+				int ri = (uint8_t)((r * 255.0) / 63.0);
+				int gi = (uint8_t)((g * 255.0) / 63.0);
+				int bi = (uint8_t)((b * 255.0) / 63.0);
 				int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
 				palette[c] = col;
 			}
@@ -84,12 +86,17 @@ void CUAKMHintModule::Initialize()
 	_colGreen = palette[15];
 	_colScore = palette[33];
 
-	_colHighlight = palette[29];	// 29 or 65
-	_colShade = palette[27];		// 27 or 67
+	_colHighlight = palette[29];   
+	_colShade = palette[27];        
 
-	Rect rect1{ 0, 0, static_cast<float>(h), static_cast<float>(w) };
-	Rect rect2{ 0, 0, static_cast<float>(h), static_cast<float>(w) };
-	Rect rect3{ 0, 0, static_cast<float>(h), static_cast<float>(w) };
+	Rect rect1;
+	rect1.Top = 0;
+	rect1.Left = 0;
+	rect1.Bottom = h;
+	rect1.Right = w;
+
+	Rect rect2 = rect1;
+	Rect rect3 = rect1;
 
 	for (auto it : _activeHintCategories)
 	{
@@ -97,10 +104,10 @@ void CUAKMHintModule::Initialize()
 		it->Prepare(_colBlack, _colBlue, _colCategory, _colOrange, _colGreen, _colScore, _colHighlight, _colShade, rect1, rect2, rect3);
 	}
 
-	char* pResume = "Resume";
-	char* pDirectory = "Directory";
+	const char* pResume = "Resume";
+	const char* pDirectory = "Directory";
 
-	float maxbtnw = max(TexFont.PixelWidth(pResume), TexFont.PixelWidth(pDirectory));
+	float maxbtnw = std::max(TexFont.PixelWidth(pResume), TexFont.PixelWidth(pDirectory));
 
 	_pBtnResume = new CDXButton(pResume, maxbtnw, 10.0f);
 	_pBtnDirectory = new CDXButton(pDirectory, maxbtnw, 10.0f);
@@ -114,13 +121,13 @@ void CUAKMHintModule::Render()
 	dx.Clear(0.73f, 0.73f, 0.73f);
 
 	float y = 0.0f;
-	float h = max(_blankTexture.Height() + 2, TexFont.Height()) * pConfig->FontScale;
+	float h = std::max(static_cast<float>(_blankTexture.Height() + 2), static_cast<float>(TexFont.Height())) * pConfig->FontScale;
 	float boxw = _blankTexture.Width() * pConfig->FontScale;
 	float x = 8.0f * pConfig->FontScale;
 
-	UINT stride = sizeof(TEXTURED_VERTEX);
-	UINT offset = 0;
-	XMMATRIX wm;
+	uint32_t stride = sizeof(TEXTURED_VERTEX);
+	uint32_t offset = 0;
+	float16 wm;
 	ID3D11ShaderResourceView* pRV = NULL;
 
 	if (_pCurrentHintCategory == NULL)
@@ -129,7 +136,7 @@ void CUAKMHintModule::Render()
 		CShaders::SelectOrthoShader();
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		dx.SetVertexBuffers(0, 1, &_categoryVertexBuffer, &stride, &offset);
-		wm = XMMatrixTranslation((dx.GetWidth() - _categoryTexture.Width() * pConfig->FontScale) / 2, -y, -0.5f);
+		wm = Math::Translation((dx.GetWidth() - _categoryTexture.Width() * pConfig->FontScale) / 2.0f, -y, -0.5f);
 		CConstantBuffers::SetWorld(dx, &wm);
 		pRV = _categoryTexture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -144,10 +151,10 @@ void CUAKMHintModule::Render()
 			dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 			dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 			CShaders::SelectOrthoShader();
-			XMMATRIX wm = XMMatrixTranslation(x, -y + 2 * pConfig->FontScale, -0.5f);
+			wm = Math::Translation(x, -y + 2 * pConfig->FontScale, -0.5f);
 			CConstantBuffers::SetWorld(dx, &wm);
-			ID3D11ShaderResourceView* pRV = _questionmarkTexture.GetTextureRV();
-			dx.SetShaderResources(0, 1, &pRV);
+			ID3D11ShaderResourceView* pRV_qm = _questionmarkTexture.GetTextureRV();
+			dx.SetShaderResources(0, 1, &pRV_qm);
 			dx.Draw(4, 0);
 
 			y += h;
@@ -160,7 +167,7 @@ void CUAKMHintModule::Render()
 		// Render category at top
 		float cw = _pCurrentHintCategory->Width();
 		float yoffset = ((_hintTexture.Height() - TexFont.Height()) * pConfig->FontScale) / 2.0f;
-		_pCurrentHintCategory->Render((dx.GetWidth() - cw) / 2, y + yoffset, false);
+		_pCurrentHintCategory->Render((dx.GetWidth() - cw) / 2.0f, y + yoffset, false);
 
 		y += (_hintTexture.Height() + 2) * pConfig->FontScale;
 
@@ -189,22 +196,22 @@ void CUAKMHintModule::Render()
 				questionMarkUsed = true;
 			}
 
-			UINT stride = sizeof(TEXTURED_VERTEX);
-			UINT offset = 0;
+			uint32_t stride = sizeof(TEXTURED_VERTEX);
+			uint32_t offset = 0;
 			dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 			dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 			CShaders::SelectOrthoShader();
-			XMMATRIX wm = XMMatrixTranslation(x, -y + 2 * pConfig->FontScale, -0.5f);
+			wm = Math::Translation(x, -y + 2 * pConfig->FontScale, -0.5f);
 			CConstantBuffers::SetWorld(dx, &wm);
 			dx.SetShaderResources(0, 1, &pRV1);
 			dx.Draw(4, 0);
 
-			wm = XMMatrixTranslation(x + boxw, -y + 2 * pConfig->FontScale, -0.5f);
+			wm = Math::Translation(x + boxw, -y + 2 * pConfig->FontScale, -0.5f);
 			CConstantBuffers::SetWorld(dx, &wm);
 			dx.SetShaderResources(0, 1, &pRV2);
 			dx.Draw(4, 0);
 
-			y += max(h, it->Height());
+			y += std::max(h, static_cast<float>(it->Height()));
 		}
 
 		_pBtnDirectory->Render();
@@ -214,7 +221,7 @@ void CUAKMHintModule::Render()
 	CShaders::SelectOrthoShader();
 	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	dx.SetVertexBuffers(0, 1, &_hintVertexBuffer, &stride, &offset);
-	wm = XMMatrixTranslation(0, -y, -0.5f);
+	wm = Math::Translation(0.0f, -y, -0.5f);
 	CConstantBuffers::SetWorld(dx, &wm);
 	pRV = _hintTexture.GetTextureRV();
 	dx.SetShaderResources(0, 1, &pRV);

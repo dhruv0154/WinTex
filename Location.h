@@ -4,7 +4,6 @@
 #include <vector>
 #include "LZ.h"
 #include "Texture.h"
-#include "D3D11-NoWarn.h"
 #include <unordered_map>
 #include "DXText.h"
 #include "Mutex.h"
@@ -15,6 +14,7 @@
 #include "ObjectMap.h"
 #include "Elevation.h"
 #include "ShaderStructs.h"
+#include <cstdint>
 
 #define MAX_ANIMATIONS		100
 
@@ -88,17 +88,9 @@ protected:
 
 	//CMutex _locationMutex;
 
-	//int AnimationType[100];
-	//int AnimationParameter[100];
-	//bool AnimationActive[100];
-	//PBYTE AnimationFramePtr[100];
-	//int AnimationFrame[100];
-	//ULONGLONG AnimationTime[100];
-	//int AnimationFrameDuration[100];
-
 	void Clear();
 
-	LPBYTE _locationData;
+	uint8_t* _locationData;
 
 	void LoadPaths();
 	void LoadTextures();
@@ -129,8 +121,8 @@ protected:
 
 	void RenderTextured();
 
-	TLPoint GetPoint(PBYTE p3d2, int offset, int index, int points, float tw, float th, int objectCount, int object, int subObject);
-	TLPoint GetSpritePoint(PBYTE p3d2, int offset, int index, int objectCount, int object, int subObject);
+	TLPoint GetPoint(uint8_t* p3d2, int offset, int index, int points, float tw, float th, int objectCount, int object, int subObject);
+	TLPoint GetSpritePoint(uint8_t* p3d2, int offset, int index, int objectCount, int object, int subObject);
 
 	struct Sprite
 	{
@@ -169,12 +161,10 @@ protected:
 		CTextureGroup()
 		{
 			pTexture = NULL;
-			Transparent = FALSE;
-			//VertexStart = 0;
-			//VerticeCount = 0;
+			Transparent = false;
 			TransparentVertexStart = 0;
 			TransparentVerticeCount = 0;
-			Rotated = FALSE;
+			Rotated = false;
 			AnimatedTextureIndex = -1;
 			SourcePointer = NULL;
 			RealTexture = NULL;
@@ -189,17 +179,15 @@ protected:
 		std::vector<CTexture*> Textures;
 		CTexture* RealTexture;
 		int AnimatedTextureIndex;
-		LPBYTE SourcePointer;
+		uint8_t* SourcePointer;
 
 		bool Transparent;
 		std::vector<Triangle> Triangles;
 		std::vector<Triangle> TransparentTriangles;
-		//int VertexStart;
-		//int VerticeCount;
+		
 		int TransparentVertexStart;
 		int TransparentVerticeCount;
 
-		//std::vector<Sprite> Sprites;
 		int SpriteVertexStart;
 		int SpriteVerticeCount;
 
@@ -249,10 +237,10 @@ protected:
 	bool _visibilityChanged;
 	bool _translationChanged;
 
-	void ModifyLocationPoints(std::wstring file);
+	void ModifyLocationPoints(std::string file);
 	void ModifyLocationPoints(int startix, int endix, float x, float y, float z);
 
-	XMFLOAT4 GetTransparentColour(std::wstring file, int objectId, int subObjectId);
+	float4 GetTransparentColour(std::string file, int objectId, int subObjectId);
 
 	int _locationAnimationCount;
 	Animation Animations[MAX_ANIMATIONS];
@@ -261,7 +249,7 @@ protected:
 	std::list<CElevation*> Elevations;
 
 	ObjectVisibilityMapping* _improvedObjectMap;
-	void ChangeVisibility(int id, bool visible, bool setOnSubObjects, std::wstring header);
+	void ChangeVisibility(int id, bool visible, bool setOnSubObjects, std::string header);
 
 #ifdef DEBUG
 	void RenderPoints();

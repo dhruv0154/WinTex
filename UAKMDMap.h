@@ -5,5 +5,5 @@
 class CUAKMDMap : public CMap
 {
 public:
-	virtual BOOL Init();
+    bool Init() override;
 };

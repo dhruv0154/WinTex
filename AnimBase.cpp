@@ -186,7 +186,7 @@ bool CAnimBase::Update()
 				while (_audioBuffers.size() > 0)
 				{
 					Buffer ab = _audioBuffers.front();
-					_audioBuffers.pop_back();
+					_audioBuffers.pop_front();
 					_sourceVoice->SubmitBuffer(ab.pData, ab.Size);
 				}
 				_lock.Release();
@@ -246,9 +246,19 @@ bool CAnimBase::Update()
 					audioFinished = (_sourceVoice->GetPendingBufferCount() == 0);
 				}
 
-				if (_framePointer >= _inputBufferLength && _audioFramesProcessed == _audioFramesQueued)
+				if (IsWave())
 				{
-					_done = true;
+					if (audioFinished)
+					{
+						_done = true;
+					}
+				}
+				else
+				{
+					if (_framePointer >= _inputBufferLength && audioFinished)
+					{
+						_done = true;
+					}
 				}
 
 				//if ((_framePointer == 0 || _framePointer >= _inputBufferLength) && _audioFramesProcessed == _audioFramesQueued)

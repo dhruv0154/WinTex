@@ -2,21 +2,25 @@
 #include "Utilities.h"
 #include "GameController.h"
 #include "UAKMGame.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <algorithm>
+#include <cstring>
 
-#define NEWSPAPER_PALETTE		0
-#define NEWSPAPER_PAGE			1
-#define NEWSPAPER_ARTICLE_1		2
-#define NEWSPAPER_ARTICLE_2		3
-#define NEWSPAPER_ARTICLE_3		4
-#define NEWSPAPER_ARTICLE_4		5
-#define NEWSPAPER_ARTICLE_5		6
-#define NEWSPAPER_ARTICLE_6		7
-#define NEWSPAPER_ARTICLE_7		8
-#define NEWSPAPER_ARTICLE_8		9
-#define NEWSPAPER_ARTICLE_9		10
-#define NEWSPAPER_ARTICLE_10	11
+#define NEWSPAPER_PALETTE       0
+#define NEWSPAPER_PAGE          1
+#define NEWSPAPER_ARTICLE_1     2
+#define NEWSPAPER_ARTICLE_2     3
+#define NEWSPAPER_ARTICLE_3     4
+#define NEWSPAPER_ARTICLE_4     5
+#define NEWSPAPER_ARTICLE_5     6
+#define NEWSPAPER_ARTICLE_6     7
+#define NEWSPAPER_ARTICLE_7     8
+#define NEWSPAPER_ARTICLE_8     9
+#define NEWSPAPER_ARTICLE_9     10
+#define NEWSPAPER_ARTICLE_10    11
 
-CUAKMNewsPaperModule* CUAKMNewsPaperModule::pUAKMNPM = NULL;
+CUAKMNewsPaperModule* CUAKMNewsPaperModule::pUAKMNPM = nullptr;
 
 CUAKMNewsPaperModule::CUAKMNewsPaperModule() : CModuleBase(ModuleType::NewsPaper)
 {
@@ -35,7 +39,7 @@ CUAKMNewsPaperModule::CUAKMNewsPaperModule() : CModuleBase(ModuleType::NewsPaper
 	float _bottom = 0.0f;
 	float _scale = 0.0f;
 
-	ZeroMemory(_palette, 256 * sizeof(int));
+	memset(_palette, 0, 256 * sizeof(int));
 }
 
 CUAKMNewsPaperModule::~CUAKMNewsPaperModule()
@@ -59,20 +63,18 @@ void CUAKMNewsPaperModule::Initialize()
 	_cursorMinY = 0;
 	_cursorMaxY = screenHeight - 1;
 
-	// Load newspaper entries
 	CFile file;
-	if (file.Open(L"NEWS.AP"))
+	if (file.Open("NEWS.AP"))
 	{
-		DWORD length = file.Size();
-		LPBYTE data = new BYTE[length];
-		if (data != NULL)
+		uint32_t length = file.Size();
+		uint8_t* data = new uint8_t[length];
+		if (data != nullptr)
 		{
 			file.Read(data, length);
 			file.Close();
 			int count = GetInt(data, 0, 2) - 1;
 			for (int i = 0; i < count; i++)
 			{
-				// Locate and decompress each entry (each entry is another AP)
 				int offset = GetInt(data, 2 + i * 4, 4);
 				int nextOffset = GetInt(data, 6 + i * 4, 4);
 				int len = nextOffset - offset;
@@ -83,9 +85,9 @@ void CUAKMNewsPaperModule::Initialize()
 						float r = data[offset + c * 3 + 0];
 						float g = data[offset + c * 3 + 1];
 						float b = data[offset + c * 3 + 2];
-						int ri = (byte)((r * 255.0f) / 63.0f);
-						int gi = (byte)((g * 255.0f) / 63.0f);
-						int bi = (byte)((b * 255.0f) / 63.0f);
+						int ri = (uint8_t)((r * 255.0f) / 63.0f);
+						int gi = (uint8_t)((g * 255.0f) / 63.0f);
+						int bi = (uint8_t)((b * 255.0f) / 63.0f);
 						int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
 						_palette[c] = col;
 					}
@@ -93,7 +95,7 @@ void CUAKMNewsPaperModule::Initialize()
 				else
 				{
 					BinaryData bd = CLZ::Decompress(data, offset, length);
-					if (bd.Data != NULL)
+					if (bd.Data != nullptr)
 					{
 						CNewsPaperView* np = new CNewsPaperView();
 						if (GetInt(bd.Data, 0, 2) == 0x100)
@@ -101,7 +103,7 @@ void CUAKMNewsPaperModule::Initialize()
 							np->Width = GetInt(bd.Data, 2, 2);
 							np->Height = GetInt(bd.Data, 4, 2);
 							np->Texture.Init(np->Width, np->Height);
-							np->Data = new BYTE[np->Width * np->Height];
+							np->Data = new uint8_t[np->Width * np->Height];
 							memset(np->Data, 0, np->Width * np->Height);
 
 							int inPtr = 16;
@@ -119,7 +121,7 @@ void CUAKMNewsPaperModule::Initialize()
 							UpdateTexture(np);
 
 							int width = np->Width, height = np->Height;
-							float scale = max(1.0f, min(((float)screenWidth) / (float)width, ((float)screenHeight) / height) * 0.75f);
+							float scale = std::max(1.0f, std::min(((float)screenWidth) / (float)width, ((float)screenHeight) / height) * 0.75f);
 							float sw = width * scale;
 							float sh = height * scale;
 							float ox = (screenWidth - sw);
@@ -140,26 +142,25 @@ void CUAKMNewsPaperModule::Initialize()
 							}
 
 							TEXTURED_VERTEX* vertices = new TEXTURED_VERTEX[4];
-							if (vertices != NULL)
+							if (vertices != nullptr)
 							{
-								vertices[0].position = XMFLOAT3(right, top, 0.0f);
-								vertices[0].texture = XMFLOAT2(1.0f, 0.0f);
+								vertices[0].position = float3(right, top, 0.0f);
+								vertices[0].texture = float2(1.0f, 0.0f);
 
-								vertices[1].position = XMFLOAT3(right, bottom, 0.0f);
-								vertices[1].texture = XMFLOAT2(1.0f, 1.0f);
+								vertices[1].position = float3(right, bottom, 0.0f);
+								vertices[1].texture = float2(1.0f, 1.0f);
 
-								vertices[2].position = XMFLOAT3(left, top, 0.0f);
-								vertices[2].texture = XMFLOAT2(0.0f, 0.0f);
+								vertices[2].position = float3(left, top, 0.0f);
+								vertices[2].texture = float2(0.0f, 0.0f);
 
-								vertices[3].position = XMFLOAT3(left, bottom, 0.0f);
-								vertices[3].texture = XMFLOAT2(0.0f, 1.0f);
+								vertices[3].position = float3(left, bottom, 0.0f);
+								vertices[3].texture = float2(0.0f, 1.0f);
 
 								D3D11_BUFFER_DESC vertexBufferDesc;
 								vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 								vertexBufferDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * 4;
 								vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 								vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-								vertexBufferDesc.MiscFlags = 0;
 								vertexBufferDesc.StructureByteStride = 0;
 
 								D3D11_SUBRESOURCE_DATA vertexData;
@@ -184,13 +185,12 @@ void CUAKMNewsPaperModule::Initialize()
 		}
 	}
 
-	// Resume-button
-	char* pResume = "Resume";
+	const char* pResume = "Resume";
 	_pBtnResume = new CDXButton(pResume, TexFont.PixelWidth(pResume), 32.0f * pConfig->FontScale, OnResume);
 	_pBtnResume->SetPosition(dx.GetWidth() - _pBtnResume->GetWidth(), dx.GetHeight() - 40 * pConfig->FontScale);
 }
 
-void CUAKMNewsPaperModule::OnResume(LPVOID data)
+void CUAKMNewsPaperModule::OnResume(void* data)
 {
 	pUAKMNPM->Back();
 }
@@ -198,12 +198,11 @@ void CUAKMNewsPaperModule::OnResume(LPVOID data)
 void CUAKMNewsPaperModule::UpdateTexture(CNewsPaperView* np)
 {
 	ID3D11Texture2D* pTex = np->Texture.GetTexture();
-	if (pTex != NULL)
+	if (pTex != nullptr)
 	{
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+		if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 		{
-			int inPtr = 16;
 			int* pScr = (int*)subRes.pData;
 			for (int y = 0; y < np->Height; y++)
 			{
@@ -214,10 +213,6 @@ void CUAKMNewsPaperModule::UpdateTexture(CNewsPaperView* np)
 			}
 
 			dx.Unmap(pTex, 0);
-		}
-		else
-		{
-			int debug = 0;
 		}
 	}
 }
@@ -235,16 +230,16 @@ void CUAKMNewsPaperModule::Dispose()
 void CUAKMNewsPaperModule::Render()
 {
 	CNewsPaperView* np = _newsPaper[_display];
-	if (np != NULL && np->Buffer != NULL)
+	if (np != nullptr && np->Buffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &np->Buffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = np->Texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -263,34 +258,31 @@ void CUAKMNewsPaperModule::Resize(int width, int height)
 {
 }
 
-void CUAKMNewsPaperModule::Cursor(float x, float y, BOOL relative)
+void CUAKMNewsPaperModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
-	_pBtnResume->SetMouseOver(_pBtnResume->HitTest(x, y) != NULL);
+	_pBtnResume->SetMouseOver(_pBtnResume->HitTest(x, y) != nullptr);
 
 	if (_display == NEWSPAPER_PAGE)
 	{
-		// Check which article the mouse is over, update the palette and update texture
 		int sx = (int)((_cursorPosX - _left) / _scale);
 		int sy = (int)((_cursorPosY - _top) / _scale);
 
 		if (sx >= 0 && sy >= 0)
 		{
 			CNewsPaperView* np = _newsPaper[NEWSPAPER_PAGE];
-			if (np != NULL && sx < np->Width && sy < np->Height)
+			if (np != nullptr && sx < np->Width && sy < np->Height)
 			{
-				// Trace up or down from point, find byte with value >= 0x80
 				while (sy >= 0)
 				{
-					BYTE pixel = np->Data[sy * np->Width + sx];
+					uint8_t pixel = np->Data[sy * np->Width + sx];
 					if (pixel >= 0x7f)
 					{
 						if (pixel != _highLight)
 						{
 							if (_highLight >= 0x80)
 							{
-								// Deselect previous
 								_palette[_highLight] = 0xffffffff;
 							}
 
@@ -324,16 +316,14 @@ void CUAKMNewsPaperModule::BeginAction()
 	{
 		if (_display == NEWSPAPER_PAGE && _highLight >= 0x80)
 		{
-			// Zoom selected image from original location to full screen? Or simply switch immediately to full screen?
 			_display = NEWSPAPER_ARTICLE_1 + _highLight - 0x80;
 
 			if (_highLight == 0x80)
 			{
-				// First article
-				CGameController::SetAskAboutState(27, 1);			// Enable Ask About Mac Malden
-				CGameController::SetData(UAKM_SAVE_TRAVEL + 4, 1);	// Enable travel to police station
+				CGameController::SetAskAboutState(27, 1);
+				CGameController::SetData(UAKM_SAVE_TRAVEL + 4, 1);
 				CGameController::SetHintState(0x1d8, 1, 1);
-				CGameController::SetItemExamined(94, 4);			// Flag newspaper as examined
+				CGameController::SetItemExamined(94, 4);
 			}
 		}
 		else

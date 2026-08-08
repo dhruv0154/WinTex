@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Overlay.h"
+#include <cstdint>
 
 class CPDElevationModOverlay : public COverlay
 {
@@ -14,5 +15,5 @@ public:
 protected:
 	float _targetY;
 	float _speed;
-	ULONGLONG _lastUpdate;
+	uint64_t _lastUpdate;
 };

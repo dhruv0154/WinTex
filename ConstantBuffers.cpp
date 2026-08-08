@@ -2,62 +2,6 @@
 #include <cmath>
 #include <cstring>
 
-namespace Math {
-	struct vec3 {
-		float x;
-		float y;
-		float z;
-	};
-
-	vec3 cross(vec3 a, vec3 b) { return {a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x}; }
-    float dot(vec3 a, vec3 b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
-    vec3 normalize(vec3 v) { 
-		float l = std::sqrt(dot(v,v)); 
-		return {v.x/l, v.y/l, v.z/l}; 
-	}
-
-    float16 Transpose(const float16& in) {
-        float16 out;
-        for (int i = 0; i < 4; i++) {
-			for (int j = 0; j < 4; j++) 
-				out.m[i*4+j] = in.m[j*4+i];
-		}
-        return out;
-    }
-
-    float16 LookAtLH(vec3 eye, vec3 at, vec3 up) {
-        vec3 zaxis = normalize({at.x - eye.x, at.y - eye.y, at.z - eye.z});
-        vec3 xaxis = normalize(cross(up, zaxis));
-        vec3 yaxis = cross(zaxis, xaxis);
-        return {
-            xaxis.x, yaxis.x, zaxis.x, 0.0f,
-            xaxis.y, yaxis.y, zaxis.y, 0.0f,
-            xaxis.z, yaxis.z, zaxis.z, 0.0f,
-            -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.0f
-        };
-    }
-
-    float16 OrthographicLH(float w, float h, float zn, float zf) {
-        return {
-            2.0f/w, 0.0f, 0.0f, 0.0f,
-            0.0f, 2.0f/h, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f/(zf-zn), 0.0f,
-            0.0f, 0.0f, zn/(zn-zf), 1.0f
-        };
-    }
-
-    float16 PerspectiveFovLH(float fovY, float aspect, float zn, float zf) {
-        float yScale = 1.0f / std::tan(fovY / 2.0f);
-        float xScale = yScale / aspect;
-        return {
-            xScale, 0.0f, 0.0f, 0.0f,
-            0.0f, yScale, 0.0f, 0.0f,
-            0.0f, 0.0f, zf/(zf-zn), 1.0f,
-            0.0f, 0.0f, -zn*zf/(zf-zn), 0.0f
-        };
-    }
-}
-
 ID3D11Buffer* CConstantBuffers::_vop = nullptr;
 ID3D11Buffer* CConstantBuffers::_world = nullptr;
 ID3D11Buffer* CConstantBuffers::_texFont = nullptr;

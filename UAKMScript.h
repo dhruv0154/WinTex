@@ -2,6 +2,7 @@
 
 #include "ScriptBase.h"
 #include <unordered_map>
+#include <cstdint>
 
 class CUAKMScript : public CScriptBase
 {
@@ -10,7 +11,7 @@ public:
 	~CUAKMScript();
 
 	virtual void Execute(CScriptState* pState, int id);
-	virtual void Resume(CScriptState* pState, BOOL breakWait = FALSE);
+	virtual void Resume(CScriptState* pState, bool breakWait = false) override;
 	virtual ActionType GetCurrentActions(CScriptState* pState, int currentObjectIndex);
 	virtual void PermformAction(CScriptState* pState, int id, ActionType action, int item);
 
@@ -117,7 +118,7 @@ protected:
 
 	void(CUAKMScript::*_functions[97])(CScriptState* pState);
 
-	void AddCaption(CScriptState* pState, BOOL TexTalk);
+	void AddCaption(CScriptState* pState, bool TexTalk);
 
 	void Play(CScriptState* pState, int index, int bank, int rate);
 	void PlayAudio(CScriptState* pState, int index);

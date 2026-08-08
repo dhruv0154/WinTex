@@ -260,7 +260,6 @@ void Trace(int val, int rad)
 }
 
 void TraceLine(const char* text) { Trace(text); Trace("\r\n"); }
-void TraceLine(const char* text) { Trace(text); Trace("\r\n"); }
 void TraceLine(float val, int dc) { Trace(val, dc); Trace("\r\n"); }
 void TraceLine(int val, int rad) { Trace(val, rad); Trace("\r\n"); }
 

@@ -9,9 +9,9 @@ CStaticImage::~CStaticImage()
 {
 }
 
-BOOL CStaticImage::Init(LPBYTE pData, int length)
+bool CStaticImage::Init(uint8_t* pData, int length)
 {
-	if (!CAnimBase::Init(pData, length)) return FALSE;
+	if (!CAnimBase::Init(pData, length)) return false;
 
 	if (_texture.Init(pData, length, "IMAGE"))
 	{
@@ -19,8 +19,8 @@ BOOL CStaticImage::Init(LPBYTE pData, int length)
 		_height = _texture.Height();
 
 		CreateBuffers(_width, _height);
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }

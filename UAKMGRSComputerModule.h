@@ -2,8 +2,8 @@
 
 #include "FullScreenModule.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
 #include "Texture.h"
+#include <cstdint>
 
 class CUAKMGRSComputerModule : public CFullScreenModule
 {
@@ -14,21 +14,21 @@ public:
 	virtual void Dispose();
 	virtual void Render();
 
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 
 protected:
 	virtual void Initialize();
 
-	LPBYTE _animation;
+	uint8_t* _animation;
 	int _animationLength;
 
 	void RenderButton(int x, int y, int image);
 
-	LPBYTE _animationPointer;
+	uint8_t* _animationPointer;
 	int _animationFrames;
 	int _animationWidth;
 	int _animationHeight;
-	BOOL _animationActive;
+	bool _animationActive;
 
 	int _previousPage;
 

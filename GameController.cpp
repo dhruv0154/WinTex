@@ -1,214 +1,200 @@
 #include "GameController.h"
 #include "Utilities.h"
 
-CGameBase* CGameController::Game = NULL;
+CGameBase* CGameController::Game = nullptr;
 
-std::unordered_map<int, std::wstring> CGameController::FileMap;
+std::unordered_map<int, std::string> CGameController::FileMap;
 
-BOOL CGameController::CanCancelTravel = TRUE;
+bool CGameController::CanCancelTravel = true;
 
-std::unordered_map<int, std::wstring> CGameController::AskAboutMap;
-std::unordered_map<int, std::wstring> CGameController::ItemMap;
-std::unordered_map<int, std::wstring> CGameController::BuyableItemMap;
+std::unordered_map<int, std::string> CGameController::AskAboutMap;
+std::unordered_map<int, std::string> CGameController::ItemMap;
+std::unordered_map<int, std::string> CGameController::BuyableItemMap;
 
-BOOL CGameController::ItemsChanged = FALSE;
-BOOL CGameController::AskAboutChanged = FALSE;
-BOOL CGameController::BuyChanged = FALSE;
+bool CGameController::ItemsChanged = false;
+bool CGameController::AskAboutChanged = false;
+bool CGameController::BuyChanged = false;
 
-std::unordered_map<int, std::wstring> CGameController::_lSituations;
-std::unordered_map<int, std::wstring> CGameController::_dSituations;
+std::unordered_map<int, std::string> CGameController::_lSituations;
+std::unordered_map<int, std::string> CGameController::_dSituations;
 
 void CGameController::Init()
 {
 }
 
-BOOL CGameController::StartGame(CGameBase* pGame)
+bool CGameController::StartGame(CGameBase* pGame)
 {
-	Game = pGame;
+    if (pGame == nullptr)
+    {
+        return false;
+    }
 
-	// Play title animation
-	Game->Start();
+    Game = pGame;
+    Game->Start();
 
-	return (Game != NULL);
+    return true;
 }
 
-BYTE CGameController::GetParameter(int index)
+uint8_t CGameController::GetParameter(int index)
 {
-	return Game->GetParameter(index);
+    return Game ? Game->GetParameter(index) : 0;
 }
 
-void CGameController::SetParameter(int index, BYTE value)
+void CGameController::SetParameter(int index, uint8_t value)
 {
-	Game->SetParameter(index, value);
+    if (Game) Game->SetParameter(index, value);
 }
 
-BYTE CGameController::GetAskAboutState(int index)
+uint8_t CGameController::GetAskAboutState(int index)
 {
-	return Game->GetAskAboutState(index);
+    return Game ? Game->GetAskAboutState(index) : 0;
 }
 
-void CGameController::SetAskAboutState(int index, BYTE state)
+void CGameController::SetAskAboutState(int index, uint8_t state)
 {
-	AskAboutChanged = TRUE;
-
-	Game->SetAskAboutState(index, state);
+    AskAboutChanged = true;
+    if (Game) Game->SetAskAboutState(index, state);
 }
 
-BYTE CGameController::GetHintState(int index)
+uint8_t CGameController::GetHintState(int index)
 {
-	return Game->GetHintState(index);
+    return Game ? Game->GetHintState(index) : 0;
 }
 
-void CGameController::SetHintState(int index, BYTE state, int score)
+void CGameController::SetHintState(int index, uint8_t state, int score)
 {
-	Game->SetHintState(index, state, score);
+    if (Game) Game->SetHintState(index, state, score);
 }
 
-BYTE CGameController::GetHintCategoryState(int index)
+uint8_t CGameController::GetHintCategoryState(int index)
 {
-	return Game->GetHintCategoryState(index);
+    return Game ? Game->GetHintCategoryState(index) : 0;
 }
 
-void CGameController::SetHintCategoryState(int index, BYTE state)
+void CGameController::SetHintCategoryState(int index, uint8_t state)
 {
-	Game->SetHintCategoryState(index, state);
+    if (Game) Game->SetHintCategoryState(index, state);
 }
 
 int CGameController::GetItemState(int item)
 {
-	return Game->GetItemState(item);
+    return Game ? Game->GetItemState(item) : 0;
 }
 
 void CGameController::SetItemState(int item, int state)
 {
-	Game->SetItemState(item, state);
-	ItemsChanged = TRUE;
+    if (Game) Game->SetItemState(item, state);
+    ItemsChanged = true;
 }
 
 void CGameController::SetItemState(int base, int item, int state)
 {
-	Game->SetItemState(base, item, state);
+    if (Game) Game->SetItemState(base, item, state);
 }
 
 int CGameController::GetItemState(int base, int item)
 {
-	return Game->GetItemState(base, item);
+    return Game ? Game->GetItemState(base, item) : 0;
 }
 
-void CGameController::SetFileName(int index, std::wstring name)
+void CGameController::SetFileName(int index, const std::string& name)
 {
-	FileMap[index] = name;
+    FileMap[index] = name;
 }
 
-std::wstring CGameController::GetFileName(int index)
+std::string CGameController::GetFileName(int index)
 {
-	return FileMap[index];
+    auto it = FileMap.find(index);
+    return (it != FileMap.end()) ? it->second : "";
 }
 
-void CGameController::SetItemName(int index, std::wstring name)
+void CGameController::SetItemName(int index, const std::string& name)
 {
-	ItemMap[index] = name;
+    ItemMap[index] = name;
 }
 
-std::wstring CGameController::GetItemName(int index)
+std::string CGameController::GetItemName(int index)
 {
-	return ItemMap[index];
+    auto it = ItemMap.find(index);
+    return (it != ItemMap.end()) ? it->second : "";
 }
 
-void CGameController::SetBuyableItemName(int index, std::wstring name)
+void CGameController::SetBuyableItemName(int index, const std::string& name)
 {
-	BuyableItemMap[index] = name;
+    BuyableItemMap[index] = name;
 }
 
-std::wstring CGameController::GetBuyableItemName(int index)
+std::string CGameController::GetBuyableItemName(int index)
 {
-	return BuyableItemMap[index];
+    auto it = BuyableItemMap.find(index);
+    return (it != BuyableItemMap.end()) ? it->second : "";
 }
 
-void CGameController::SetAskAboutName(int index, std::wstring name)
+void CGameController::SetAskAboutName(int index, const std::string& name)
 {
-	AskAboutMap[index] = name;
+    AskAboutMap[index] = name;
 }
 
-std::wstring CGameController::GetAskAboutName(int index)
+std::string CGameController::GetAskAboutName(int index)
 {
-	return AskAboutMap[index];
+    auto it = AskAboutMap.find(index);
+    return (it != AskAboutMap.end()) ? it->second : "";
 }
 
 void CGameController::SetTimer(int timer, int duration)
 {
-	Game->SetTimer(timer, duration);
+    if (Game) Game->SetTimer(timer, duration);
 }
 
 int CGameController::GetTimerState(int timer)
 {
-	return Game->GetTimerState(timer);
+    return Game ? Game->GetTimerState(timer) : 0;
 }
 
 void CGameController::Tick(int ticks)
 {
-	Game->Tick(ticks);
+    if (Game) Game->Tick(ticks);
 }
 
 void CGameController::ResetTimers()
 {
-	Game->ResetTimers();
+    if (Game) Game->ResetTimers();
 }
 
-void CGameController::SetSituationDescriptionL(int ix, std::wstring value)
+void CGameController::SetSituationDescriptionL(int ix, const std::string& value)
 {
-	_lSituations[ix] = value;
+    _lSituations[ix] = value;
 }
 
-std::wstring CGameController::GetSituationDescriptionL(int ix)
+std::string CGameController::GetSituationDescriptionL(int ix)
 {
-	if (_lSituations.find(ix) == _lSituations.end())
-	{
-		ix = -1;
-	}
+    auto it = _lSituations.find(ix);
+    if (it == _lSituations.end() || it->second.empty())
+    {
+        it = _lSituations.find(-1);
+    }
 
-	if (_lSituations.find(ix) != _lSituations.end())
-	{
-		std::wstring description = _lSituations[ix];
-		if (description == L"")
-		{
-			description = _lSituations[-1];
-		}
-
-		return description;
-	}
-
-	return L"";
+    return (it != _lSituations.end()) ? it->second : "";
 }
 
-void CGameController::SetSituationDescriptionD(int ix, std::wstring value)
+void CGameController::SetSituationDescriptionD(int ix, const std::string& value)
 {
-	_dSituations[ix] = value;
+    _dSituations[ix] = value;
 }
 
-std::wstring CGameController::GetSituationDescriptionD(int ix)
+std::string CGameController::GetSituationDescriptionD(int ix)
 {
-	if (_dSituations.find(ix) == _dSituations.end())
-	{
-		ix = -1;
-	}
+    auto it = _dSituations.find(ix);
+    if (it == _dSituations.end() || it->second.empty())
+    {
+        it = _dSituations.find(-1);
+    }
 
-	if (_dSituations.find(ix) != _dSituations.end())
-	{
-		std::wstring description= _dSituations[ix];
-		if (description == L"")
-		{
-			description = _dSituations[-1];
-		}
-
-		return description;
-	}
-
-	return L"";
+    return (it != _dSituations.end()) ? it->second : "";
 }
 
 void CGameController::TransformItem(int fromId, int toId)
 {
-	SetItemState(fromId, 2);
-	SetItemState(toId, 1);
+    SetItemState(fromId, 2);
+    SetItemState(toId, 1);
 }

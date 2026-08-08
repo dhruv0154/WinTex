@@ -5,5 +5,5 @@
 class CPDDMap : public CMap
 {
 public:
-	virtual BOOL Init();
+	virtual bool Init();
 };

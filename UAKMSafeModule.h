@@ -2,32 +2,32 @@
 
 #include "ModuleBase.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
+#include <cstdint>
 #include "Texture.h"
 #include "AmbientAudio.h"
 
 class CUAKMSafeModule : public CModuleBase
 {
 public:
-	CUAKMSafeModule(int parameter, BOOL alternatePalette);
+	CUAKMSafeModule(int parameter, bool alternatePalette);
 	virtual ~CUAKMSafeModule();
 
 	virtual void Resize(int width, int height);
 
 	virtual void Dispose();
 	virtual void Render();
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 
 protected:
 	virtual void Initialize();
 
 	int _parameter;
-	BOOL _alternatePalette;
+	bool _alternatePalette;
 
-	LPBYTE _screen;
+	uint8_t* _screen;
 
 	void SetCursorArea(int x1, int y1, int x2, int y2);
-	void ClipMouse(BOOL move);
+	void ClipMouse(bool move);
 	float _left;
 	float _top;
 	float _right;
@@ -35,29 +35,29 @@ protected:
 	float _scale;
 
 	int _palette[256];
-	std::unordered_map<int, LPBYTE> _safeImageOffsets;
-	std::unordered_map<int, LPBYTE> _safeSoundOffsets;
+	std::unordered_map<int, uint8_t*> _safeImageOffsets;
+	std::unordered_map<int, uint8_t*> _safeSoundOffsets;
 
-	LPBYTE _pImages;
-	LPBYTE _pSounds;
+	uint8_t* _pImages;
+	uint8_t* _pSounds;
 
 	ID3D11Buffer* _vertexBuffer;
 	CTexture _texture;
 	bool _textureDirty;
-	DWORD _frameTimes[14];
+	uint64_t _frameTimes[14];
 
 	ID3D11Buffer* _handVertexBuffer;
 	CTexture _handTexture;
 
 	void UpdateTexture();
-	void PartialRender(int entry, int offsetX, int offsetY, BOOL updateTexture);
+	void PartialRender(int entry, int offsetX, int offsetY, bool updateTexture);
 
-	BOOL _ready;
-	DWORD _frameDelay;
-	ULONGLONG _frameTime;
+	bool _ready;
+	uint64_t _frameDelay;
+	uint64_t _frameTime;
 	int _startupFrame;
 	int _keyDown[14];
-	BYTE _enteredCode[8];
+	uint8_t _enteredCode[8];
 	int _keyPos;
 
 	void Start();
@@ -68,11 +68,11 @@ protected:
 	CAmbientAudio _sound;
 
 	void Press(int key, int sound);
-	BOOL _codeCorrect;
+	bool _codeCorrect;
 
-	BOOL _flashingLightOn;
+	bool _flashingLightOn;
 	int _rollingLightPosition;
-	ULONGLONG _rollingLightTime;
+	uint64_t _rollingLightTime;
 
 	int _openSafeSequence;
 

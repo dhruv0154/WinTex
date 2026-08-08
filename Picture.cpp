@@ -8,16 +8,16 @@ CPicture::~CPicture()
 {
 }
 
-BOOL CPicture::Init(LPBYTE pData, int length)
+bool CPicture::Init(uint8_t* pData, int length)
 {
 	int w = 0, h = 0;
 
 	CreateBuffers(w, h);
 
-	return FALSE;
+	return false;
 }
 
-BOOL CPicture::DecodeFrame()
+bool CPicture::DecodeFrame()
 {
-	return FALSE;
+	return false;
 }

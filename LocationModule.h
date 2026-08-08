@@ -5,6 +5,9 @@
 #include "ScriptBase.h"
 #include "DXText.h"
 #include "ScriptState.h"
+#include "Point.h"
+#include <cstdint>
+#include <string>
 
 #define MOVEMENT_WALK_SPEED 0.2f
 #define MOVEMENT_RUN_SPEED 0.5f
@@ -12,91 +15,89 @@
 class CLocationModule : public CModuleBase
 {
 public:
-	CLocationModule(int locationId, int startupPosition);
-	virtual ~CLocationModule();
+    CLocationModule(int locationId, int startupPosition);
+    virtual ~CLocationModule();
 
-	virtual void Resize(int width, int height);
+    void Resize(int width, int height) override;
 
-	virtual void Pause();
-	virtual void Resume();
-	virtual void Render();
+    void Pause() override;
+    void Resume() override;
+    void Render() override;
 
-	static float _movement_left;
-	static float _movement_right;
-	static float _movement_forward;
-	static float _movement_backward;
-	static float _movement_x;
-	static float _movement_y;
-	static float _movement_z;
-	static float _smooth_movement_x;
-	static float _smooth_movement_z;
-	static float _speed;
+    static float _movement_left;
+    static float _movement_right;
+    static float _movement_forward;
+    static float _movement_backward;
+    static float _movement_x;
+    static float _movement_y;
+    static float _movement_z;
+    static float _smooth_movement_x;
+    static float _smooth_movement_z;
+    static float _speed;
 
-	static ActionType CurrentAction;
+    static ActionType CurrentAction;
 
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+    void KeyDown(uint32_t key, uint32_t lParam) override;
 #ifdef DEBUG
-	virtual void MouseWheel(int scroll);
+    void MouseWheel(int scroll) override;
 #endif
 
 protected:
-	virtual void Initialize();
+    void Initialize() override;
 
-	int _actionColour1;
-	int _actionColour2;
-	int _actionColour3;
-	int _actionColour4;
-	int _currentActionColour1;
-	int _currentActionColour2;
-	int _currentActionColour3;
-	int _currentActionColour4;
-	int _unavailableActionColour1;
-	int _unavailableActionColour2;
-	int _unavailableActionColour3;
-	int _unavailableActionColour4;
+    int _actionColour1{0};
+    int _actionColour2{0};
+    int _actionColour3{0};
+    int _actionColour4{0};
+    int _currentActionColour1{0};
+    int _currentActionColour2{0};
+    int _currentActionColour3{0};
+    int _currentActionColour4{0};
+    int _unavailableActionColour1{0};
+    int _unavailableActionColour2{0};
+    int _unavailableActionColour3{0};
+    int _unavailableActionColour4{0};
 
-	int _locationId;
-	int _startupPosition;
+    int _locationId{0};
+    int _startupPosition{0};
 
-	CLocation _location;
+    CLocation _location;
 
-	// Properies for location object selection
-	int CurrentObjectIndex;
-	ActionType CurrentActions;
-	int CurrentActionMousePointerIndex;
-	CDXText _actionText[7];
+    int CurrentObjectIndex{-1};
+    ActionType CurrentActions{ActionType::None};
+    int CurrentActionMousePointerIndex{0};
+    CDXText _actionText[7];
 
-	virtual void SelectMouseAction();
-	void CycleActions(BOOL allowUse);
+    virtual void SelectMouseAction();
+    void CycleActions(bool allowUse);
 
-	CScriptState* _environmentScriptState;
-	CScriptState* _actionScriptState;
-	CScriptState* _queryActionScriptState;
-	CScriptBase* _scriptEngine;
-	CScriptState* _initScriptState;
+    CScriptState* _environmentScriptState{nullptr};
+    CScriptState* _actionScriptState{nullptr};
+    CScriptState* _queryActionScriptState{nullptr};
+    CScriptBase* _scriptEngine{nullptr};
+    CScriptState* _initScriptState{nullptr};
 
-	POINT _oldPoint;
+    Point _oldPoint;
 
-	virtual void LoadLocation(int locationFileIndex, BinaryData script, std::wstring file, int entry);
-	virtual void SetLocationPosition(StartupPosition pos) { _location.SetPosition(pos); _location.UpdateSprites(); }
+    virtual void LoadLocation(int locationFileIndex, BinaryData script, const std::string& file, int entry);
+    virtual void SetLocationPosition(StartupPosition pos) { _location.SetPosition(pos); _location.UpdateSprites(); }
 
-	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
-	virtual void BeginAction();
-	virtual void Back();
-	virtual void Cycle();
-	virtual void MoveForward(float v);
-	virtual void MoveBack(float v);
-	virtual void MoveLeft(float v);
-	virtual void MoveRight(float v);
-	virtual void MoveUp(float y);
-	virtual void MoveDown(float y);
-	virtual void Run(BOOL run);
-	virtual void Next();
-	virtual void Prev();
-	virtual void Inventory();
-	virtual void Travel();
-	virtual void Hints();
+    void Cursor(float x, float y, bool relative) override;
+    void BeginAction() override;
+    void Back() override;
+    void Cycle() override;
+    void MoveForward(float v) override;
+    void MoveBack(float v) override;
+    void MoveLeft(float v) override;
+    void MoveRight(float v) override;
+    void MoveUp(float y) override;
+    void MoveDown(float y) override;
+    void Run(bool run) override;
+    void Next() override;
+    void Prev() override;
+    void Inventory() override;
+    void Travel() override;
+    void Hints() override;
 
-	void CycleItems(int direction);
+    void CycleItems(int direction);
 };

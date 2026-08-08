@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ModuleBase.h"
-#include "D3D11-NoWarn.h"
 #include "DXButton.h"
 #include "AnimBase.h"
 #include "DXScreen.h"
@@ -31,10 +30,10 @@ protected:
 	CDXButton* _pBtnNo;
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 
 	void Yes();
 	void No();

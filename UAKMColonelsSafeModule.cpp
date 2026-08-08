@@ -1,15 +1,20 @@
 #include "UAKMColonelsSafeModule.h"
 #include "GameController.h"
 #include "UAKMGame.h"
+#include "ConstantBuffers.h"
+#include "DoubleData.h"
+#include "Utilities.h"
+#include "Shaders.h"
+#include <chrono>
 
-#define IMG_DIAL_1	0
-#define IMG_DIAL_2	1
-#define IMG_DIAL_3	2
-#define IMG_GREEN	3
-#define IMG_HAND	4
-#define SND_1		5
+#define IMG_DIAL_1  0
+#define IMG_DIAL_2  1
+#define IMG_DIAL_3  2
+#define IMG_GREEN   3
+#define IMG_HAND    4
+#define SND_1       5
 
-BYTE ColonelsSafeCorrectCode[] = { 5, 7, 1 };
+uint8_t ColonelsSafeCorrectCode[] = { 5, 7, 1 };
 int ColonelsSafeDialOffsets[] = { 169, 285, 396 };
 
 CUAKMColonelsSafeModule::CUAKMColonelsSafeModule(int parameter) : CFullScreenModule(ModuleType::AAASafe)
@@ -28,25 +33,27 @@ CUAKMColonelsSafeModule::~CUAKMColonelsSafeModule()
 
 void CUAKMColonelsSafeModule::Render()
 {
-	if (_currentFrame > 0 && (GetTickCount() - _frameTime) > 50)
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+	if (_currentFrame > 0 && (now - _frameTime) > 50)
 	{
 		int x = ColonelsSafeDialOffsets[_dial];
 		int y = 273;
 
 		Render(3 - _currentFrame, x, y);
-		_frameTime = GetTickCount64();
+		_frameTime = now;
 		_currentFrame--;
 
 		if (_currentFrame == 0)
 		{
 			_sound.Play(_files[SND_1]);
 
-			BOOL correct = TRUE;
+			bool correct = true;
 			for (int i = 0; i < 3; i++)
 			{
 				if (ColonelsSafeCorrectCode[i] != _enteredCode[i])
 				{
-					correct = FALSE;
+					correct = false;
 					break;
 				}
 			}
@@ -66,13 +73,13 @@ void CUAKMColonelsSafeModule::Render()
 			}
 			else
 			{
-				_inputEnabled = TRUE;
+				_inputEnabled = true;
 			}
 		}
 
 		UpdateTexture();
 	}
-	else if (_currentFrame == -1 && (GetTickCount64() - _frameTime) > 1000)
+	else if (_currentFrame == -1 && (now - _frameTime) > 1000)
 	{
 		// Mark dials green
 		for (int i = 0; i < 3; i++)
@@ -82,23 +89,23 @@ void CUAKMColonelsSafeModule::Render()
 
 		UpdateTexture();
 		_currentFrame--;
-		_frameTime = GetTickCount64();
+		_frameTime = now;
 	}
-	else if (_currentFrame == -2 && (GetTickCount64() - _frameTime) > 1000)
+	else if (_currentFrame == -2 && (now - _frameTime) > 1000)
 	{
 		return CModuleController::Pop(this);
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -106,7 +113,7 @@ void CUAKMColonelsSafeModule::Render()
 
 		dx.SetVertexBuffers(0, 1, &_iconVertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-		wm = XMMatrixTranslation(_cursorPosX, -_cursorPosY, -0.5f);
+		wm = Math::Translation(_cursorPosX, -_cursorPosY, -0.5f);
 		CConstantBuffers::SetWorld(dx, &wm);
 		pRV = _iconTexture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -122,12 +129,12 @@ void CUAKMColonelsSafeModule::Initialize()
 
 	CGameController::SetParameter(_parameter, 0);
 
-	DoubleData dd = LoadDoubleEntry(L"SPECIAL.AP", 0);
-	if (dd.File1.Data != NULL)
+	DoubleData dd = LoadDoubleEntry("SPECIAL.AP", 0);
+	if (dd.File1.Data != nullptr)
 	{
 		_screen = dd.File2.Data;
 
-		LPBYTE pPal = dd.File1.Data;
+		uint8_t* pPal = dd.File1.Data;
 		ReadPalette(pPal);
 
 		delete[] pPal;
@@ -136,8 +143,8 @@ void CUAKMColonelsSafeModule::Initialize()
 	UpdateTexture();
 
 	// Load extra files
-	BinaryData bd = LoadEntry(L"SPECIAL.AP", 2);
-	if (bd.Data != NULL)
+	BinaryData bd = LoadEntry("SPECIAL.AP", 2);
+	if (bd.Data != nullptr)
 	{
 		_data = bd.Data;
 		int count = GetInt(_data, 0, 2) - 1;
@@ -153,7 +160,7 @@ void CUAKMColonelsSafeModule::Initialize()
 
 void CUAKMColonelsSafeModule::Render(int entry, int offset_x, int offset_y)
 {
-	LPBYTE pImg = _files[entry];
+	uint8_t* pImg = _files[entry];
 
 	int w = GetInt(pImg, 2, 2);
 	int h = GetInt(pImg, 4, 2);
@@ -184,7 +191,7 @@ void CUAKMColonelsSafeModule::ResetCode()
 		_enteredCode[i] = 0;
 	}
 
-	_dialChanged = FALSE;
+	_dialChanged = false;
 }
 
 void CUAKMColonelsSafeModule::TurnDial(int dial)
@@ -192,9 +199,9 @@ void CUAKMColonelsSafeModule::TurnDial(int dial)
 	if (dial >= 0 && dial < 3)
 	{
 		_dial = dial;
-		_inputEnabled = FALSE;
+		_inputEnabled = false;
 		_currentFrame = 3;
-		_frameTime = GetTickCount64();
+		_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 		if (_enteredCode[dial + 1] != 0)
 		{
@@ -203,7 +210,7 @@ void CUAKMColonelsSafeModule::TurnDial(int dial)
 		}
 
 		_enteredCode[dial]++;
-		_dialChanged = TRUE;
+		_dialChanged = true;
 	}
 }
 

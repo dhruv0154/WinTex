@@ -9,28 +9,28 @@ class CControllerData;
 class CDXControlButton : public CDXButton
 {
 public:
-	CDXControlButton(LPSTR function, std::unordered_map<InputAction, InputMap>* pMapping, BOOL isJoystick, float w, float h, float textX, void(*onClick)(InputAction) = NULL, InputAction action = InputAction::Cursor);
+	CDXControlButton(const char* function, std::unordered_map<InputAction, InputMap>* pMapping, bool isJoystick, float w, float h, float textX, void(*onClick)(InputAction) = nullptr, InputAction action = InputAction::Cursor);
 	~CDXControlButton();
-	virtual void Click();
-	virtual void Render();
-	virtual CDXControl* HitTest(float x, float y);
-	virtual void SetMouseOver(BOOL mouseOver);
+	virtual void Click() override;
+	virtual void Render() override;
+	virtual CDXControl* HitTest(float x, float y) override;
+	virtual void SetMouseOver(bool mouseOver) override;
 
 	std::string GetMapText(CControllerData* pControllerData);
 
 	void UpdateControlText(CControllerData* pControllerData);
 	void UpdateControlText(std::unordered_map<InputAction, InputMap>* pMapping, InputAction action);
 
-	void SetIsBeingConfigured(BOOL configuring) { _isBeingConfigured = configuring; }
+	void SetIsBeingConfigured(bool configuring) { _isBeingConfigured = configuring; }
 
-	BOOL IsJoystickConfigControl() { return _isJoystick; }
+	bool IsJoystickConfigControl() const { return _isJoystick; }
 
-	virtual void SetColours(int colour1, int colour2, int colour3, int colour4);
+	virtual void SetColours(int colour1, int colour2, int colour3, int colour4) override;
 
 protected:
-	BOOL _isJoystick;
+	bool _isJoystick;
 	CDXText _binding;
-	BOOL _isBeingConfigured;
+	bool _isBeingConfigured;
 	void(*_controlClicked)(InputAction action);
 	InputAction _action;
 };

@@ -3,6 +3,7 @@
 #include "FullScreenModule.h"
 #include "RawFont.h"
 #include "PuzzlePiece.h"
+#include "Structs.h"
 
 class CPDDragDropPuzzleModule : public CFullScreenModule
 {
@@ -20,7 +21,7 @@ protected:
 	void RenderScreen();
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void EndAction();
 	virtual void Back();
@@ -30,14 +31,14 @@ protected:
 
 	int _puzzleIndex;
 
-	BOOL _hasBonusScore;
+	bool _hasBonusScore;
 	int _scoreToAdd;
 	int _bonusScore;
 	int _bonusDropSpeed;
 	int _timeOrMoves;
 	int _timeOrFreeMoves;
 
-	static WCHAR* FileNames[];
+	static const char* FileNames[];
 	static int PuzzleFiles[];
 	static int PuzzleEntries[];
 	static int PuzzlePiecesCount[];
@@ -48,18 +49,18 @@ protected:
 	int _imageOffset;
 
 	CPuzzlePiece* _selectedPiece;
-	POINT _pt;
+	Point _pt;
 
-	BOOL _completed;
-	BOOL CheckCompleted();
-	BOOL CheckPandoraPuzzleCompleted();
-	BOOL CheckFiguresPuzzleCompleted();
-	BOOL CheckTornNotePuzzleCompleted();
-	BOOL CheckHolePunchPuzzleCompleted();
-	BOOL CheckLabyrinthPuzzleCompleted();
-	BOOL CheckDaggerPuzzleCompleted();
-	BOOL CheckTornPhotoPuzzleCompleted();
-	BOOL CheckLaptopPuzzleCompleted();
+	bool _completed;
+	bool CheckCompleted();
+	bool CheckPandoraPuzzleCompleted();
+	bool CheckFiguresPuzzleCompleted();
+	bool CheckTornNotePuzzleCompleted();
+	bool CheckHolePunchPuzzleCompleted();
+	bool CheckLabyrinthPuzzleCompleted();
+	bool CheckDaggerPuzzleCompleted();
+	bool CheckTornPhotoPuzzleCompleted();
+	bool CheckLaptopPuzzleCompleted();
 
-	BOOL _cheated;
+	bool _cheated;
 };

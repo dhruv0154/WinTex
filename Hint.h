@@ -2,11 +2,12 @@
 
 #include <string>
 #include "DXMultiColouredText.h"
+#include "Structs.h"
 
 class CHint
 {
 public:
-	CHint(int hintIndex, std::wstring text);
+	CHint(int hintIndex, std::string text);
 	~CHint();
 
 	int GetHintIndex() { return _hintIndex; }
@@ -21,7 +22,7 @@ public:
 
 protected:
 	int _hintIndex;
-	std::wstring _text;
+	std::string _text;
 	int _state;
 	CDXMultiColouredText _mcText;
 };

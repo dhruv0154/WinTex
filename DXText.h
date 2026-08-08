@@ -1,82 +1,85 @@
 #pragma once
 
-#include "D3D11-NoWarn.h"
-#include "DirectX.h"
+#include "DXBase.h"
 #include "DXFont.h"
+#include "ShaderStructs.h"
+#include <string>
+#include <vector>
+#include <cstdint>
 
 class CDXText : public CDXBase
 {
 public:
-	enum class Alignment
-	{
-		Left = 0,
-		Center = 1,
-		Right = 2,
-		Justify = 3,
-		JustifyAlways = 4,
-	};
+    enum class Alignment
+    {
+        Left = 0,
+        Center = 1,
+        Right = 2,
+        Justify = 3,
+        JustifyAlways = 4,
+    };
 
-	CDXText();
-	~CDXText();
+    CDXText();
+    virtual ~CDXText();
 
-	std::string _string;
-	std::wstring _wstring;
+    std::string _string;
+    std::wstring _wstring;
 
-	void SetColours(int colour);
-	void SetColours(int colour1, int colour2);
-	void SetColours(int colour1, int colour2, int colour3, int colour4);
+    void SetColours(int colour);
+    void SetColours(int colour1, int colour2);
+    void SetColours(int colour1, int colour2, int colour3, int colour4);
 
-	virtual void Render(float x, float y, float z = -1.0f);
+    virtual void Render(float x, float y, float z = -1.0f);
 
-	void SetText(char const* text, Alignment alignment = Alignment::Left);
-	void SetText(char const* text, Rect rect, Alignment alignment = Alignment::Left);
-	void SetText(LPCWSTR text, Alignment alignment = Alignment::Left);
-	void SetText(LPCWSTR text, Rect rect, Alignment alignment = Alignment::Left);
-	void ResetText();
+    void SetText(const char* text, Alignment alignment = Alignment::Left);
+    void SetText(const char* text, Rect rect, Alignment alignment = Alignment::Left);
+    void SetText(const wchar_t* text, Alignment alignment = Alignment::Left);
+    void SetText(const wchar_t* text, Rect rect, Alignment alignment = Alignment::Left);
+    void ResetText();
 
-	void SetTextUnmodified(char const* text);
-	void SetTextUnmodified(WCHAR const* text);
+    void SetTextUnmodified(const char* text);
+    void SetTextUnmodified(const wchar_t* text);
 
-	float PixelWidth(char* text);
-	int Lines() { return _lines; }
+    float PixelWidth(const char* text);
+    int Lines() const { return _lines; }
 
-	float Width();
-	void Width(float w);
-	float Height();
+    float Width() const;
+    void Width(float w);
+    float Height() const;
 
-	class CWordList
-	{
-	public:
-		CWordList();
-		~CWordList();
+    class CWordList
+    {
+    public:
+        CWordList();
+        ~CWordList();
 
-		void Add(char const* text, int chars, float pixels);
-		CWordList* Next();
-		float Pixels();
-		char const* Text();
-		int Chars();
+        void Add(const char* text, int chars, float pixels);
+        CWordList* Next();
+        float Pixels() const;
+        const char* Text() const;
+        int Chars() const;
 
-		void SetNext(CWordList* pNext) { _next = pNext; }
+        void SetNext(CWordList* pNext) { _next = pNext; }
 
-	protected:
-		CWordList(char const* text, int chars, float pixels);
+    protected:
+        CWordList(const char* text, int chars, float pixels);
 
-		char const* _text;
-		int _chars;
-		float _pixels;
+        const char* _text{nullptr};
+        int _chars{0};
+        float _pixels{0.0f};
 
-		CWordList* _next;
-		CWordList* _last;
-	};
+        CWordList* _next{nullptr};
+        CWordList* _last{nullptr};
+    };
 
 protected:
-	ID3D11Buffer* _vertexBuffer;
-	int _printableCharacters;
-	int _lines;
-	float _width;
+    ID3D11Buffer* _vertexBuffer{nullptr};
+    int _printableCharacters{0};
+    int _lines{0};
+    float _width{0.0f};
 
-	int _colour1;
-	int _colour2;
-	int _colour3;
-	int _colour4;
+    int _colour1{0};
+    int _colour2{0};
+    int _colour3{0};
+    int _colour4{0};
 };

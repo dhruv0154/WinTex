@@ -9,8 +9,12 @@
 #include "DXTabItem.h"
 #include "InputMapping.h"
 #include <unordered_map>
+#include <vector>
+#include <string>
+#include <cstdint>
 #include "DXControlButton.h"
 #include "DXSlider.h"
+#include "DXLabel.h"
 
 enum class SaveMode
 {
@@ -33,7 +37,7 @@ public:
 
 	static void GameOver();
 
-	static void EnableSaveAndResume(BOOL enable);
+	static void EnableSaveAndResume(bool enable);
 	static void UpdateSaveGameData();
 
 	static void SetPlayerNameAndEnableButtons();
@@ -49,24 +53,24 @@ protected:
 	virtual void SetupSave() = 0;
 	virtual void SetupLoad() = 0;
 
-	static void NewGame(LPVOID data);
-	static void Resume(LPVOID data);
-	static void Load(LPVOID data);
-	static void Save(LPVOID data);
-	static void Config(LPVOID data);
-	static void Quit(LPVOID data);
+	static void NewGame(void* data);
+	static void Resume(void* data);
+	static void Load(void* data);
+	static void Save(void* data);
+	static void Config(void* data);
+	static void Quit(void* data);
 
 	static CDXButton* _btnMainResume;
 	static CDXButton* _btnMainSave;
 
-	static void ConfigCancel(LPVOID data);
-	static void ConfigAccept(LPVOID data);
+	static void ConfigCancel(void* data);
+	static void ConfigAccept(void* data);
 
-	static void ConfigPreviousResolution(LPVOID data);
-	static void ConfigNextResolution(LPVOID data);
+	static void ConfigPreviousResolution(void* data);
+	static void ConfigNextResolution(void* data);
 
-	static void ConfigPreviousMIDIDevice(LPVOID data);
-	static void ConfigNextMIDIDevice(LPVOID data);
+	static void ConfigPreviousMIDIDevice(void* data);
+	static void ConfigNextMIDIDevice(void* data);
 
 	static CConfiguration cfg;
 
@@ -99,8 +103,8 @@ protected:
 	static CDXButton* _pConfigCancelBtn;
 	static CDXButton* _pConfigAcceptBtn;
 
-	static void LoadCancel(LPVOID data);
-	static void LoadLoad(LPVOID data);
+	static void LoadCancel(void* data);
+	static void LoadLoad(void* data);
 
 	static std::vector<SaveGameInfo> _savedGames;
 	static std::vector<CSaveGameControl*> _saveGameControls;
@@ -112,9 +116,9 @@ protected:
 	static int _loadVisibleSavesCount;
 	static void LoadScroll(int top);
 
-	static void SaveCancel(LPVOID data);
-	static void SaveSave(LPVOID data);
-	static void SaveIncrementSave(LPVOID data);
+	static void SaveCancel(void* data);
+	static void SaveSave(void* data);
+	static void SaveIncrementSave(void* data);
 	static CSaveGameControl* _saveControl;
 
 	static SaveGameInfo CurrentGameInfo;
@@ -131,7 +135,7 @@ protected:
 
 	static void ConfigureControl(InputAction data);
 	static void ConfigControlsCancel(InputAction data);
-	static BOOL ConfiguringControl;
+	static bool ConfiguringControl;
 	static InputAction ControlInputAction;
 
 	static CDXButton* _pCancelConfigControlBtn;
@@ -147,17 +151,17 @@ protected:
 	static CDXSlider* _pSliderDragging;
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void EndAction();
 	virtual void Back();
 	virtual void Next();
 	virtual void Prev();
 
-	BOOL IsValidForControlConfiguration(InputSource source);
-	virtual void MouseMove(POINT pt);
-	virtual void MouseDown(POINT pt, int btn);
+	bool IsValidForControlConfiguration(InputSource source);
+	virtual void MouseMove(Point pt);
+	virtual void MouseDown(Point pt, int btn);
 	virtual void MouseWheel(int scroll);
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 	virtual void GamepadInput(InputSource source, int offset, int data);
 };

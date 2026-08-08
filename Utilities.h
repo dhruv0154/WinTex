@@ -64,7 +64,7 @@ void TraceLine(const char* text);
 void TraceLine(float val, int dc = 2);
 void TraceLine(int val, int rad = 10);
 
-uint8_t* GetResource(int resource, const char* type, uint32_t pSize);
+uint8_t* GetResource(int resource, const char* type, uint32_t* pSize);
 
 void ClearCaptions(std::list<CCaption*>* pCap);
 

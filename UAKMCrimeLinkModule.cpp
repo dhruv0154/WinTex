@@ -5,29 +5,33 @@
 #include "GameController.h"
 #include "AnimationController.h"
 #include "UAKMGame.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <chrono>
+#include <cstring>
 
-#define CL_PAGE_1				35
-#define CL_PAGE_2				37
-#define CL_PAGE_3				39
-#define CL_PAGE_MATCH			41
-#define CL_PAGE_COMPILING		42
-#define CL_PAGE_FLEMM1			44
-#define CL_PAGE_FLEMM2			46
-#define CL_PAGE_FLEMM3			48
+#define CL_PAGE_1               35
+#define CL_PAGE_2               37
+#define CL_PAGE_3               39
+#define CL_PAGE_MATCH           41
+#define CL_PAGE_COMPILING       42
+#define CL_PAGE_FLEMM1          44
+#define CL_PAGE_FLEMM2          46
+#define CL_PAGE_FLEMM3          48
 
 short CUAKMCrimeLinkModule::CorrectSelections[15] = { 1,1,0x10,0x40,2,2,2,8,0x20,0x100,0,2,0,0,0 };
 short CUAKMCrimeLinkModule::PlayerSelections[15] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
 
 short CUAKMCrimeLinkModule::Animation[CL_ANIMATION_FRAMES * 4] = { 0xA7, 0xDA, 5, 6,
 																0xA7, 0xD1, 6, 6,
-																0x73, 0xF1, 7, 6,	// Limit 2
+																0x73, 0xF1, 7, 6,
 																0x73, 0xE3, 8, 6,
 																0x73, 0xB7, 8, 6,
-																0x73, 0x61, 8, 6,		// Something happens between these limits
+																0x73, 0x61, 8, 6,
 																0x73, 0x151, 8, 6,
 																0x73, 0xFE, 8, 6,
 																0x73, 0xA9, 8, 6,
-																0x73, 0x69, 8, 6,	// Limit 1
+																0x73, 0x69, 8, 6,
 																-1, -1, -1, 0x1E,
 																0x9D, 0xF0, 9, 6,
 																0x9D, 0xC4, 0xA, 6,
@@ -63,16 +67,14 @@ CUAKMCrimeLinkModule::CUAKMCrimeLinkModule(int parameter) : CFullScreenModule(Mo
 	_windowX = 115;
 	_windowY = 90;
 
-	_page = -1;	// Playing animation while < 0
+	_page = -1;
 
-	_lastMouseOver.x = -1;
-	_lastMouseOver.y = -1;
+	_lastMouseOver = { -1, -1 };
 
 	_parameter = parameter;
 
 	_flashFrame = 0;
 
-	// Load selections from save game
 	for (int i = 0; i < 15; i++)
 	{
 		PlayerSelections[i] = CGameController::GetData(UAKM_SAVE_CRIMELINK_SELECTIONS + i * 2) | CGameController::GetData(UAKM_SAVE_CRIMELINK_SELECTIONS + i * 2 + 1) << 8;
@@ -92,41 +94,37 @@ void CUAKMCrimeLinkModule::Initialize()
 
 	CGameController::SetParameter(_parameter, 0);
 
-	// Load palette
-	BinaryData bdPal = LoadEntry(L"SPECIAL.AP", 3);
-	if (bdPal.Data != NULL)
+	BinaryData bdPal = LoadEntry("SPECIAL.AP", 3);
+	if (bdPal.Data != nullptr)
 	{
 		ReadPalette(bdPal.Data);
-
 		delete[] bdPal.Data;
 	}
 
-	// Load screen
-	BinaryData bdScr = LoadEntry(L"SPECIAL.AP", 4);
+	BinaryData bdScr = LoadEntry("SPECIAL.AP", 4);
 	_screen = bdScr.Data;
 
-	// Load animation entries
 	for (int i = 0; i < CL_ANIMATION_FRAMES; i++)
 	{
 		int entry = Animation[i * 4 + 2];
 		if (entry >= 0)
 		{
-			BinaryData bd = LoadEntry(L"SPECIAL.AP", entry);
+			BinaryData bd = LoadEntry("SPECIAL.AP", entry);
 			_files[entry] = bd.Data;
 		}
 	}
 
 	for (int i = 34; i < 53; i++)
 	{
-		BinaryData bd = LoadEntry(L"SPECIAL.AP", i);
+		BinaryData bd = LoadEntry("SPECIAL.AP", i);
 		_files[i] = bd.Data;
 	}
 }
 
-void CUAKMCrimeLinkModule::PartialRender(int entry, int offsetX, int offsetY, BOOL updateTexture)
+void CUAKMCrimeLinkModule::PartialRender(int entry, int offsetX, int offsetY, bool updateTexture)
 {
-	LPBYTE data = _files[entry];
-	if (data != NULL && GetInt(data, 0, 2) == 0x100)
+	uint8_t* data = _files[entry];
+	if (data != nullptr && GetInt(data, 0, 2) == 0x100)
 	{
 		int width = GetInt(data, 2, 2);
 		int height = GetInt(data, 4, 2);
@@ -149,26 +147,24 @@ void CUAKMCrimeLinkModule::PartialRender(int entry, int offsetX, int offsetY, BO
 
 void CUAKMCrimeLinkModule::Render()
 {
-	CAnimationController::UpdateAndRender();	// Needed to play the sound (unless the initial update and render is moved to the play function in the script engine)
+	CAnimationController::UpdateAndRender();
+
+	uint64_t tick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 	if (_page < 0)
 	{
-		// Animation format; offset x, offset y, file entry, duration
-		ULONGLONG tick = GetTickCount64();
-		ULONGLONG diff = tick - _animationFrameTime;
+		uint64_t diff = tick - _animationFrameTime;
 		if (diff >= _animationFrameDuration)
 		{
-			// Render next frame
 			int offsetX = Animation[_animationIndex + 0];
 			int offsetY = Animation[_animationIndex + 1];
 			int entry = Animation[_animationIndex + 2];
 			int duration = Animation[_animationIndex + 3];
 
-			PartialRender(entry, offsetX, offsetY, TRUE);
+			PartialRender(entry, offsetX, offsetY, true);
 
 			if (_animationIndex >= 8 && _animationIndex <= 36)
 			{
-				// Clear block
 				for (int y = 0; y <= 16; y++)
 				{
 					memset(_screen + (offsetY + y) * 640 + 115, 0, 413);
@@ -177,7 +173,7 @@ void CUAKMCrimeLinkModule::Render()
 
 			_animationIndex += 4;
 
-			_animationFrameDuration = static_cast<ULONGLONG>(TIMER_SCALE * duration);
+			_animationFrameDuration = static_cast<uint64_t>(TIMER_SCALE * duration);
 			_animationFrameTime = tick;
 
 			if (_animationIndex >= CL_ANIMATION_FRAMES * 4)
@@ -189,8 +185,7 @@ void CUAKMCrimeLinkModule::Render()
 
 	if (_page == 0)
 	{
-		ULONGLONG tick = GetTickCount64();
-		ULONGLONG diff = tick - _animationFrameTime;
+		uint64_t diff = tick - _animationFrameTime;
 		if (diff >= _animationFrameDuration)
 		{
 			ShowPage1();
@@ -199,8 +194,7 @@ void CUAKMCrimeLinkModule::Render()
 
 	if (_page == 5)
 	{
-		ULONGLONG tick = GetTickCount64();
-		ULONGLONG diff = tick - _animationFrameTime;
+		uint64_t diff = tick - _animationFrameTime;
 		if (diff >= _animationFrameDuration)
 		{
 			_animationFrameTime = tick;
@@ -213,13 +207,11 @@ void CUAKMCrimeLinkModule::Render()
 			{
 				if ((_flashFrame & 1) == 0)
 				{
-					// Clear top area
 					CFullScreenModule::ReplaceColour(240, 208, 397, 228, 0xb0, 0xaf);
 				}
 				else
 				{
-					// Render full image
-					PartialRender(CL_PAGE_COMPILING, _windowX, _windowY, FALSE);
+					PartialRender(CL_PAGE_COMPILING, _windowX, _windowY, false);
 				}
 
 				UpdateTexture();
@@ -227,16 +219,16 @@ void CUAKMCrimeLinkModule::Render()
 		}
 	}
 
-	if (_vertexBuffer != NULL)
+	if (_vertexBuffer != nullptr)
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -254,7 +246,6 @@ void CUAKMCrimeLinkModule::Render()
 
 void CUAKMCrimeLinkModule::Pause()
 {
-	// Save selections back to save data
 	for (int i = 0; i < 15; i++)
 	{
 		CGameController::SetData(UAKM_SAVE_CRIMELINK_SELECTIONS + i * 2, PlayerSelections[i] & 0xFF);
@@ -265,41 +256,34 @@ void CUAKMCrimeLinkModule::Pause()
 
 void CUAKMCrimeLinkModule::SetCursorArea(int x1, int y1, int x2, int y2)
 {
-	_lastMouseOver.x = -1;
-	_lastMouseOver.y = -1;
+	_lastMouseOver = { -1, -1 };
 
-	// Scale values based on main screen scaling
 	_cursorMinX = static_cast<int>(_left + x1 * _scale);
 	_cursorMaxX = static_cast<int>(_left + x2 * _scale);
 	_cursorMinY = static_cast<int>(_top + y1 * _scale);
 	_cursorMaxY = static_cast<int>(_top + y2 * _scale);
-	SetCursorClipping(_cursorMinX, _cursorMinY,
-					  _cursorMaxX, _cursorMaxY);
+	SetCursorClipping(_cursorMinX, _cursorMinY, _cursorMaxX, _cursorMaxY);
 }
 
-POINT CUAKMCrimeLinkModule::GetMouseOver()
+std::pair<int, int> CUAKMCrimeLinkModule::GetMouseOver()
 {
-	POINT pt;
-	pt.x = -1;
-	pt.y = -1;
+	std::pair<int, int> pt(-1, -1);
 
 	int scaledX = static_cast<int>((_cursorPosX - _left) / _scale);
 	int scaledY = static_cast<int>((_cursorPosY - _top) / _scale);
 
-	// Check if mouse is inside a selectable field, and if yes, which category it belongs to (if any)
 	int c = 0;
 	while (_areaData.Table4[c].unk1 != 0xff && (_areaData.Table4[c].unk1 != 0x2f || CheckSelection()))
 	{
 		if (scaledY >= _areaData.Table4[c].Y1 && scaledY <= _areaData.Table4[c].Y2 && scaledX >= _areaData.Table4[c].X1 && scaledX <= _areaData.Table4[c].X2)
 		{
-			pt.x = c;
+			pt.first = c;
 
-			// Check if this entry has a header
 			for (int h = 0; h < 5; h++)
 			{
 				if (c >= _areaData.CategoryOptionOffsets[h] && c < _areaData.CategoryOptionOffsets[h + 1])
 				{
-					pt.y = h;
+					pt.second = h;
 					break;
 				}
 			}
@@ -313,7 +297,7 @@ POINT CUAKMCrimeLinkModule::GetMouseOver()
 	return pt;
 }
 
-void CUAKMCrimeLinkModule::DrawRectangle(int entry, BYTE colour, BOOL isCategory)
+void CUAKMCrimeLinkModule::DrawRectangle(int entry, uint8_t colour, bool isCategory)
 {
 	int ax1 = 0, ax2 = 0, ay1 = 0, ay2 = 0;
 	if (isCategory && _page != 4)
@@ -326,7 +310,7 @@ void CUAKMCrimeLinkModule::DrawRectangle(int entry, BYTE colour, BOOL isCategory
 	CFullScreenModule::DrawRectangle(_areaData.Table4[entry].X1 + ax1, _areaData.Table4[entry].Y1 + ay1, _areaData.Table4[entry].X1 + _areaData.Table2[_areaData.Table4[entry].WidthIndex] - ax2, _areaData.Table4[entry].Y2 - ay2, colour);
 }
 
-void CUAKMCrimeLinkModule::ReplaceColour(BOOL isCategory, int entry, BYTE src, BYTE dst)
+void CUAKMCrimeLinkModule::ReplaceColour(bool isCategory, int entry, uint8_t src, uint8_t dst)
 {
 	if (isCategory)
 	{
@@ -342,7 +326,7 @@ void CUAKMCrimeLinkModule::ShowPage1()
 {
 	_windowX = 115;
 	_windowY = 90;
-	PartialRender(CL_PAGE_1, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_1, _windowX, _windowY, false);
 	SetCursorArea(118, 88, 514, 379);
 	_page = 1;
 	_areaData.Init(_files[CL_PAGE_1 - 1]);
@@ -354,7 +338,7 @@ void CUAKMCrimeLinkModule::ShowPage1()
 
 void CUAKMCrimeLinkModule::ShowPage2()
 {
-	PartialRender(CL_PAGE_2, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_2, _windowX, _windowY, false);
 	SetCursorArea(118, 88, 514, 379);
 	_page = 2;
 	_areaData.Init(_files[CL_PAGE_2 - 1]);
@@ -366,7 +350,7 @@ void CUAKMCrimeLinkModule::ShowPage2()
 
 void CUAKMCrimeLinkModule::ShowPage3()
 {
-	PartialRender(CL_PAGE_3, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_3, _windowX, _windowY, false);
 	SetCursorArea(118, 88, 514, 379);
 	_page = 3;
 	_areaData.Init(_files[CL_PAGE_3 - 1]);
@@ -376,74 +360,45 @@ void CUAKMCrimeLinkModule::ShowPage3()
 	UpdateSelection();
 }
 
-BOOL CUAKMCrimeLinkModule::CheckSelection()
+bool CUAKMCrimeLinkModule::CheckSelection()
 {
 	for (int i = 0; i < 15; i++)
 	{
 		if (PlayerSelections[i] != CorrectSelections[i])
 		{
-			return FALSE;
+			return false;
 		}
 	}
 
-	return TRUE;
+	return true;
 }
 
 void CUAKMCrimeLinkModule::Click(int entry, int category)
 {
-	// If category is not set, it is probably one of the buttons that was hit
 	if (category == -1)
 	{
 		int test = _areaData.Table4[entry].unk1;
 		if (test == 0x2f && CheckSelection())
 		{
-			// View
 			ShowPage6();
 		}
 		else if (test == 0x10)
 		{
-			// Quit
 			return CModuleController::Pop(this);
 		}
 		else if (test == 0x51)
 		{
-			// Move to next page
-			if (_page == 1)
-			{
-				ShowPage2();
-			}
-			else if (_page == 2)
-			{
-				ShowPage3();
-			}
-			else if (_page == 6)
-			{
-				ShowPage7();
-			}
-			else if (_page == 7)
-			{
-				ShowPage8();
-			}
+			if (_page == 1) ShowPage2();
+			else if (_page == 2) ShowPage3();
+			else if (_page == 6) ShowPage7();
+			else if (_page == 7) ShowPage8();
 		}
 		else if (test == 0x49)
 		{
-			// Move to previous page
-			if (_page == 2)
-			{
-				ShowPage1();
-			}
-			else if (_page == 3)
-			{
-				ShowPage2();
-			}
-			else if (_page == 7)
-			{
-				ShowPage6();
-			}
-			else if (_page == 8)
-			{
-				ShowPage7();
-			}
+			if (_page == 2) ShowPage1();
+			else if (_page == 3) ShowPage2();
+			else if (_page == 7) ShowPage6();
+			else if (_page == 8) ShowPage7();
 		}
 		else if (test == 0x31)
 		{
@@ -454,12 +409,10 @@ void CUAKMCrimeLinkModule::Click(int entry, int category)
 			ShowPage5();
 		}
 
-		// Call Cursor to redraw selection rectangle (over next/prev buttons)
 		Cursor(_cursorPosX, _cursorPosY, false);
 	}
 	else
 	{
-		// Set or clear current answer, enable highlighting
 		for (int i = 5; i >= 0; i--)
 		{
 			if (entry >= _areaData.CategoryOptionOffsets[i])
@@ -469,23 +422,20 @@ void CUAKMCrimeLinkModule::Click(int entry, int category)
 
 				if (oldAnswer == newAnswer)
 				{
-					// Toggle
 					PlayerSelections[_pageAnswerOffset + category] = 0;
 				}
 				else
 				{
 					PlayerSelections[_pageAnswerOffset + category] = newAnswer;
-					// Mark new answer red
-					ReplaceColour(FALSE, entry, 0xb1, 0xb0);
+					ReplaceColour(false, entry, 0xb1, 0xb0);
 				}
 
-				// Mark old answer green
 				if (oldAnswer != 0)
 				{
 					int answerIndex = GetAnswerIndex(i, oldAnswer);
 					if (answerIndex >= 0)
 					{
-						ReplaceColour(FALSE, _areaData.CategoryOptionOffsets[i] + answerIndex, 0xb0, 0xb1);
+						ReplaceColour(false, _areaData.CategoryOptionOffsets[i] + answerIndex, 0xb0, 0xb1);
 					}
 				}
 
@@ -503,7 +453,6 @@ void CUAKMCrimeLinkModule::Click(int entry, int category)
 
 void CUAKMCrimeLinkModule::UpdateSelection()
 {
-	// Maximum 5 categories in each page
 	for (int i = 0; i < 5; i++)
 	{
 		int answer = PlayerSelections[_pageAnswerOffset + i];
@@ -512,42 +461,37 @@ void CUAKMCrimeLinkModule::UpdateSelection()
 			int index = GetAnswerIndex(i, answer);
 			if (index >= 0)
 			{
-				ReplaceColour(FALSE, _areaData.CategoryOptionOffsets[i] + index, 0xb1, 0xb0);
+				ReplaceColour(false, _areaData.CategoryOptionOffsets[i] + index, 0xb1, 0xb0);
 			}
 		}
 	}
 
-	// If selection is incorrect, should hide the "view" button
 	int e = 0;
 	while (_areaData.Table4[e].unk1 != 0xff)
 	{
 		if (_areaData.Table4[e].unk1 == 0x2f)
 		{
-			BYTE src = 0xb4, dst = 0;
+			uint8_t src = 0xb4, dst = 0;
 			if (CheckSelection())
 			{
 				src = 0;
 				dst = 0xb4;
 			}
 
-			ReplaceColour(FALSE, e, src, dst);
-
+			ReplaceColour(false, e, src, dst);
 			break;
 		}
 
 		e++;
 	}
 
-	// Update suspect count
 	CFullScreenModule::ReplaceColour(271, 349, 301, 360, 0xb0, 0xaf);
 	if (CheckSelection())
 	{
-		// Render 1
 		Render1(279, 349);
 	}
 	else
 	{
-		// Render 100+
 		Render1(271, 349);
 		Render0(277, 349);
 		Render0(286, 349);
@@ -578,7 +522,7 @@ void CUAKMCrimeLinkModule::ShowPage6()
 
 	_windowX = 115;
 	_windowY = 90;
-	PartialRender(CL_PAGE_FLEMM1, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_FLEMM1, _windowX, _windowY, false);
 	SetCursorArea(242, 374, 397, 382);
 	_page = 6;
 	_areaData.Init(_files[CL_PAGE_FLEMM1 - 1]);
@@ -590,7 +534,7 @@ void CUAKMCrimeLinkModule::ShowPage7()
 {
 	CGameController::SetParameter(_parameter, CGameController::GetParameter(_parameter) | 2);
 
-	PartialRender(CL_PAGE_FLEMM2, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_FLEMM2, _windowX, _windowY, false);
 	SetCursorArea(242, 374, 397, 382);
 	_page = 7;
 	_areaData.Init(_files[CL_PAGE_FLEMM2 - 1]);
@@ -600,7 +544,7 @@ void CUAKMCrimeLinkModule::ShowPage7()
 
 void CUAKMCrimeLinkModule::ShowPage8()
 {
-	PartialRender(CL_PAGE_FLEMM3, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_FLEMM3, _windowX, _windowY, false);
 	SetCursorArea(242, 374, 397, 382);
 	_page = 8;
 	_areaData.Init(_files[CL_PAGE_FLEMM3 - 1]);
@@ -653,7 +597,7 @@ void CUAKMCrimeLinkModule::ShowPage4()
 
 	_windowX = 240;
 	_windowY = 208;
-	PartialRender(CL_PAGE_MATCH, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_MATCH, _windowX, _windowY, false);
 	SetCursorArea(273, 262, 350, 281);
 	_page = 4;
 	_areaData.Init(_files[CL_PAGE_MATCH - 1]);
@@ -673,60 +617,54 @@ void CUAKMCrimeLinkModule::ShowPage5()
 
 	_windowX = 240;
 	_windowY = 208;
-	PartialRender(CL_PAGE_COMPILING, _windowX, _windowY, FALSE);
+	PartialRender(CL_PAGE_COMPILING, _windowX, _windowY, false);
 	SetCursorArea(242, 367, 397, 382);
 	_page = 5;
 
 	_flashFrame = 11;
 
-	_animationFrameTime = GetTickCount64();
+	_animationFrameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	_animationFrameDuration = 150;
 
 	UpdateTexture();
 }
 
-void CUAKMCrimeLinkModule::Cursor(float x, float y, BOOL relative)
+void CUAKMCrimeLinkModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
 	if (_page > 0 && _flashFrame <= 0)
 	{
-		BOOL update = FALSE;
-		POINT pt = GetMouseOver();
-		if (pt.x != _lastMouseOver.x)
+		bool update = false;
+		std::pair<int, int> pt = GetMouseOver();
+		if (pt.first != _lastMouseOver.first)
 		{
-			// Mouse over has changed
-			if (_lastMouseOver.x >= 0)
+			if (_lastMouseOver.first >= 0)
 			{
-				// Clear previous mouse over
-				DrawRectangle(_lastMouseOver.x, 0, (_lastMouseOver.y < 0));
+				DrawRectangle(_lastMouseOver.first, 0, (_lastMouseOver.second < 0));
 			}
 
-			if (pt.x >= 0)
+			if (pt.first >= 0)
 			{
-				// Set new mouse over
-				DrawRectangle(pt.x, 0xb0, (pt.y < 0));
+				DrawRectangle(pt.first, 0xb0, (pt.second < 0));
 			}
 
-			update = TRUE;
+			update = true;
 		}
 
-		if (_lastMouseOver.y != pt.y)
+		if (_lastMouseOver.second != pt.second)
 		{
-			// Category has changed
-			if (_lastMouseOver.y >= 0)
+			if (_lastMouseOver.second >= 0)
 			{
-				// Clear previous mouse over category
-				ReplaceColour(TRUE, _lastMouseOver.y, 0xb0, 0xb1);
+				ReplaceColour(true, _lastMouseOver.second, 0xb0, 0xb1);
 			}
 
-			if (pt.y >= 0 && pt.y != _lastMouseOver.y)
+			if (pt.second >= 0 && pt.second != _lastMouseOver.second)
 			{
-				// Set category highlighting
-				ReplaceColour(TRUE, pt.y, 0xb1, 0xb0);
+				ReplaceColour(true, pt.second, 0xb1, 0xb0);
 			}
 
-			update = TRUE;
+			update = true;
 		}
 
 		_lastMouseOver = pt;
@@ -746,19 +684,16 @@ void CUAKMCrimeLinkModule::BeginAction()
 	}
 	else
 	{
-		// TODO: Perform selection, re-evaluate answers
-
 		if (_page < 0)
 		{
-			// If not yet on page 1, skip forward
 			ShowPage1();
 		}
 		else if (_page >= 1 && _page <= 8 && _page != 5)
 		{
-			POINT pt = GetMouseOver();
-			if (pt.x >= 0)
+			std::pair<int, int> pt = GetMouseOver();
+			if (pt.first >= 0)
 			{
-				Click(pt.x, pt.y);
+				Click(pt.first, pt.second);
 			}
 		}
 	}

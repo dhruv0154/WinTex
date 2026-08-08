@@ -1,10 +1,13 @@
 #include "DXTabControl.h"
+#include "Globals.h"
+#include "DXScreen.h"
 
-CDXTabControl::CDXTabControl(float w, float h)
+CDXTabControl::CDXTabControl(float w, float h) : CDXContainer()
 {
-	_selectedItem = NULL;
-	_w = w;
-	_h = h;
+    _selectedItem = nullptr;
+    _w = w;
+    _h = h;
+    _type = ControlType::Control;
 }
 
 CDXTabControl::~CDXTabControl()
@@ -13,70 +16,82 @@ CDXTabControl::~CDXTabControl()
 
 void CDXTabControl::Render()
 {
-	auto elementCount = _childElements.size();
-	float elementWidth = _w / elementCount;
-	float x = _x;
-	float y = _y + 5 + TexFont.Height() * pConfig->FontScale;
+    if (_childElements.empty()) return;
 
-	for (auto child : _childElements)
-	{
-		CDXTabItem* tabItem = (CDXTabItem*)child;
-		tabItem->Render(_x, _y, x, y, (_selectedItem == tabItem));
-		x += elementWidth;
-	}
+    size_t elementCount = _childElements.size();
+    float elementWidth = _w / static_cast<float>(elementCount);
+    float x = _x;
+    float y = _y + 5.0f + TexFont.Height() * pConfig->FontScale;
+
+    for (auto* child : _childElements)
+    {
+        if (child != nullptr)
+        {
+            CDXTabItem* tabItem = static_cast<CDXTabItem*>(child);
+            tabItem->Render(_x, _y, x, y, (_selectedItem == tabItem));
+            x += elementWidth;
+        }
+    }
 }
 
 void CDXTabControl::MouseButtonDown()
 {
-	int debug = 0;
 }
 
 CDXControl* CDXTabControl::HitTest(float x, float y)
 {
-	auto elementCount = _childElements.size();
-	float elementWidth = _w / elementCount;
-	float cx = _x;
-	float scaledFontHeight = TexFont.Height() * pConfig->FontScale;
-	float cy = _y + 5 + scaledFontHeight;
+    if (!_visible || !_enabled || _childElements.empty())
+    {
+        return nullptr;
+    }
 
-	for (auto child : _childElements)
-	{
-		float nx = cx + elementWidth;
+    size_t elementCount = _childElements.size();
+    float elementWidth = _w / static_cast<float>(elementCount);
+    float cx = _x;
+    float scaledFontHeight = TexFont.Height() * pConfig->FontScale;
+    float cy = _y + 5.0f + scaledFontHeight;
 
-		// Hit test header
-		if (x >= cx && x <= nx && y >= cy && y <= (cy + scaledFontHeight + 8))
-		{
-			return child;
-		}
+    for (auto* child : _childElements)
+    {
+        if (child == nullptr) continue;
 
-		CDXTabItem* tabItem = (CDXTabItem*)child;
-		if (tabItem == _selectedItem)
-		{
-			CDXControl* pHit = tabItem->HitTest(x, y);
-			if (pHit != NULL)
-			{
-				return pHit;
-			}
-		}
+        float nx = cx + elementWidth;
 
-		cx = nx;
-	}
+        if (x >= cx && x <= nx && y >= cy && y <= (cy + scaledFontHeight + 8.0f))
+        {
+            return child;
+        }
+        CDXTabItem* tabItem = static_cast<CDXTabItem*>(child);
+        if (tabItem == _selectedItem)
+        {
+            CDXControl* pHit = tabItem->HitTest(x, y);
+            if (pHit != nullptr)
+            {
+                return pHit;
+            }
+        }
 
-	return NULL;
+        cx = nx;
+    }
+
+    return nullptr;
 }
 
 void CDXTabControl::AddChild(CDXControl* pCtrl, float x, float y)
 {
-	pCtrl->SetPosition(_x + x, _y + y);
-	_childElements.push_back(pCtrl);
+    if (pCtrl != nullptr)
+    {
+        pCtrl->SetPosition(_x + x, _y + y);
+        _childElements.push_back(pCtrl);
 
-	if (_selectedItem == NULL)
-	{
-		_selectedItem = (CDXTabItem*)pCtrl;
-	}
+        if (_selectedItem == nullptr)
+        {
+            _selectedItem = static_cast<CDXTabItem*>(pCtrl);
+        }
+    }
 }
 
 void CDXTabControl::Select(CDXTabItem* pItem)
 {
-	_selectedItem = pItem;
+    _selectedItem = pItem;
 }

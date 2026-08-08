@@ -5,24 +5,26 @@
 #include "AnimationController.h"
 #include "LZ.h"
 #include "PDSubLocation.h"
-#include "resource.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <cstring>
 
-#define PD_TRAVEL_AREA_SAN_FRANCISCO	0
-#define PD_TRAVEL_AREA_CHANDLER_AVENUE	1
-#define PD_TRAVEL_AREA_NORTH_AMERICA	2
-#define PD_TRAVEL_AREA_ROSWELL_LEVEL_1	3
-#define PD_TRAVEL_AREA_ROSWELL_LEVEL_2	4
-#define PD_TRAVEL_AREA_ROSWELL_LEVEL_3	5
+#define PD_TRAVEL_AREA_SAN_FRANCISCO    0
+#define PD_TRAVEL_AREA_CHANDLER_AVENUE  1
+#define PD_TRAVEL_AREA_NORTH_AMERICA    2
+#define PD_TRAVEL_AREA_ROSWELL_LEVEL_1  3
+#define PD_TRAVEL_AREA_ROSWELL_LEVEL_2  4
+#define PD_TRAVEL_AREA_ROSWELL_LEVEL_3  5
 
-#define PD_MAP_ENTRY_SAN_FRANCISCO		7
-#define PD_MAP_ENTRY_CHANDLER_AVENUE	9
-#define PD_MAP_ENTRY_NORTH_AMERICA		11
-#define PD_MAP_ENTRY_ROSWELL_LV1		13
-#define PD_MAP_ENTRY_ROSWELL_LV2		15
-#define PD_MAP_ENTRY_ROSWELL_LV3		17
+#define PD_MAP_ENTRY_SAN_FRANCISCO      7
+#define PD_MAP_ENTRY_CHANDLER_AVENUE    9
+#define PD_MAP_ENTRY_NORTH_AMERICA      11
+#define PD_MAP_ENTRY_ROSWELL_LV1        13
+#define PD_MAP_ENTRY_ROSWELL_LV2        15
+#define PD_MAP_ENTRY_ROSWELL_LV3        17
 
-#define PD_TRAVEL_INDICATOR_AREA		57
-#define PD_TRAVEL_INDICATOR_LOCATION	58
+#define PD_TRAVEL_INDICATOR_AREA        57
+#define PD_TRAVEL_INDICATOR_LOCATION    58
 
 CPDTravelModule::CPDTravelModule()
 {
@@ -91,80 +93,6 @@ CPDTravelModule::CPDTravelModule()
 	_subLocations.push_back(new CPDSubLocation(24, 54, 21, 0, 0, 0, 0, 123, -1, -1, 21, 1, 21, 0, 21, "Hallway"));
 	_subLocations.push_back(new CPDSubLocation(24, 57, 24, 0, 0, 0, 0, 123, -1, -1, 24, 1, 24, 0, 21, "Horton's office"));
 	_subLocations.push_back(new CPDSubLocation(24, 56, 23, 0, 0, 0, 0, 123, -1, -1, 23, 1, 23, 0, 21, "Evidence room"));
-
-	/*
-				{ 00,"San Francisco" },
-				{ 01,"Tex' office"},
-				{ 02,"Ritz lobby"},
-				{ 03,"Malloy's room at the Ritz"},
-				{ 04,"Chandler Avenue"},
-				{ 05,"Behind Ritz"},
-				{ 06,"Rusty's Fun House"},
-				{ 07,"Rusty's roof"},
-				{ 08,"Watertower"},
-				{ 09,"ACME warehouse"},
-				{ 11,"Alley behind Pawnshop"},
-				{ 12,"Electronics shop"},
-				{ 15,"Cabin"},
-				{ 17,"Easter egg room"},
-				{ 20,"Sandra Collins' room"},
-				{ 21,"Autotech(NSA) Hallway"},
-				{ 22,"Autotech(NSA) Lobby"},
-				{ 23,"NSA Evidence room"},
-				{ 24,"NSA Horton's office"},
-				{ 25,"Morgue"},
-				{ 26,"Roswell hallway 1"},
-				{ 27,"Roswell hallway 2"},
-				{ 28,"Malloy's room (Garden house)"},
-				{ 29,"Malloy's Warehouse"},
-				{ 31,"Roswell Security Station"},
-				{ 32,"Roswell Compound Exterior"},
-				{ 33,"Roswell Air Ducts, level 2"},
-				{ 34,"Roswell Air Ducts, level 3"},
-				{ 35,"Roswell Mess hall"},
-				{ 36,"Roswell Recreation hall"},
-				{ 37,"Roswell Dorms"},
-				{ 38,"Roswell storage#104"},
-				{ 39,"Roswell storage#102"},
-				{ 40,"Misc Storage, level 3"},
-				{ 41,"Roswell Generator room"},
-				{ 42,"Roswell War Room"},
-				{ 43,"Roswell Linguistics Lab"},
-				{ 44,"Roswell Metallurgy Lab"},
-				{ 45,"Roswell Bio Lab"},
-				{ 46,"Roswell Computer/ Science Lab"},
-				{ 47,"Roswell Hangar"},
-				{ 48,"Roswell Air Ducts, level 1"},
-				{ 49,"Roswell Storage 101 - 200"},
-				{ 54,"Elijah Witt's apartment"},
-				{ 57,"Mayan Chamber 1"},
-				{ 58,"Mayan Chamber 2"},
-				{ 59,"Mayan Chamber 3"},
-				{ 60,"Mayan Chamber 4"},
-				{ 61,"Mayan Chamber 5" },
-				{ 62,"Mayan Labyrinth 1"},
-				{ 63,"Mayan Labyrinth 2"},
-				{ 64,"Mayan Ascension chamber"},
-				{ 65,"Alley behind Ritz"},
-				{ 66,"Mayan Fireball room"},
-				{ 67,"Sewer"},
-				{ 68,"Stairway Alley"},
-				{ 69,"Alley behind Golden Gate"},
-				{ 70,"Tex' Bedroom"},
-				{ 71,"Tex' Computer room"},
-				{ 84,"Police Station" },
-				{ 85,"Rook's PawnShop" },
-				{ 86,"Brew & Stew" },
-				{ 87,"Coit Tower" },
-				{ 88,"Fuchsia Flamingo" },
-				{ 91,"Emily's Apt" },
-				{ 93,"Chelsee's Apt" },
-				{ 94,"Cosmic Connection" },
-				{ 96,"Imperial Lounge" },
-				{ 97,"Twilight Lounge" },
-				{ 98,"Post Office" },
-				{ 99,"Savoy Hotel" } };
-	*/
 }
 
 CPDTravelModule::~CPDTravelModule()
@@ -188,45 +116,31 @@ void CPDTravelModule::Initialize()
 
 	_rawFont.Init(IDR_RAWFONT_PD);
 
-	// TRAVEL.AP
-	// 0-1 = main page
-	// 2-3 = APs with buttons & icons
-	// 4-5 = empty
-	// 6-7 = San Francisco
-	// 8-9 = Chandler Avenue
-	// 10-11 = North America
-	// 12-13 = Roswell level 1
-	// 14-15 = Roswell level 2
-	// 16-17 = Roswell level 3
-	// 18-21 = empty
-	// 22-23> = Location images
-
 	CFile file;
-	if (file.Open(L"TRAVEL.AP"))
+	if (file.Open("TRAVEL.AP"))
 	{
-		DWORD length = file.Seek(0, CFile::SeekMethod::End);
-		_data = new BYTE[length];
+		uint32_t length = file.Seek(0, CFile::SeekMethod::End);
+		_data = new uint8_t[length];
 		if (_data != NULL)
 		{
 			file.Seek(0);
 			file.Read(_data, length);
 			file.Close();
+			
 			int count = GetInt(_data, 0, 2) - 1;
 
 			ReadPalette(_data + GetInt(_data, 2, 4), 0, 0x23);
-			ReadPalette(_data + GetInt(_data, 2 + 6 * 4, 4), 0x23, 0x5d);	// Palette for Chandler Avenue, San Francisco and North America
-			//ReadPalette(_data + GetInt(_data, 2 + 12 * 4, 4), 0x23, 0x5d);	// Palette for Roswell
+			ReadPalette(_data + GetInt(_data, 2 + 6 * 4, 4), 0x23, 0x5d);   // Palette for Chandler Avenue, San Francisco and North America
 
-			// TODO: Screen to use depends on default map / current player location
-			_screen = new BYTE[640 * 480];
-			FillMemory(_screen, 640 * 480, 0);
+			_screen = new uint8_t[640 * 480];
+			memset(_screen, 0, 640 * 480);
 
 			RenderImage(1, 0, 0, 640, 445);
 
 			RenderArea();
 
-			RenderSubImage(2, 51, 3, 13, 0, 455, 124, 15);			// Travel button
-			RenderSubImage(2, 7, 5, 13, 640 - 124, 455, 124, 15);	// Cancel button
+			RenderSubImage(2, 51, 3, 13, 0, 455, 124, 15);          // Travel button
+			RenderSubImage(2, 7, 5, 13, 640 - 124, 455, 124, 15);   // Cancel button
 
 			UpdateTexture();
 		}
@@ -266,25 +180,21 @@ void CPDTravelModule::RenderArea()
 
 void CPDTravelModule::RenderChandlerAvenue()
 {
-	// TODO: Apply regular palette
 	RenderImage(PD_MAP_ENTRY_CHANDLER_AVENUE, 208, 15, 415, 415);
 }
 
 void CPDTravelModule::RenderSanFrancisco()
 {
-	// TODO: Apply regular palette
 	RenderImage(PD_MAP_ENTRY_SAN_FRANCISCO, 208, 15, 415, 415);
 }
 
 void CPDTravelModule::RenderNorthAmerica()
 {
-	// TODO: Apply regular palette
 	RenderImage(PD_MAP_ENTRY_NORTH_AMERICA, 208, 15, 415, 415);
 }
 
 void CPDTravelModule::RenderRoswell(int level)
 {
-	// TODO: Apply Roswell palette
 	RenderImage(PD_MAP_ENTRY_ROSWELL_LV1 + (level - 1) * 2, 208, 15, 415, 415);
 
 	RenderSubImage(3, level == 0 ? 19 : 18, 0, 0, 13, 33, 176, 21);
@@ -296,7 +206,6 @@ void CPDTravelModule::Render()
 {
 	if (_currentPage < 0)
 	{
-		// Fade out
 		FadeOut(0x23, 0x80, 0, 10);
 		if (_currentFrame == 10)
 		{
@@ -307,7 +216,6 @@ void CPDTravelModule::Render()
 	}
 	else if (_currentPage > 0)
 	{
-		// Fade in
 		FadeIn(0x23, 0x80, 0, 10);
 		if (_currentFrame == 10)
 		{
@@ -320,12 +228,12 @@ void CPDTravelModule::Render()
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		unsigned int stride = sizeof(TEXTURED_VERTEX);
+		unsigned int offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -333,8 +241,6 @@ void CPDTravelModule::Render()
 
 		CModuleController::Cursors[0].SetPosition(_cursorPosX, _cursorPosY);
 		CModuleController::Cursors[0].Render();
-
-		// TODO: Add flashing indicator of selected location and sub location
 
 		dx.EnableZBuffer();
 	}
@@ -350,14 +256,12 @@ void CPDTravelModule::BeginAction()
 		CPDSubLocation* pPDSL = (CPDSubLocation*)location;
 		if (pPDSL->ParentLocation == _area && (pPDSL->Type == 6 || CGameController::GetData(PD_SAVE_TRAVEL + pPDSL->TravelIndex) != 0) && pPDSL->HitTest(x, y))
 		{
-			Fill(16, 114, 191, 236, 0);	// Clear location/sub-location image (update to render default image)
-			Fill(18, 253, 191, 429, 0);	// Clear sub-locations list
+			Fill(16, 114, 191, 236, 0); 
+			Fill(18, 253, 191, 429, 0); 
 
 			if (pPDSL->Type == 6)
 			{
-				// Navigate to area
 				_area = pPDSL->Area;
-				//_inputEnabled = FALSE;
 				_currentPage = -1;
 				_currentFrame = 0;
 				_pDestination = NULL;
@@ -366,24 +270,21 @@ void CPDTravelModule::BeginAction()
 			{
 				_pDestination = pPDSL;
 
-				// Render selected location name
 				std::unordered_map<int, int> colourMap;
 				colourMap[2] = pPDSL->ColourIndex;
-				_rawFont.Render(_screen, 640, 480, 20, 255, (char*)pPDSL->Text.c_str(), colourMap, -1, -1, TRUE);
+				_rawFont.Render(_screen, 640, 480, pPDSL->NameX, pPDSL->NameY, (char*)pPDSL->Text.c_str(), colourMap, -1, -1, true);
 
-				// Render location image
 				RenderLocationImage(pPDSL->TravelIndex);
 
-				// Render accessible sub-locations
-				int y = 32;
+				int fontY = 32;
 				for (auto subLocation : _subLocations)
 				{
 					CPDSubLocation* pSPDSL = (CPDSubLocation*)subLocation;
 					if (pSPDSL->IndicatorX == 0 && pSPDSL->ParentLocation == pPDSL->Id && (pPDSL->Type == 6 || CGameController::GetData(PD_SAVE_TRAVEL + pSPDSL->TravelIndex) != 0))
 					{
-						pSPDSL->IconHitBox = RenderSubImage(2, PD_TRAVEL_INDICATOR_LOCATION, 35, 251 + y);
-						pSPDSL->NameHitBox = _rawFont.Render(_screen, 640, 480, 50, 251 + y, (char*)pSPDSL->Text.c_str(), colourMap, -1, -1, TRUE);
-						y += _rawFont.GetHeight() - 2;
+						pSPDSL->IconHitBox = RenderSubImage(2, PD_TRAVEL_INDICATOR_LOCATION, 35, 251 + fontY);
+						pSPDSL->NameHitBox = _rawFont.Render(_screen, 640, 480, 50, 251 + fontY, (char*)pSPDSL->Text.c_str(), colourMap, -1, -1, true);
+						fontY += _rawFont.GetHeight() - 2;
 					}
 				}
 
@@ -398,47 +299,40 @@ void CPDTravelModule::BeginAction()
 		{
 			_selectedSubLocation = pPDSL->Id;
 			_pDestination = pPDSL;
-			// Render location image
 			RenderLocationImage(pPDSL->TravelIndex);
 			UpdateTexture();
 			break;
 		}
 	}
 
-	// Check if any of the map buttons is clicked
 	if (x >= 13 && x < 189 && y >= 33 && y < 54)
 	{
-		// Top map
 		_area = PD_TRAVEL_AREA_CHANDLER_AVENUE;
 		_currentPage = -1;
 		_currentFrame = 0;
 	}
 	else if (x >= 13 && x < 189 && y >= 53 && y < 74)
 	{
-		// Middle map
 		_area = PD_TRAVEL_AREA_SAN_FRANCISCO;
 		_currentPage = -1;
 		_currentFrame = 0;
 	}
 	else if (x >= 13 && x < 189 && y >= 75 && y < 96)
 	{
-		// Bottom map
 		_area = PD_TRAVEL_AREA_NORTH_AMERICA;
 		_currentPage = -1;
 		_currentFrame = 0;
 	}
 
-	// Check if cancel is clicked
 	if (x >= 516 && x < 640 && y >= 455 && y < 470)
 	{
 		CModuleController::Pop(this);
 	}
 
-	// Check if travel is clicked
 	if (x >= 0 && x < 124 && y >= 455 && y < 470)
 	{
 		CAmbientAudio::Clear();
-		CGameController::CanCancelTravel = TRUE;
+		CGameController::CanCancelTravel = true;
 
 		pMIDI->Stop();
 
@@ -446,17 +340,15 @@ void CPDTravelModule::BeginAction()
 		{
 			if (_pDestination->DMapId == -1)
 			{
-				// Load location module
 				CGameController::SetData(PD_SAVE_MAP_ID, _pDestination->MapId);
-				CGameController::SetData(PD_SAVE_MAP_FLAG, 1);
+				CGameController::SetData(PD_SAVE_MAP_FLAG, (uint8_t)1);
 				CGameController::AutoSave();
 				CModuleController::Push(new CPDLocationModule(_pDestination->MapId, 0));
 			}
 			else
 			{
-				// Load video module
 				CGameController::SetData(PD_SAVE_DMAP_ID, _pDestination->DMapId);
-				CGameController::SetData(PD_SAVE_MAP_FLAG, (BYTE)0);
+				CGameController::SetData(PD_SAVE_MAP_FLAG, (uint8_t)0);
 				CGameController::AutoSave();
 				CModuleController::Push(new CVideoModule(VideoType::Scripted, _pDestination->DMapId));
 			}
@@ -469,7 +361,7 @@ void CPDTravelModule::RenderImage(int entryIndex, int x, int y, int w, int h)
 	BinaryData bd = _pdImages[entryIndex];
 	if (bd.Data == NULL)
 	{
-		LPBYTE pCompressed = _data + GetInt(_data, 2 + entryIndex * 4, 4);
+		uint8_t* pCompressed = _data + GetInt(_data, 2 + entryIndex * 4, 4);
 		int length = GetInt(_data, 6 + entryIndex * 4, 4) - GetInt(_data, 2 + entryIndex * 4, 4);
 		bd = CLZ::Decompress(pCompressed, length);
 		_pdImages[entryIndex] = bd;
@@ -481,12 +373,12 @@ void CPDTravelModule::RenderImage(int entryIndex, int x, int y, int w, int h)
 	}
 }
 
-RECT CPDTravelModule::RenderSubImage(int entryIndex, int subEntryIndex, int x, int y)
+Rect CPDTravelModule::RenderSubImage(int entryIndex, int subEntryIndex, int x, int y)
 {
 	BinaryData bd = _pdImages[entryIndex];
 	if (bd.Data == NULL)
 	{
-		LPBYTE pCompressed = _data + GetInt(_data, 2 + entryIndex * 4, 4);
+		uint8_t* pCompressed = _data + GetInt(_data, 2 + entryIndex * 4, 4);
 		int length = GetInt(_data, 6 + entryIndex * 4, 4) - GetInt(_data, 2 + entryIndex * 4, 4);
 		bd = CLZ::Decompress(pCompressed, length);
 		_pdImages[entryIndex] = bd;
@@ -494,12 +386,11 @@ RECT CPDTravelModule::RenderSubImage(int entryIndex, int subEntryIndex, int x, i
 
 	if (bd.Data != NULL)
 	{
-		// Now find sub image
-		LPBYTE pImage = bd.Data + GetInt(bd.Data, 2 + subEntryIndex * 4, 4);
+		uint8_t* pImage = bd.Data + GetInt(bd.Data, 2 + subEntryIndex * 4, 4);
 		return RenderItem(pImage, x, y, -1, -1, -1, -1, 0);
 	}
 
-	return { 0 };
+	return Rect{ 0, 0, 0, 0 };
 }
 
 void CPDTravelModule::RenderSubImage(int entryIndex, int subEntryIndex, int srcOffsetX, int srcOffsetY, int dstX, int dstY, int w, int h)
@@ -507,7 +398,7 @@ void CPDTravelModule::RenderSubImage(int entryIndex, int subEntryIndex, int srcO
 	BinaryData bd = _pdImages[entryIndex];
 	if (bd.Data == NULL)
 	{
-		LPBYTE pCompressed = _data + GetInt(_data, 2 + entryIndex * 4, 4);
+		uint8_t* pCompressed = _data + GetInt(_data, 2 + entryIndex * 4, 4);
 		int length = GetInt(_data, 6 + entryIndex * 4, 4) - GetInt(_data, 2 + entryIndex * 4, 4);
 		bd = CLZ::Decompress(pCompressed, length);
 		_pdImages[entryIndex] = bd;
@@ -515,13 +406,10 @@ void CPDTravelModule::RenderSubImage(int entryIndex, int subEntryIndex, int srcO
 
 	if (bd.Data != NULL)
 	{
-		// Now find sub image
-		LPBYTE pImage = bd.Data + GetInt(bd.Data, 2 + subEntryIndex * 4, 4);
-		//RenderItem(pImage, dstX, dstY, dstX - srcOffsetX, dstX + w, dstY - srcOffsetY, dstY + h, 0);
+		uint8_t* pImage = bd.Data + GetInt(bd.Data, 2 + subEntryIndex * 4, 4);
 		RenderItemOffset(pImage, srcOffsetX, srcOffsetY, dstX, dstY, w, h);
 	}
 }
-
 
 void CPDTravelModule::RenderLocations()
 {
@@ -536,7 +424,7 @@ void CPDTravelModule::RenderLocations()
 				colourMap[2] = pPDSL->ColourIndex;
 
 				pPDSL->IconHitBox = RenderSubImage(2, pPDSL->Type == 6 ? PD_TRAVEL_INDICATOR_AREA : PD_TRAVEL_INDICATOR_LOCATION, pPDSL->IndicatorX, pPDSL->IndicatorY);
-				pPDSL->NameHitBox = _rawFont.Render(_screen, 640, 480, pPDSL->NameX, pPDSL->NameY, (char*)pPDSL->Text.c_str(), colourMap, -1, -1, FALSE);
+				pPDSL->NameHitBox = _rawFont.Render(_screen, 640, 480, pPDSL->NameX, pPDSL->NameY, (char*)pPDSL->Text.c_str(), colourMap, -1, -1, false);
 			}
 		}
 	}
@@ -544,11 +432,10 @@ void CPDTravelModule::RenderLocations()
 
 void CPDTravelModule::RenderLocationImage(int locationId)
 {
-	// Palette/compressed image pairs start at entry 22
 	int entry = 20 + locationId * 2;
 	ReadPalette(_data + GetInt(_data, 2 + entry * 4, 4), 0x80, 0x80);
 
-	BinaryData bd = _pdImages[entry + 101];	// Offsetting by 100 to share container
+	BinaryData bd = _pdImages[entry + 101]; 
 	if (bd.Data == NULL)
 	{
 		bd = CLZ::Decompress(_data + GetInt(_data, 6 + entry * 4, 4), GetInt(_data, 10 + entry * 4, 4) - GetInt(_data, 6 + entry * 4, 4));

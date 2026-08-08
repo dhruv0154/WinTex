@@ -3,12 +3,6 @@
 #include "File.h"
 #include "Configuration.h"
 #include "DXScreen.h"
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <DirectXCollision.h>
-#else
-#include "Win32Compat.h"
-#endif
 #include "Globals.h"
 #include "DXText.h"
 #include "GameBase.h"
@@ -21,15 +15,17 @@
 #include <algorithm>
 #include <string>
 #include "IntersectionInfo.h"
+#include <cstring>
+#include <chrono>
 
-BOOL CLocation::_loading = FALSE;
+bool CLocation::_loading = false;
 
 #ifdef DEBUG
-BOOL CLocation::_disableClipping = FALSE;
-BOOL CLocation::_renderTextured = TRUE;
-BOOL CLocation::_renderPoints = FALSE;
-BOOL CLocation::_renderLines = FALSE;
-BOOL CLocation::_renderPaths = FALSE;
+bool CLocation::_disableClipping = false;
+bool CLocation::_renderTextured = true;
+bool CLocation::_renderPoints = false;
+bool CLocation::_renderLines = false;
+bool CLocation::_renderPaths = false;
 #endif
 
 //#define CLOSE							
@@ -40,15 +36,11 @@ const double maxClipDistanceSquared = maxClipDistance * maxClipDistance;
 #define SUBOBJECT_FLAGS_TRANSPARENT		0x00000001
 #define SUBOBJECT_FLAGS_TEXTURED		0x00000002
 #define SUBOBJECT_FLAGS_SPRITE			0x00000004
-//#define SUBOBJECT_FLAGS_???			0x00000008	Vertical?
 #define SUBOBJECT_FLAGS_ALPHA			0x00000010
 #define SUBOBJECT_FLAGS_BOTTOM			0x00000020
-//#define SUBOBJECT_FLAGS_DONT_???		0x00000040
 #define SUBOBJECT_FLAGS_TOP				0x00000080
-//#define SUBOBJECT_FLAGS_DONT_???		0x00000100
 #define SUBOBJECT_FLAGS_OBJECTID		0x00000200
 #define SUBOBJECT_FLAGS_SINGLE_COLOUR	0x00000800
-//#define SUBOBJECT_FLAGS_SIDE			0x00001000
 #define SUBOBJECT_FLAGS_HIDDEN			0x80000000
 
 #define TEXTURE_FLAGS_LARGE				0x200
@@ -90,7 +82,7 @@ CElevation* CLocation::_pCurrentElevation = NULL;
 
 CLocation::CLocation()
 {
-	_loading = FALSE;
+	_loading = false;
 
 	_pLocObjects = NULL;
 	_pLocSubObjects = NULL;
@@ -108,11 +100,11 @@ CLocation::CLocation()
 
 	_texturedVertexBuffer = NULL;
 	_texturedVerticeCount = 0;
-	_visibilityChanged = FALSE;
+	_visibilityChanged = false;
 
 	_transparentVertexBuffer = NULL;
 	_transparentVerticeCount = 0;
-	_translationChanged = FALSE;
+	_translationChanged = false;
 
 	_x = 0.0f;
 	_y = 0.0f;
@@ -135,7 +127,7 @@ CLocation::CLocation()
 	_objectMap = NULL;
 	_objectMapCount = 0;
 
-	ZeroMemory(Animations, MAX_ANIMATIONS * sizeof(Animation));
+	memset(Animations, 0, MAX_ANIMATIONS * sizeof(Animation));
 
 	_locationData = NULL;
 
@@ -156,38 +148,24 @@ CLocation::~CLocation()
 	Clear();
 }
 
-BOOL CLocation::Load(int locationFileIndex)
+bool CLocation::Load(int locationFileIndex)
 {
-	_loading = TRUE;
+	_loading = true;
 
-	std::wstring file = CGameController::GetFileName(locationFileIndex);
+	std::string file = CGameController::GetFileName(locationFileIndex);
 
-	PointingChanged = TRUE;
+	PointingChanged = true;
 
 	// Load location entries
 	CFile f;
 	if (f.Open(file.c_str()))
 	{
 		int len = f.Size();
-		_locationData = new BYTE[len];
+		_locationData = new uint8_t[len];
 		if (_locationData != NULL)
 		{
 			f.Read(_locationData, len);
 		}
-
-		//if (file == L"ALLEY.AP")
-		//{
-		//	// Force start drip animation
-		//	BinaryData abd = GetLocationData(0);
-		//	abd.Data[0xfc] = 1;
-		//}
-		//else if (file == L"CASTLE.AP")
-		//{
-		//	// Force start sealed door animation
-		//	BinaryData abd = GetLocationData(0);
-		//	abd.Data[0x124] = 1;
-		//}
-
 		f.Close();
 	}
 
@@ -199,7 +177,7 @@ BOOL CLocation::Load(int locationFileIndex)
 
 	// Load 3D data
 	BinaryData bd3d2 = GetLocationData(4);
-	PBYTE p3d2 = bd3d2.Data;
+	uint8_t* p3d2 = bd3d2.Data;
 	_verticeCount = GetInt(p3d2, 0, 4);
 	_objectCount = GetInt(p3d2, 12, 4);
 
@@ -220,13 +198,13 @@ BOOL CLocation::Load(int locationFileIndex)
 
 			if ((flags & SUBOBJECT_FLAGS_ALPHA) != 0 || points == 1)	// Flagged having alpha or is used as sprite
 			{
-				transparentTextures[tex] = TRUE;
+				transparentTextures[tex] = true;
 			}
 			else
 			{
-				opaqueTextures[tex] = TRUE;
+				opaqueTextures[tex] = true;
 			}
-			processedTextures[tex] = TRUE;
+			processedTextures[tex] = true;
 		}
 	}
 
@@ -237,22 +215,22 @@ BOOL CLocation::Load(int locationFileIndex)
 	_points = new Point[_verticeCount];
 	for (int i = 0; i < _verticeCount; i++)
 	{
-		_points[i].X = ((float)GetInt(p3d2, moff, 4)) / 65536.0f;
-		_points[i].Y = ((float)GetInt(p3d2, moff + 4, 4)) / 65536.0f;
-		_points[i].Z = ((float)GetInt(p3d2, moff + 8, 4)) / 65536.0f;
+		_points[i].x = ((float)GetInt(p3d2, moff, 4)) / 65536.0f;
+		_points[i].y = ((float)GetInt(p3d2, moff + 4, 4)) / 65536.0f;
+		_points[i].z = ((float)GetInt(p3d2, moff + 8, 4)) / 65536.0f;
 		moff += 12;
 	}
 
 	// Prepare the visibility buffer
-	for (int i = 0; i < sizeof(_visibilityBuffer.visibility) / sizeof(XMFLOAT4); i++)
+	for (int i = 0; i < sizeof(_visibilityBuffer.visibility) / sizeof(float4); i++)
 	{
-		_visibilityBuffer.visibility[i] = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		_visibilityBuffer.visibility[i] = float4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
 	// Prepare the translation buffer
 	for (int i = 0; i < 256; i++)
 	{
-		_translationBuffer.translation[i] = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+		_translationBuffer.translation[i] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	}
 
 	// Prepare the object mapping list
@@ -287,12 +265,12 @@ BOOL CLocation::Load(int locationFileIndex)
 	int spriteCount = 0;
 
 	Point lb1, lb2;
-	lb1.X = 10000.0f;
-	lb2.X = -lb1.X;
-	lb1.Y = lb1.X;
-	lb2.Y = -lb1.X;
-	lb1.Z = lb1.X;
-	lb2.Z = -lb1.X;
+	lb1.x = 10000.0f;
+	lb2.x = -lb1.x;
+	lb1.y = lb1.x;
+	lb2.y = -lb1.x;
+	lb1.z = lb1.x;
+	lb2.z = -lb1.x;
 
 	int six = 0;
 
@@ -309,7 +287,7 @@ BOOL CLocation::Load(int locationFileIndex)
 		int type = (int)GetInt(p3d2, objectOffset, 4);
 
 		_ppObjects[i] = new ModelObject();
-		ZeroMemory(_ppObjects[i], sizeof(ModelObject));
+		memset(_ppObjects[i], 0, sizeof(ModelObject));
 		_ppObjects[i]->Index = i;
 
 		float ominx = 10000.0f, omaxx = -ominx;
@@ -333,7 +311,7 @@ BOOL CLocation::Load(int locationFileIndex)
 
 		_ppObjects[i]->SubObjectCount = subObjects;
 		_ppObjects[i]->SubObjects = new ModelSubObject[subObjects];
-		ZeroMemory(_ppObjects[i]->SubObjects, subObjects * sizeof(ModelSubObject));
+		memset(_ppObjects[i]->SubObjects, 0, subObjects * sizeof(ModelSubObject));
 
 		_pLocObjects[i].SubObjectCount = subObjects;
 
@@ -370,13 +348,8 @@ BOOL CLocation::Load(int locationFileIndex)
 					{
 						if (_objectMap[z].id == sid || ((rid & 0x800) != 0 && _objectMap[z].id == rid))
 						{
-							// TODO: This is not right! Can be set multiple times
-							// TODO: May have to do a reverse mapping, setting the object id on the triangle
-							//_objectMap[z].SubObjectIndex = six;
 							_objectMap[z].SubObjectIndices.push_back(six);
-
 							_objectMap[z].VisibilityFloatPointers.push_back(&_visibilityBuffer.visibility[six].y);
-							//break;
 						}
 					}
 				}
@@ -398,8 +371,12 @@ BOOL CLocation::Load(int locationFileIndex)
 				_ppObjects[i]->SubObjects[j].ID = sid;
 				_ppObjects[i]->SubObjects[j].PointCount = points;
 				_ppObjects[i]->SubObjects[j].Points = new TLPoint[points];
-				_ppObjects[i]->SubObjects[j].BoundingBox.X1 = _ppObjects[i]->SubObjects[j].BoundingBox.Y1 = _ppObjects[i]->SubObjects[j].BoundingBox.Z1 = 10000.0f;
-				_ppObjects[i]->SubObjects[j].BoundingBox.X2 = _ppObjects[i]->SubObjects[j].BoundingBox.Y2 = _ppObjects[i]->SubObjects[j].BoundingBox.Z2 = -_ppObjects[i]->SubObjects[j].BoundingBox.X1;
+				_ppObjects[i]->SubObjects[j].BoundingBox.X1 = 10000.0f;
+				_ppObjects[i]->SubObjects[j].BoundingBox.Y1 = 10000.0f;
+				_ppObjects[i]->SubObjects[j].BoundingBox.Z1 = 10000.0f;
+				_ppObjects[i]->SubObjects[j].BoundingBox.X2 = -_ppObjects[i]->SubObjects[j].BoundingBox.X1;
+				_ppObjects[i]->SubObjects[j].BoundingBox.Y2 = -_ppObjects[i]->SubObjects[j].BoundingBox.Y1;
+				_ppObjects[i]->SubObjects[j].BoundingBox.Z2 = -_ppObjects[i]->SubObjects[j].BoundingBox.Z1;
 				_ppObjects[i]->SubObjects[j].Triangles = (points > 2) ? new Triangle[points - 2] : NULL;
 
 				if (points > 0)
@@ -408,36 +385,28 @@ BOOL CLocation::Load(int locationFileIndex)
 
 					if (points == 1)
 					{
-						// 2020-11-27 New sprite loader
-
-						// Find number of sub-sprites
 						int subSprites = GetInt(p3d2, thisSubOffset + 0x38, 4);
-						// Find sprite main point
 						int spoio = thisSubOffset + 0x44 + subSprites * 32;
 						int pointIndex = _objectCount + (GetInt(p3d2, thisSubOffset + 0x44 + subSprites * 32, 4) >> 4);
-						float cx = _points[pointIndex].X;
-						float cy = _points[pointIndex].Y;
-						float cz = _points[pointIndex].Z;
+						float cx = _points[pointIndex].x;
+						float cy = _points[pointIndex].y;
+						float cz = _points[pointIndex].z;
 
 						if (subSprites > 0)
 						{
-							// Find sprite texture dimensions
 							float sw = (stex != NULL) ? stex->pTexture->Width() : 1.0f;
 							float sh = (stex != NULL) ? stex->pTexture->Height() : 1.0f;
 							float ssw = ((float)GetInt(p3d2, thisSubOffset + 0x30, 4)) / 65536.0f;
 							float ssh = ((float)GetInt(p3d2, thisSubOffset + 0x34, 4)) / 65536.0f;
 
-							// Find sprite world dimensions
 							float sww = ((float)GetInt(p3d2, thisSubOffset + 0x28, 4)) / 65536.0f;
 							float swh = ((float)GetInt(p3d2, thisSubOffset + 0x2c, 4)) / 65536.0f;
 
 							for (int ss = 0; ss < subSprites; ss++)
 							{
-								// Find sub-sprite x & y offsets
 								float subSpriteOffsetX = ((float)GetInt(p3d2, thisSubOffset + 0x44 + ss * 32, 4)) / 65536.0f;
 								float subSpriteOffsetY = ((float)GetInt(p3d2, thisSubOffset + 0x48 + ss * 32, 4)) / 65536.0f;
 
-								// Find sub-sprite width & height
 								float subSpriteTexX1 = ((float)GetInt(p3d2, thisSubOffset + 0x54 + ss * 32, 4)) / 65536.0f;
 								float subSpriteTexY1 = ((float)GetInt(p3d2, thisSubOffset + 0x58 + ss * 32, 4)) / 65536.0f;
 								float subSpriteTexX2 = 1.0f + (((float)GetInt(p3d2, thisSubOffset + 0x5c + ss * 32, 4)) / 65536.0f);
@@ -446,12 +415,11 @@ BOOL CLocation::Load(int locationFileIndex)
 								float subSpriteWidth = subSpriteTexX2 - subSpriteTexX1;
 								float subSpriteHeight = subSpriteTexY2 - subSpriteTexY1;
 
-								// Add sprite
 								SpriteInfo si;
 								si.TextureIndex = tex;
-								si.P.X = cx;
-								si.P.Y = cy;
-								si.P.Z = cz;
+								si.P.x = cx;
+								si.P.y = cy;
+								si.P.z = cz;
 								si.OX = (sww * subSpriteOffsetX) / ssw;
 								si.OY = (swh * subSpriteOffsetY) / ssh;
 								si.W = (sww * subSpriteWidth) / ssw;
@@ -468,34 +436,13 @@ BOOL CLocation::Load(int locationFileIndex)
 
 								spriteCount++;
 
-								// Get sprite bounding box
-								if ((si.P.X - si.W / 2) < sminx)
-								{
-									sminx = si.P.X - si.W / 2;
-								}
-								if ((si.P.X + si.W / 2) > smaxx)
-								{
-									smaxx = si.P.X + si.W / 2;
-								}
-								if ((si.P.Y - si.H) < sminy)
-								{
-									sminy = si.P.Y - si.H;
-								}
-								if (si.P.Y > smaxy)
-								{
-									smaxy = si.P.Y;
-								}
-								if ((si.P.Z - si.W / 2) < sminz)
-								{
-									sminz = si.P.Z - si.W / 2;
-								}
-								if ((si.P.Z + si.W / 2) > smaxz)
-								{
-									smaxz = si.P.Z + si.W / 2;
-								}
+								if ((si.P.x - si.W / 2) < sminx) sminx = si.P.x - si.W / 2;
+								if ((si.P.x + si.W / 2) > smaxx) smaxx = si.P.x + si.W / 2;
+								if ((si.P.y - si.H) < sminy) sminy = si.P.y - si.H;
+								if (si.P.y > smaxy) smaxy = si.P.y;
+								if ((si.P.z - si.W / 2) < sminz) sminz = si.P.z - si.W / 2;
+								if ((si.P.z + si.W / 2) > smaxz) smaxz = si.P.z + si.W / 2;
 							}
-
-							// 2020-11-27 End of new sprite loader
 						}
 						else
 						{
@@ -513,7 +460,6 @@ BOOL CLocation::Load(int locationFileIndex)
 						float tw = (pt != NULL) ? pt->Width() : 0.0f;
 						float th = (pt != NULL) ? pt->Height() : 0.0f;
 
-						// Test new triangulation
 						std::vector<TLPoint> vpoints;
 						for (int p = 0; p < points; p++)
 						{
@@ -527,9 +473,6 @@ BOOL CLocation::Load(int locationFileIndex)
 
 							if ((flags & SUBOBJECT_FLAGS_SINGLE_COLOUR) != 0)
 							{
-								//float tu = px.U;
-								//px.U = px.V;
-								//px.V = tu;
 								px.U = 0.0f;
 								px.V = 0.0f;
 							}
@@ -538,20 +481,18 @@ BOOL CLocation::Load(int locationFileIndex)
 
 							vpoints.push_back(px);
 
-							// Get bounding box
-							if (px.Point->X < sminx) sminx = px.Point->X;
-							if (px.Point->X > smaxx) smaxx = px.Point->X;
-							if (px.Point->Y < sminy) sminy = px.Point->Y;
-							if (px.Point->Y > smaxy) smaxy = px.Point->Y;
-							if (px.Point->Z < sminz) sminz = px.Point->Z;
-							if (px.Point->Z > smaxz) smaxz = px.Point->Z;
+							if (px.Point->x < sminx) sminx = px.Point->x;
+							if (px.Point->x > smaxx) smaxx = px.Point->x;
+							if (px.Point->y < sminy) sminy = px.Point->y;
+							if (px.Point->y > smaxy) smaxy = px.Point->y;
+							if (px.Point->z < sminz) sminz = px.Point->z;
+							if (px.Point->z > smaxz) smaxz = px.Point->z;
 						}
 
-						// Add point back to origin
 #ifdef DEBUG
 						int pix = GetInt(p3d2, thisSubOffset + 0x28, 4) >> 4;
 						_indexes.push_back(pix);
-						_indexes.push_back(-1);	// Indicate new linestrip follows
+						_indexes.push_back(-1);	
 #endif
 
 						int startp = 0;
@@ -565,34 +506,32 @@ BOOL CLocation::Load(int locationFileIndex)
 							int prev2 = startp - 2;
 							if (prev2 < 0) prev2 += pointsLeft;
 
-							// If this + 2 previous points form a proper triangle, create it and remove previous point
 							TLPoint p0 = vpoints.at(startp);
 							TLPoint p1 = vpoints.at(prev1);
 							TLPoint p2 = vpoints.at(prev2);
 
 							Point v1;
-							v1.X = p0.Point->X - p1.Point->X;
-							v1.Y = p0.Point->Y - p1.Point->Y;
-							v1.Z = p0.Point->Z - p1.Point->Z;
+							v1.x = p0.Point->x - p1.Point->x;
+							v1.y = p0.Point->y - p1.Point->y;
+							v1.z = p0.Point->z - p1.Point->z;
 
-							float len = sqrt(v1.X * v1.X + v1.Y * v1.Y + v1.Z * v1.Z);
-							v1.X /= len;
-							v1.Y /= len;
-							v1.Z /= len;
+							float len = sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
+							v1.x /= len;
+							v1.y /= len;
+							v1.z /= len;
 
 							Point v2;
-							v2.X = p1.Point->X - p2.Point->X;
-							v2.Y = p1.Point->Y - p2.Point->Y;
-							v2.Z = p1.Point->Z - p2.Point->Z;
+							v2.x = p1.Point->x - p2.Point->x;
+							v2.y = p1.Point->y - p2.Point->y;
+							v2.z = p1.Point->z - p2.Point->z;
 
-							len = sqrt(v2.X * v2.X + v2.Y * v2.Y + v2.Z * v2.Z);
-							v2.X /= len;
-							v2.Y /= len;
-							v2.Z /= len;
+							len = sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
+							v2.x /= len;
+							v2.y /= len;
+							v2.z /= len;
 
-							if (v1.X != v2.X || v1.Y != v2.Y || v1.Z != v2.Z)
+							if (v1.x != v2.x || v1.y != v2.y || v1.z != v2.z)
 							{
-								// Points form a triangle
 								Triangle t;
 								t.ObjectId = i;
 								t.SubObjectId = sid & 0xffff;
@@ -606,33 +545,20 @@ BOOL CLocation::Load(int locationFileIndex)
 								{
 									if ((flags & SUBOBJECT_FLAGS_TRANSPARENT) == 0)
 									{
-										// Regular textured object
 										stex->Triangles.push_back(t);
 										texturedTriangles++;
 										obj.VertexCount += 3;
 									}
 									else
 									{
-										// Transparent object
 										stex->TransparentTriangles.push_back(t);
 										transparentTriangles++;
 									}
 								}
 
 								_ppObjects[i]->SubObjects[j].Triangles[trix++] = t;
-
-								// Remove point at prev1
 								vpoints.erase(vpoints.begin() + prev1);
 								pointsLeft--;
-							}
-							else
-							{
-								// Points do not form a triangle
-								//t--;
-								if (pointsLeft == 3)
-								{
-									//break;
-								}
 							}
 
 							startp++;
@@ -641,37 +567,15 @@ BOOL CLocation::Load(int locationFileIndex)
 
 						_objects.push_back(obj);
 					}
-					else
-					{
-						int debug = 0;
-					}
 				}
 			}
 
-			if (sminx < ominx)
-			{
-				ominx = sminx;
-			}
-			if (sminy < ominy)
-			{
-				ominy = sminy;
-			}
-			if (sminz < ominz)
-			{
-				ominz = sminz;
-			}
-			if (smaxx > omaxx)
-			{
-				omaxx = smaxx;
-			}
-			if (smaxy > omaxy)
-			{
-				omaxy = smaxy;
-			}
-			if (smaxz > omaxz)
-			{
-				omaxz = smaxz;
-			}
+			if (sminx < ominx) ominx = sminx;
+			if (sminy < ominy) ominy = sminy;
+			if (sminz < ominz) ominz = sminz;
+			if (smaxx > omaxx) omaxx = smaxx;
+			if (smaxy > omaxy) omaxy = smaxy;
+			if (smaxz > omaxz) omaxz = smaxz;
 
 			_ppObjects[i]->SubObjects[j].BoundingBox.X1 = sminx;
 			_ppObjects[i]->SubObjects[j].BoundingBox.X2 = smaxx;
@@ -694,34 +598,15 @@ BOOL CLocation::Load(int locationFileIndex)
 		_ppObjects[i]->BoundingBox.Z1 = ominz;
 		_ppObjects[i]->BoundingBox.Z2 = omaxz;
 
-		if (ominx < lb1.X)
-		{
-			lb1.X = ominx;
-		}
-		if (omaxx > lb2.X)
-		{
-			lb2.X = omaxx;
-		}
-		if (ominy < lb1.Y)
-		{
-			lb1.Y = ominy;
-		}
-		if (omaxy > lb2.Y)
-		{
-			lb2.Y = omaxy;
-		}
-		if (ominz < lb1.Z)
-		{
-			lb1.Z = ominz;
-		}
-		if (omaxz > lb2.Z)
-		{
-			lb2.Z = omaxz;
-		}
+		if (ominx < lb1.x) lb1.x = ominx;
+		if (omaxx > lb2.x) lb2.x = omaxx;
+		if (ominy < lb1.y) lb1.y = ominy;
+		if (omaxy > lb2.y) lb2.y = omaxy;
+		if (ominz < lb1.z) lb1.z = ominz;
+		if (omaxz > lb2.z) lb2.z = omaxz;
 	}
 
 #ifdef DEBUG
-	// Create index buffer
 	_indexCount = _indexes.size();
 	if (_indexCount > 0)
 	{
@@ -751,13 +636,11 @@ BOOL CLocation::Load(int locationFileIndex)
 	}
 #endif
 
-	// Create points vertex buffer
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	vertexBufferDesc.ByteWidth = sizeof(Point) * _verticeCount;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vertexBufferDesc.CPUAccessFlags = 0;
-	vertexBufferDesc.MiscFlags = 0;
 	vertexBufferDesc.StructureByteStride = 0;
 
 	D3D11_SUBRESOURCE_DATA vertexData;
@@ -767,7 +650,6 @@ BOOL CLocation::Load(int locationFileIndex)
 
 	dx.CreateBuffer(&vertexBufferDesc, &vertexData, &_vertexBuffer, "Location Vertices");
 
-	// Create textured triangles
 	_texturedVerticeCount = texturedTriangles * 3;
 	TEXTURED_VERTEX* pTV = new TEXTURED_VERTEX[_texturedVerticeCount];
 	_transparentVerticeCount = transparentTriangles * 3;
@@ -819,27 +701,27 @@ BOOL CLocation::Load(int locationFileIndex)
 				pSub->VertexCount += 3;
 			}
 
-			pTV[tix].position.x = pTri->P1.Point->X;
-			pTV[tix].position.y = pTri->P1.Point->Y;
-			pTV[tix].position.z = pTri->P1.Point->Z;
+			pTV[tix].position.x = pTri->P1.Point->x;
+			pTV[tix].position.y = pTri->P1.Point->y;
+			pTV[tix].position.z = pTri->P1.Point->z;
 			pTV[tix].texture.x = pTri->P1.U;
 			pTV[tix].texture.y = pTri->P1.V;
 			pTV[tix].object.x = (float)pTri->P1.ObjectIndex;
 			pTV[tix].object.y = (float)pTri->P1.SubObjectIndex;
 			pTV[tix].objectParameters.x = shaderParameter;
 			tix++;
-			pTV[tix].position.x = pTri->P2.Point->X;
-			pTV[tix].position.y = pTri->P2.Point->Y;
-			pTV[tix].position.z = pTri->P2.Point->Z;
+			pTV[tix].position.x = pTri->P2.Point->x;
+			pTV[tix].position.y = pTri->P2.Point->y;
+			pTV[tix].position.z = pTri->P2.Point->z;
 			pTV[tix].texture.x = pTri->P2.U;
 			pTV[tix].texture.y = pTri->P2.V;
 			pTV[tix].object.x = (float)pTri->P2.ObjectIndex;
 			pTV[tix].object.y = (float)pTri->P2.SubObjectIndex;
 			pTV[tix].objectParameters.x = shaderParameter;
 			tix++;
-			pTV[tix].position.x = pTri->P3.Point->X;
-			pTV[tix].position.y = pTri->P3.Point->Y;
-			pTV[tix].position.z = pTri->P3.Point->Z;
+			pTV[tix].position.x = pTri->P3.Point->x;
+			pTV[tix].position.y = pTri->P3.Point->y;
+			pTV[tix].position.z = pTri->P3.Point->z;
 			pTV[tix].texture.x = pTri->P3.U;
 			pTV[tix].texture.y = pTri->P3.V;
 			pTV[tix].object.x = (float)pTri->P3.ObjectIndex;
@@ -862,34 +744,39 @@ BOOL CLocation::Load(int locationFileIndex)
 		{
 			Triangle* pTri = &(*trit);
 
-			XMFLOAT4 transparentColour = GetTransparentColour(file, pTri->P1.ObjectIndex, pTri->P1.SubObjectId);
+			float4 transparentColour = GetTransparentColour(file, pTri->P1.ObjectIndex, pTri->P1.SubObjectId);
 
-			pTTV[ttix].position.x = pTri->P1.Point->X;
-			pTTV[ttix].position.y = pTri->P1.Point->Y;
-			pTTV[ttix].position.z = pTri->P1.Point->Z;
+			pTTV[ttix].position.x = pTri->P1.Point->x;
+			pTTV[ttix].position.y = pTri->P1.Point->y;
+			pTTV[ttix].position.z = pTri->P1.Point->z;
 			pTTV[ttix].position.w = 1.0f;
 			pTTV[ttix].colour = transparentColour;
 			pTTV[ttix].object.x = (float)pTri->P1.ObjectIndex;
 			pTTV[ttix].object.y = (float)pTri->P1.SubObjectIndex;
-			pTV[tix].objectParameters.x = 1.0f;
+			pTTV[ttix].object.z = 0.0f;
+			pTTV[ttix].object.w = 0.0f;
 			ttix++;
-			pTTV[ttix].position.x = pTri->P2.Point->X;
-			pTTV[ttix].position.y = pTri->P2.Point->Y;
-			pTTV[ttix].position.z = pTri->P2.Point->Z;
+			
+			pTTV[ttix].position.x = pTri->P2.Point->x;
+			pTTV[ttix].position.y = pTri->P2.Point->y;
+			pTTV[ttix].position.z = pTri->P2.Point->z;
 			pTTV[ttix].position.w = 1.0f;
 			pTTV[ttix].colour = transparentColour;
 			pTTV[ttix].object.x = (float)pTri->P2.ObjectIndex;
 			pTTV[ttix].object.y = (float)pTri->P2.SubObjectIndex;
-			pTV[tix].objectParameters.x = 1.0f;
+			pTTV[ttix].object.z = 0.0f;
+			pTTV[ttix].object.w = 0.0f;
 			ttix++;
-			pTTV[ttix].position.x = pTri->P3.Point->X;
-			pTTV[ttix].position.y = pTri->P3.Point->Y;
-			pTTV[ttix].position.z = pTri->P3.Point->Z;
+			
+			pTTV[ttix].position.x = pTri->P3.Point->x;
+			pTTV[ttix].position.y = pTri->P3.Point->y;
+			pTTV[ttix].position.z = pTri->P3.Point->z;
 			pTTV[ttix].position.w = 1.0f;
 			pTTV[ttix].colour = transparentColour;
 			pTTV[ttix].object.x = (float)pTri->P3.ObjectIndex;
 			pTTV[ttix].object.y = (float)pTri->P3.SubObjectIndex;
-			pTV[tix].objectParameters.x = 1.0f;
+			pTTV[ttix].object.z = 0.0f;
+			pTTV[ttix].object.w = 0.0f;
 			ttix++;
 
 			trit++;
@@ -900,13 +787,11 @@ BOOL CLocation::Load(int locationFileIndex)
 		tit++;
 	}
 
-	// Textured buffer
 	D3D11_BUFFER_DESC triBufferDesc;
 	triBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	triBufferDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * _texturedVerticeCount;
 	triBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	triBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	triBufferDesc.MiscFlags = 0;
 	triBufferDesc.StructureByteStride = 0;
 
 	D3D11_SUBRESOURCE_DATA triData;
@@ -918,14 +803,12 @@ BOOL CLocation::Load(int locationFileIndex)
 
 	delete[] pTV;
 
-	// Transparent buffer
 	if (_transparentVerticeCount > 0)
 	{
 		triBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 		triBufferDesc.ByteWidth = sizeof(COLOURED_VERTEX) * _transparentVerticeCount;
 		triBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		triBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		triBufferDesc.MiscFlags = 0;
 		triBufferDesc.StructureByteStride = 0;
 
 		triData.pSysMem = pTTV;
@@ -935,8 +818,6 @@ BOOL CLocation::Load(int locationFileIndex)
 		dx.CreateBuffer(&triBufferDesc, &triData, &_transparentVertexBuffer, "Location Transparent Triangles");
 	}
 	delete[] pTTV;
-
-	// Create sprite buffer
 
 	if (spriteCount > 0)
 	{
@@ -957,40 +838,40 @@ BOOL CLocation::Load(int locationFileIndex)
 			{
 				SpriteInfo* spr = &(*sit);
 
-				pTV[tix].position.x = spr->P.X + spr->OX - spr->W / 2;
-				pTV[tix].position.y = spr->P.Y + spr->OY;
-				pTV[tix].position.z = spr->P.Z;
+				pTV[tix].position.x = spr->P.x + spr->OX - spr->W / 2;
+				pTV[tix].position.y = spr->P.y + spr->OY;
+				pTV[tix].position.z = spr->P.z;
 				pTV[tix].texture.x = spr->U1;
 				pTV[tix].texture.y = spr->V1;
 				tix++;
-				pTV[tix].position.x = spr->P.X + spr->OX + spr->W / 2;
-				pTV[tix].position.y = spr->P.Y + spr->OY + spr->H;
-				pTV[tix].position.z = spr->P.Z;
+				pTV[tix].position.x = spr->P.x + spr->OX + spr->W / 2;
+				pTV[tix].position.y = spr->P.y + spr->OY + spr->H;
+				pTV[tix].position.z = spr->P.z;
 				pTV[tix].texture.x = spr->U2;
 				pTV[tix].texture.y = spr->V2;
 				tix++;
-				pTV[tix].position.x = spr->P.X + spr->OX - spr->W / 2;
-				pTV[tix].position.y = spr->P.Y + spr->OY;
-				pTV[tix].position.z = spr->P.Z;
+				pTV[tix].position.x = spr->P.x + spr->OX - spr->W / 2;
+				pTV[tix].position.y = spr->P.y + spr->OY;
+				pTV[tix].position.z = spr->P.z;
 				pTV[tix].texture.x = spr->U2;
 				pTV[tix].texture.y = spr->V1;
 				tix++;
 
-				pTV[tix].position.x = spr->P.X + spr->OX - spr->W / 2;
-				pTV[tix].position.y = spr->P.Y + spr->OY;
-				pTV[tix].position.z = spr->P.Z;
+				pTV[tix].position.x = spr->P.x + spr->OX - spr->W / 2;
+				pTV[tix].position.y = spr->P.y + spr->OY;
+				pTV[tix].position.z = spr->P.z;
 				pTV[tix].texture.x = spr->U1;
 				pTV[tix].texture.y = spr->V1;
 				tix++;
-				pTV[tix].position.x = spr->P.X + spr->OX - spr->W / 2;
-				pTV[tix].position.y = spr->P.Y + spr->OY + spr->H;
-				pTV[tix].position.z = spr->P.Z;
+				pTV[tix].position.x = spr->P.x + spr->OX - spr->W / 2;
+				pTV[tix].position.y = spr->P.y + spr->OY + spr->H;
+				pTV[tix].position.z = spr->P.z;
 				pTV[tix].texture.x = spr->U1;
 				pTV[tix].texture.y = spr->V2;
 				tix++;
-				pTV[tix].position.x = spr->P.X + spr->OX - spr->W / 2;
-				pTV[tix].position.y = spr->P.Y + spr->OY + spr->H;
-				pTV[tix].position.z = spr->P.Z;
+				pTV[tix].position.x = spr->P.x + spr->OX - spr->W / 2;
+				pTV[tix].position.y = spr->P.y + spr->OY + spr->H;
+				pTV[tix].position.z = spr->P.z;
 				pTV[tix].texture.x = spr->U2;
 				pTV[tix].texture.y = spr->V2;
 				tix++;
@@ -1007,7 +888,6 @@ BOOL CLocation::Load(int locationFileIndex)
 		triBufferDesc.ByteWidth = sizeof(TEXTURED_VERTEX) * _spriteVerticeCount;
 		triBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		triBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		triBufferDesc.MiscFlags = 0;
 		triBufferDesc.StructureByteStride = 0;
 
 		triData.pSysMem = pTV;
@@ -1019,12 +899,11 @@ BOOL CLocation::Load(int locationFileIndex)
 		delete[] pTV;
 	}
 
-	// Load alternative textures
 	if (pConfig->AlternativeMedia) {
-		auto extensionlessName = std::wstring(begin(file), end(file) - 3) + L'\\';
+		auto extensionlessName = std::string(file.begin(), file.end() - 3) + '\\';
 		int textureIndex{ 0 };
 		for (auto&& texture : _allTextures) {
-			auto alternateName = extensionlessName + std::to_wstring(textureIndex) + L".png";
+			auto alternateName = extensionlessName + std::to_string(textureIndex) + ".png";
 			if (CFile::Exists(alternateName.c_str())) {
 				texture->pTexture->Init(alternateName.c_str());
 			}
@@ -1032,10 +911,9 @@ BOOL CLocation::Load(int locationFileIndex)
 		}
 	}
 
-	_visibilityChanged = TRUE;
-	_translationChanged = TRUE;
+	_visibilityChanged = true;
+	_translationChanged = true;
 
-	// Start default animations
 	BinaryData animbd = GetLocationData(0);
 	_locationAnimationCount = GetInt(animbd.Data, 0, 4);
 	for (int i = 0; i < _locationAnimationCount && i < MAX_ANIMATIONS; i++)
@@ -1048,7 +926,6 @@ BOOL CLocation::Load(int locationFileIndex)
 		}
 		else
 		{
-			// Check type, if 16, add to Elevations
 			int type = GetInt(animbd.Data, offset, 4);
 			if (type == 16)
 			{
@@ -1057,11 +934,11 @@ BOOL CLocation::Load(int locationFileIndex)
 		}
 	}
 
-	_loading = FALSE;
+	_loading = false;
 
-	Animate();// Force auto-starting animations to play before scripts can initiate more anims or show/hide objects
+	Animate();
 
-	return TRUE;
+	return true;
 }
 
 void CLocation::Clear()
@@ -1119,8 +996,6 @@ void CLocation::Clear()
 		_pLocSubObjects = NULL;
 	}
 
-	// Delete old location data
-
 	if (_locationData != NULL)
 	{
 		delete[] _locationData;
@@ -1157,12 +1032,10 @@ void CLocation::Clear()
 
 	_verticeCount = 0;
 
-	// TODO: Loop through list of currently loaded textures and free the resources
 	std::vector<CTextureGroup*>::iterator texit = _allTextures.begin();
 	std::vector<CTextureGroup*>::iterator texend = _allTextures.end();
 	while (texit != texend)
 	{
-		// Delete texture lists
 		CTextureGroup* pTG = *texit;
 		CTexture* pTex = pTG->pTexture;
 
@@ -1207,7 +1080,7 @@ void CLocation::Clear()
 	}
 	_objectMapCount = 0;
 
-	ZeroMemory(Animations, MAX_ANIMATIONS * sizeof(Animation));
+	memset(Animations, 0, MAX_ANIMATIONS * sizeof(Animation));
 
 	Elevations.clear();
 }
@@ -1220,13 +1093,13 @@ void CLocation::LoadTextures()
 
 	int poff = (bdPal.Length <= 0x300) ? 0 : bdPal.Length - 0x300;
 	int palette[256];
-	PBYTE pPal = (PBYTE)palette;
+	uint8_t* pPal = (uint8_t*)palette;
 	for (int i = 0; i < 256; i++)
 	{
-		byte r = bdPal.Data[i * 3 + 0 + poff];
-		byte g = bdPal.Data[i * 3 + 1 + poff];
-		byte b = bdPal.Data[i * 3 + 2 + poff];
-		byte a = 255;
+		uint8_t r = bdPal.Data[i * 3 + 0 + poff];
+		uint8_t g = bdPal.Data[i * 3 + 1 + poff];
+		uint8_t b = bdPal.Data[i * 3 + 2 + poff];
+		uint8_t a = 255;
 
 		pPal[i * 4 + 0] = b;
 		pPal[i * 4 + 1] = g;
@@ -1234,8 +1107,8 @@ void CLocation::LoadTextures()
 		pPal[i * 4 + 3] = a;
 	}
 
-	PBYTE tex = bdtex.Data;
-	PBYTE texend = tex + bdtex.Length;
+	uint8_t* tex = bdtex.Data;
+	uint8_t* texend = tex + bdtex.Length;
 
 	pPal[0] = 0;
 	pPal[1] = 0;
@@ -1250,7 +1123,6 @@ void CLocation::LoadTextures()
 	{
 		pPal[3] = (transparentTextures[t] || processedTextures.find(t) == processedTextures.end()) ? 0 : 255;
 
-		// Read 12 bytes (3 longs)
 		int w = GetInt(tex, texPtr, 4);
 		int h = GetInt(tex, texPtr + 4, 4);
 		int subType = GetInt(tex, texPtr + 8, 4);
@@ -1258,20 +1130,19 @@ void CLocation::LoadTextures()
 		CTextureGroup* stex = new CTextureGroup();
 		stex->SourcePointer = tex + texPtr;
 
-		texPtr += 12 + 4 * h;   // Skip table
-		PBYTE scan = tex + texPtr;
+		texPtr += 12 + 4 * h;
+		uint8_t* scan = tex + texPtr;
 
 		if ((subType & 2) == 2)
 		{
-			// Animated texture, skip for now...
 			animatedTextures[t] = true;
 		}
 		else
 		{
 			CTexture* pTex = new CTexture(&dx, w, h, scan, palette, (subType & SUBOBJECT_FLAGS_TRANSPARENT) == 1);
 
-			BOOL transparent = transparentTextures[t];
-			BOOL opaque = opaqueTextures[t];
+			bool transparent = transparentTextures[t];
+			bool opaque = opaqueTextures[t];
 
 			stex->pTexture = pTex;
 			stex->Transparent = transparent;
@@ -1284,7 +1155,7 @@ void CLocation::LoadTextures()
 	}
 
 	BinaryData bdanim = GetLocationData(0);
-	LPBYTE pAnim = bdanim.Data;
+	uint8_t* pAnim = bdanim.Data;
 	int animcount = GetInt(pAnim, 0, 4);
 	for (int i = 0; i < animcount; i++)
 	{
@@ -1298,8 +1169,8 @@ void CLocation::LoadTextures()
 			{
 				CTextureGroup* pBase = _allTextures.at(baseTexture);
 				CTextureGroup* pATex = _allTextures.at(animated);
-				LPBYTE pBaseImage = pBase->SourcePointer;
-				LPBYTE pMod = pATex->SourcePointer;
+				uint8_t* pBaseImage = pBase->SourcePointer;
+				uint8_t* pMod = pATex->SourcePointer;
 
 				int w = GetInt(pBaseImage, 0, 4);
 				int h = GetInt(pBaseImage, 4, 4);
@@ -1307,7 +1178,7 @@ void CLocation::LoadTextures()
 				int mw = GetInt(pMod, 0, 4);
 				int mh = GetInt(pMod, 4, 4);
 
-				pMod += 12 + 4 * mh;   // Skip table
+				pMod += 12 + 4 * mh;
 				pBaseImage += 12 + 4 * h;
 
 				int v1 = GetInt(pMod, 0, 2);
@@ -1316,11 +1187,10 @@ void CLocation::LoadTextures()
 				int flags = GetInt(pMod, 6, 2);
 				int fbc = (flags & TEXTURE_FLAGS_LARGE) ? 4 : 2;
 
-				LPBYTE pEnd = pMod + mw * mh;
+				uint8_t* pEnd = pMod + mw * mh;
 				pMod += 8;
 				while (pMod < pEnd)
 				{
-					// Apply modifications
 					int destination = 0;
 					int bytesInFrame = GetInt(pMod, 0, fbc);
 					pMod += fbc;
@@ -1330,13 +1200,11 @@ void CLocation::LoadTextures()
 						bytesInFrame--;
 						if ((b & 0x80) != 0)
 						{
-							// Skip this many bytes
 							destination += (b & 0x7f);
 						}
 						else
 						{
-							// Copy this many bytes
-							CopyMemory(pBaseImage + destination, pMod, b);
+							memcpy(pBaseImage + destination, pMod, b);
 							destination += b;
 							pMod += b;
 							bytesInFrame -= b;
@@ -1363,13 +1231,13 @@ void CLocation::Render()
 	if (_visibilityChanged)
 	{
 		CConstantBuffers::SetVisibility(dx, _visibilityBuffer);
-		_visibilityChanged = FALSE;
+		_visibilityChanged = false;
 	}
 
 	if (_translationChanged)
 	{
 		CConstantBuffers::SetTranslation(dx, _translationBuffer);
-		_translationChanged = FALSE;
+		_translationChanged = false;
 	}
 
 	CConstantBuffers::Setup3D(dx);
@@ -1377,11 +1245,11 @@ void CLocation::Render()
 
 	UpdateY();
 
-	XMMATRIX rm1 = XMMatrixRotationX(_angle1);
-	XMMATRIX rm2 = XMMatrixRotationY(_angle2);
-	XMMATRIX tm = XMMatrixTranslation(_x, _y, _z);
+	float16 rm1 = Math::RotationX(_angle1);
+	float16 rm2 = Math::RotationY(_angle2);
+	float16 tm = Math::Translation(_x, _y, _z);
 
-	XMMATRIX wm;
+	float16 wm;
 	wm = tm * rm2 * rm1;
 	CConstantBuffers::SetWorld(dx, &wm);
 
@@ -1406,23 +1274,23 @@ void CLocation::Render()
 
 #ifdef DEBUG
 	char xbuffer[40];
-	_gcvt_s(xbuffer, sizeof(xbuffer), -_x, 3);
+	snprintf(xbuffer, sizeof(xbuffer), "%.3g", -_x);
 	char ybuffer[40];
-	_gcvt_s(ybuffer, sizeof(ybuffer), -_y, 3);
+	snprintf(ybuffer, sizeof(ybuffer), "%.3g", -_y);
 	char zbuffer[40];
-	_gcvt_s(zbuffer, sizeof(zbuffer), -_z, 3);
+	snprintf(zbuffer, sizeof(zbuffer), "%.3g", -_z);
 	char a1buffer[40];
-	_gcvt_s(a1buffer, sizeof(a1buffer), _angle1, 3);
+	snprintf(a1buffer, sizeof(a1buffer), "%.3g", _angle1);
 	char a2buffer[40];
-	_gcvt_s(a2buffer, sizeof(a2buffer), _angle2, 3);
+	snprintf(a2buffer, sizeof(a2buffer), "%.3g", _angle2);
 
 	char obuffer[40];
-	_itoa_s(HitObject, obuffer, 10);
+	snprintf(obuffer, sizeof(obuffer), "%d", HitObject);
 	char sbuffer[40];
-	_itoa_s(HitSubObject, sbuffer, 16);
+	snprintf(sbuffer, sizeof(sbuffer), "%x", HitSubObject);
 
 	char oixbuffer[40];
-	_itoa_s(ObjectIndex, oixbuffer, 10);
+	snprintf(oixbuffer, sizeof(oixbuffer), "%d", ObjectIndex);
 
 	float dy = 40.0f;
 	caption.SetText("X");
@@ -1465,7 +1333,7 @@ void CLocation::Render()
 		caption.SetText("Score:");
 		caption.Render(0.0f, dx.GetHeight() - caption.Height() - 10.0f);
 		char scorebuffer[40];
-		_itoa_s(CGameController::GetScore(), scorebuffer, 10);
+		snprintf(scorebuffer, sizeof(scorebuffer), "%d", CGameController::GetScore());
 		caption.SetText(scorebuffer);
 		caption.Render(60.0f * pConfig->FontScale, dx.GetHeight() - caption.Height() - 10.0f);
 	}
@@ -1473,14 +1341,13 @@ void CLocation::Render()
 
 void CLocation::RenderTextured()
 {
-	UINT stride = sizeof(TEXTURED_VERTEX);
-	UINT offset = 0;
+	unsigned int stride = sizeof(TEXTURED_VERTEX);
+	unsigned int offset = 0;
 	dx.SetVertexBuffers(0, 1, &_texturedVertexBuffer, &stride, &offset);
 	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	CShaders::SelectTextureShader();
 
-	// Render all textured objects
 	std::vector<CTextureGroup*>::iterator tit = _allTextures.begin();
 	std::vector<CTextureGroup*>::iterator tend = _allTextures.end();
 	while (tit != tend)
@@ -1503,7 +1370,6 @@ void CLocation::RenderTextured()
 		tit++;
 	}
 
-	// Render sprites
 	stride = sizeof(TEXTURED_VERTEX);
 	offset = 0;
 	dx.SetVertexBuffers(0, 1, &_spriteVertexBuffer, &stride, &offset);
@@ -1526,7 +1392,6 @@ void CLocation::RenderTextured()
 
 	if (_transparentVerticeCount > 0)
 	{
-		// Render all transparent objects
 		stride = sizeof(COLOURED_VERTEX);
 		dx.SetVertexBuffers(0, 1, &_transparentVertexBuffer, &stride, &offset);
 		CShaders::SelectTransparentColourShader();
@@ -1534,7 +1399,7 @@ void CLocation::RenderTextured()
 	}
 }
 
-TLPoint CLocation::GetPoint(PBYTE p3d2, int offset, int index, int points, float tw, float th, int objectCount, int object, int subObject)
+TLPoint CLocation::GetPoint(uint8_t* p3d2, int offset, int index, int points, float tw, float th, int objectCount, int object, int subObject)
 {
 	TLPoint p;
 	p.ObjectIndex = object;
@@ -1545,8 +1410,8 @@ TLPoint CLocation::GetPoint(PBYTE p3d2, int offset, int index, int points, float
 	float fv = ((float)GetInt(p3d2, offset + 4 + points * 4 + index * 8, 4)) / 65536.0f;
 
 	p.Point = &_points[pix + objectCount];
-	p.U = min(max(0.0f, fu / tw), 1.0f);
-	p.V = min(max(0.0f, fv / th), 1.0f);
+	p.U = std::min(std::max(0.0f, fu / tw), 1.0f);
+	p.V = std::min(std::max(0.0f, fv / th), 1.0f);
 
 	return p;
 }
@@ -1593,7 +1458,6 @@ DPoint Subtract(DPoint& p1, DPoint& p2)
 
 double LineSegmentsDistance(DPoint& p1, DPoint& p2, DPoint& p3, DPoint& p4, double& t, double& uc)
 {
-	// From https://www.mathworks.com/matlabcentral/mlc-downloads/downloads/submissions/32487/versions/2/previews/DistBetween2Segment.m/index.html
 	DPoint u = Subtract(p2, p1);
 	DPoint v = Subtract(p4, p3);
 	DPoint w = Subtract(p1, p3);
@@ -1611,7 +1475,6 @@ double LineSegmentsDistance(DPoint& p1, DPoint& p2, DPoint& p3, DPoint& p4, doub
 
 	if (D < SMALL_NUM)
 	{
-		// the lines are almost parallel
 		sN = 0.0;
 		sD = 1.0;
 		tN = e;
@@ -1619,19 +1482,16 @@ double LineSegmentsDistance(DPoint& p1, DPoint& p2, DPoint& p3, DPoint& p4, doub
 	}
 	else
 	{
-		// get the closest points on the infinite lines
 		sN = (b * e - c * d);
 		tN = (a * e - b * d);
 		if (sN < 0.0)
 		{
-			// sc < 0 => the s=0 edge is visible
 			sN = 0.0;
 			tN = e;
 			tD = c;
 		}
 		else if (sN > sD)
 		{
-			// sc > 1 => the s=1 edge is visible
 			sN = sD;
 			tN = e + b;
 			tD = c;
@@ -1640,10 +1500,7 @@ double LineSegmentsDistance(DPoint& p1, DPoint& p2, DPoint& p3, DPoint& p4, doub
 
 	if (tN < 0.0)
 	{
-		// tc < 0 => the t=0 edge is visible
 		tN = 0.0;
-		// recompute sc for this edge
-
 		if (-d < 0.0)
 		{
 			sN = 0.0;
@@ -1660,10 +1517,7 @@ double LineSegmentsDistance(DPoint& p1, DPoint& p2, DPoint& p3, DPoint& p4, doub
 	}
 	else if (tN > tD)
 	{
-		// tc > 1 => the t=1 edge is visible
 		tN = tD;
-
-		// recompute sc for this edge
 		if ((-d + b) < 0.0)
 		{
 			sN = 0;
@@ -1682,21 +1536,19 @@ double LineSegmentsDistance(DPoint& p1, DPoint& p2, DPoint& p3, DPoint& p4, doub
 	sc = (abs(sN) < SMALL_NUM ? 0.0 : sN / sD);
 	tc = (abs(tN) < SMALL_NUM ? 0.0 : tN / tD);
 
-	// get the difference of the two closest points
-
 	DPoint dP{ w.X + u.X * sc - v.X * tc, 0.0, w.Z + u.Z * sc - v.Z * tc };
 
 	t = sc;
 	uc = tc;
 
-	return sqrt(Dot(dP, dP));    // return the closest distance
+	return sqrt(Dot(dP, dP));
 }
 
 void CLocation::Move(float mx, float my, float mz, float tmx)
 {
 	if (mx != 0.0f || my != 0.0f || mz != 0.0f)
 	{
-		PointingChanged = TRUE;
+		PointingChanged = true;
 	}
 
 	if (mx != 0.0f || mz != 0.0f)
@@ -1704,20 +1556,18 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 		double nx = _x - (mz * sin(_angle2) - mx * cos(_angle2));
 		double nz = _z + (mz * cos(_angle2) + mx * sin(_angle2));
 
-		// Check for collision with path objects
 #ifdef DEBUG
-		BOOL collision = !_disableClipping;
+		bool collision = !_disableClipping;
 #else
-		BOOL collision = TRUE;
+		bool collision = true;
 #endif
 
 		DPoint pp1{ -_x, 0.0, -_z };
 		DPoint pp2{ -nx, 0.0, -nz };
 
-		// Run up to two times
 		for (int pass = 0; pass < 2 && collision; pass++)
 		{
-			collision = FALSE;
+			collision = false;
 
 			double closest_t = 10000.0;
 			double closest_u = 0.0;
@@ -1729,12 +1579,6 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 			closestIntersection.ProjectionPoint = DPoint{ 0.0, 0.0, 0.0 };
 			closestIntersection.ProjectionLength = 0.0;
 
-			// TODO: Make a list of collisions, store projected point + movement length
-			// TODO: Get shortest movement, perform movement and adjust new vector
-			// TODO: Looks like I already have most of this, change to use towards-path-projected point (and modify destination point with same projection) to allow for radius (0.666666...)
-			// TODO: First get projected point on segment
-			// TODO: If distance is greater than or equal to the radius, move point radius units towards segment
-			// TODO: Otherwise ignore segment
 			for (int i = 0; i < _pathCount; i++)
 			{
 				if (!_paths[i].enabled)
@@ -1750,27 +1594,15 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 					DPoint pt1 = _paths[i].Points.at(p1);
 					DPoint pt2 = _paths[i].Points.at(p2);
 
-					//DPoint projectedPoint = Project(pt1, pt2, pp1);	// Projection of current position on line segment
-					//double distanceFromLineSegmentSquared = DistanceSquared(pp1, projectedPoint);
-					//if (distanceFromLineSegmentSquared > maxClipDistanceSquared)
-					//{
-					//	continue;
-					//}
-
 					DPoint currentLineNormal = Normalize(Normal(Subtract(pt2, pt1)));
 					DPoint currentMovement = Normalize(Subtract(pp2, pp1));
 					double current_dp = Dot(currentMovement, currentLineNormal);
-					//if (!isnan(current_dp) && current_dp >= 0.0)	// Line should be checked
 					{
 						double t = 0.0, u = 0.0;
 						double d = LineSegmentsDistance(pp1, pp2, pt1, pt2, t, u);
 
-						// TODO: Should calculate projected distance (player position to line) and compare this value (may help edge cases)
-						// TODO: Should ignore walls where the projected point is more than 0.5 units away from edge points
-
-						if (d < 0.5 && d < closest_dist)// && t <= closest_t)
+						if (d < 0.5 && d < closest_dist)
 						{
-							//if (current_dp < closest_dp)
 							{
 								closestIntersection.LineSegmentP1 = pt1;
 								closestIntersection.LineSegmentP2 = pt2;
@@ -1778,7 +1610,7 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 								closest_u = u;
 								closest_dist = d;
 								closest_dp = current_dp;
-								collision = TRUE;
+								collision = true;
 							}
 						}
 					}
@@ -1787,20 +1619,9 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 
 			if (collision)
 			{
-				//if (closest_t < 1.0)
-				//{
-				//	nx = _x;
-				//	nz = _z;
-				//	break;
-				//}
-
-				// Move player to point close to line and project
-
-				// Calculate ProjectToX,ProjectToY and NewPointX,NewPointY
 				DPoint mp = Project(closestIntersection.LineSegmentP1, closestIntersection.LineSegmentP2, pp2);
 				DPoint pp = Project(closestIntersection.LineSegmentP1, closestIntersection.LineSegmentP2, pp1);
 
-				// Check distance projection/ball to movement/ball, will give extension direction (unless ball is midway between movement and projection, but then movement is away from line)
 				double distanceToMovement = sqrt(DistanceSquared(pp1, pp2));
 				double playerDistanceToLine = sqrt(DistanceSquared(pp1, pp));
 				double movementDistanceToLine = sqrt(DistanceSquared(pp2, mp));
@@ -1870,30 +1691,9 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 						}
 					}
 				}
-
-				//Trace(L"Moving player to {");
-				//Trace((float)pp1.X);
-				//Trace(L", ");
-				//Trace((float)pp1.Z);
-				//Trace(L"} x {");
-				//Trace((float)pp2.X);
-				//Trace(L", ");
-				//Trace((float)pp2.Z);
-				//Trace(L"}, new distance ");
-				//Trace((float)newDistance);
-				//Trace(L", new distance from all ");
-				//TraceLine((float)newClosestD);
-
-				//if (newDistance < 0.5 || newClosestD < 0.5)
-				//{
-				//	nx = _x;
-				//	nz = _z;
-				//	break;
-				//}
 			}
 			else
 			{
-				//Trace(L"No collision detected, checking new position distances... ");
 				double newClosestD = 10000.0;
 				int newclosestpathindex = -1;
 				int newclosestPathSubIndex = -1;
@@ -1920,9 +1720,6 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 					}
 				}
 
-				//Trace(L"New closest distance ");
-				//TraceLine((float)newClosestD);
-
 				if (newClosestD < 0.5)
 				{
 					int ddddd = 0;
@@ -1933,14 +1730,12 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 		_x = (float)nx;
 		_z = (float)nz;
 
-		// Check elevation
 #ifdef DEBUG
 		if (!_disableClipping)
 #endif
 		{
 			if (_pCurrentElevation != NULL)
 			{
-				// Check if player has left active elevation
 				if (_pCurrentElevation->IsPointInElevation(-_x, -_y_elevation, -_z))
 				{
 					_y_elevation = -_pCurrentElevation->GetElevationFromXZPosition(-_x, -_z);
@@ -1981,8 +1776,7 @@ void CLocation::Move(float mx, float my, float mz, float tmx)
 #endif
 		if (_y_player_adjustment <= maxy && _y_player_adjustment >= miny)
 		{
-			// Allow movement up/down to limits
-			_y_player_adjustment += (my < 0.0f) ? max(my, miny - _y_player_adjustment) : min(my, maxy - _y_player_adjustment);
+			_y_player_adjustment += (my < 0.0f) ? std::max(my, miny - _y_player_adjustment) : std::min(my, maxy - _y_player_adjustment);
 		}
 	}
 
@@ -1993,7 +1787,7 @@ void CLocation::DeltaAngles(float angle1, float angle2)
 {
 	if (angle1 != 0.0f || angle2 != 0.0f)
 	{
-		PointingChanged = TRUE;
+		PointingChanged = true;
 	}
 
 	_angle1 -= angle1;
@@ -2008,16 +1802,15 @@ void CLocation::DeltaAngles(float angle1, float angle2)
 		_angle2 -= twopi;
 	}
 
-	if (_angle1 > (XM_PI / 2.0f)) _angle1 = (XM_PI / 2.0f);
-	else if (_angle1 < -(XM_PI / 2.0f)) _angle1 = -(XM_PI / 2.0f);
+	if (_angle1 > (3.141592654f / 2.0f)) _angle1 = (3.141592654f / 2.0f);
+	else if (_angle1 < -(3.141592654f / 2.0f)) _angle1 = -(3.141592654f / 2.0f);
 }
 
 void CLocation::LoadPaths()
 {
-	// Read and parse path data
 	BinaryData bdpath = GetLocationData(1);
 
-	PBYTE ppath = bdpath.Data;
+	uint8_t* ppath = bdpath.Data;
 
 	_pathCount = GetInt(ppath, 0x1a, 2);
 	_paths = new Path[_pathCount];
@@ -2041,8 +1834,8 @@ void CLocation::LoadPaths()
 	{
 		if (GetInt(ppath, os, 4) == 0x45434146)
 		{
-			_paths[f].enabled = TRUE;
-			_paths[f].allowLeave = FALSE;
+			_paths[f].enabled = true;
+			_paths[f].allowLeave = false;
 			int pathId = GetInt(ppath, os + 14, 2);
 			_paths[f].Id = (pathId != 0) ? pathId : f;
 
@@ -2062,16 +1855,15 @@ void CLocation::LoadPaths()
 	}
 
 #ifdef DEBUG
-	// Create path vertice buffer
 	Point* pPV = new Point[pathVerticeCount];
 	if (pPV != NULL)
 	{
 		int pi = 0;
 		for (auto pt : points)
 		{
-			pPV[pi].X = pt.X;
-			pPV[pi].Y = pt.Y;
-			pPV[pi].Z = pt.Z;
+			pPV[pi].x = pt.X;
+			pPV[pi].y = pt.Y;
+			pPV[pi].z = pt.Z;
 			pi++;
 		}
 
@@ -2150,7 +1942,7 @@ void CLocation::LoadPaths()
 #endif
 }
 
-TLPoint CLocation::GetSpritePoint(PBYTE p3d2, int offset, int index, int objectCount, int object, int subObject)
+TLPoint CLocation::GetSpritePoint(uint8_t* p3d2, int offset, int index, int objectCount, int object, int subObject)
 {
 	TLPoint p;
 	p.ObjectIndex = object;
@@ -2168,41 +1960,41 @@ TLPoint CLocation::GetSpritePoint(PBYTE p3d2, int offset, int index, int objectC
 	float v2 = ((float)GetInt(p3d2, offset + 0x38, 4)) / 65536.0f;
 
 	int pix = pointIndex + objectCount;
-	float cx = _points[pix].X;
-	float cy = _points[pix].Y;
-	float cz = _points[pix].Z;
+	float cx = _points[pix].x;
+	float cy = _points[pix].y;
+	float cz = _points[pix].z;
 
 	p.Point = new Point();
 
 	if (index == 0)
 	{
-		p.Point->X = cx - sprite_w / 2;
-		p.Point->Y = cy - sprite_h;
-		p.Point->Z = cz;
+		p.Point->x = cx - sprite_w / 2;
+		p.Point->y = cy - sprite_h;
+		p.Point->z = cz;
 		p.U = u2;
 		p.V = v2;
 	}
 	else if (index == 1)
 	{
-		p.Point->X = cx + sprite_w / 2;
-		p.Point->Y = cy - sprite_h;
-		p.Point->Z = cz;
+		p.Point->x = cx + sprite_w / 2;
+		p.Point->y = cy - sprite_h;
+		p.Point->z = cz;
 		p.U = u1;
 		p.V = v2;
 	}
 	else if (index == 2)
 	{
-		p.Point->X = cx + sprite_w / 2;
-		p.Point->Y = cy;
-		p.Point->Z = cz;
+		p.Point->x = cx + sprite_w / 2;
+		p.Point->y = cy;
+		p.Point->z = cz;
 		p.U = u1;
 		p.V = v1;
 	}
 	else if (index == 3)
 	{
-		p.Point->X = cx - sprite_w / 2;
-		p.Point->Y = cy;
-		p.Point->Z = cz;
+		p.Point->x = cx - sprite_w / 2;
+		p.Point->y = cy;
+		p.Point->z = cz;
 		p.U = u2;
 		p.V = v1;
 	}
@@ -2215,7 +2007,7 @@ void CLocation::UpdateSprites()
 	if (_spriteVertexBuffer != NULL)
 	{
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		ZeroMemory(&subRes, sizeof(subRes));
+		memset(&subRes, 0, sizeof(subRes));
 		dx.Map(_spriteVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
 		TEXTURED_VERTEX* pTV = (TEXTURED_VERTEX*)subRes.pData;
@@ -2238,22 +2030,21 @@ void CLocation::UpdateSprites()
 				SpriteInfo* spr = &(*sit);
 
 				Point sv;
-				sv.X = -_x - spr->P.X - _translationBuffer.translation[spr->ObjectIndex].x;
-				sv.Z = -_z - spr->P.Z - _translationBuffer.translation[spr->ObjectIndex].z;
-				float len = sqrt(sv.X * sv.X + sv.Z * sv.Z);
+				sv.x = -_x - spr->P.x - _translationBuffer.translation[spr->ObjectIndex].x;
+				sv.z = -_z - spr->P.z - _translationBuffer.translation[spr->ObjectIndex].z;
+				float len = sqrt(sv.x * sv.x + sv.z * sv.z);
 				if (len == 0.0f) len = 1.0f;
-				sv.X /= len;
-				sv.Z /= len;
+				sv.x /= len;
+				sv.z /= len;
 
-				float sy1 = spr->P.Y - spr->H - spr->OY;
-				float sy2 = spr->P.Y - spr->OY;
+				float sy1 = spr->P.y - spr->H - spr->OY;
+				float sy2 = spr->P.y - spr->OY;
 
-				float x1 = spr->P.X - (spr->OX + spr->W) * sv.Z;
-				float x2 = spr->P.X - spr->OX * sv.Z;
-				float z1 = spr->P.Z + (spr->OX + spr->W) * sv.X;
-				float z2 = spr->P.Z + spr->OX * sv.X;
+				float x1 = spr->P.x - (spr->OX + spr->W) * sv.z;
+				float x2 = spr->P.x - spr->OX * sv.z;
+				float z1 = spr->P.z + (spr->OX + spr->W) * sv.x;
+				float z2 = spr->P.z + spr->OX * sv.x;
 
-				// Set sprite to face player
 				pTV[tix].position.x = x1;
 				pTV[tix].position.y = sy1;
 				pTV[tix].position.z = z1;
@@ -2316,7 +2107,6 @@ void CLocation::UpdateSprites()
 			pTex->SpriteVerticeCount = tix - pTex->SpriteVertexStart;
 
 			tit++;
-
 			tex++;
 		}
 
@@ -2324,21 +2114,18 @@ void CLocation::UpdateSprites()
 	}
 }
 
-BOOL CLocation::Intersect(Box& boundingBox, Point& from, Point& direction)
+bool CLocation::Intersect(Box& boundingBox, Point& from, Point& direction)
 {
-	// From https://gamedev.stackexchange.com/a/150467
-	float t1 = (boundingBox.X1 - from.X) * direction.X;
-	float t2 = (boundingBox.X2 - from.X) * direction.X;
-	float t3 = (boundingBox.Y1 - from.Y) * direction.Y;
-	float t4 = (boundingBox.Y2 - from.Y) * direction.Y;
-	float t5 = (boundingBox.Z1 - from.Z) * direction.Z;
-	float t6 = (boundingBox.Z2 - from.Z) * direction.Z;
+	float t1 = (boundingBox.X1 - from.x) * direction.x;
+	float t2 = (boundingBox.X2 - from.x) * direction.x;
+	float t3 = (boundingBox.Y1 - from.y) * direction.y;
+	float t4 = (boundingBox.Y2 - from.y) * direction.y;
+	float t5 = (boundingBox.Z1 - from.z) * direction.z;
+	float t6 = (boundingBox.Z2 - from.z) * direction.z;
 
-	float tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-	float tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+	float tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
+	float tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6));
 
-	// if tmax < 0, ray (line) is intersecting AABB, but whole AABB is behing us
-	// if tmin > tmax, ray doesn't intersect AABB
 	return (tmax >= 0.0f && tmax >= tmin);
 }
 
@@ -2349,76 +2136,54 @@ int CLocation::GetPickObject(int& objectId, int& subObjectId)
 		return -1;
 	}
 
-	PointingChanged = FALSE;
-
-	// Camera position is from _x, _y, _z
-	// Camera angle (looking direction) is from _angle1 and _angle2
-	// Since it's the centre of the screen we're tracing, no view/projection transform is necessary
-	// Do bounding-box tests of all objects (then of sub-objects, finally triangle/polygon checks)
+	PointingChanged = false;
 
 	Point ld;
-	ld.X = cos(_angle1) * sin(-_angle2);
-	ld.Y = sin(_angle1);
-	ld.Z = cos(_angle1) * cos(-_angle2);
+	ld.x = cos(_angle1) * sin(-_angle2);
+	ld.y = sin(_angle1);
+	ld.z = cos(_angle1) * cos(-_angle2);
 
 	Point perp;
-	perp.X = sin(-_angle2 - XM_PI / 2);
-	perp.Y = 0.0f;
-	perp.Z = cos(-_angle2 - XM_PI / 2);
+	perp.x = sin(-_angle2 - 3.141592654f / 2);
+	perp.y = 0.0f;
+	perp.z = cos(-_angle2 - 3.141592654f / 2);
 
-	float len = sqrt(ld.X * ld.X + ld.Y * ld.Y + ld.Z * ld.Z);
-	ld.X /= len;
-	ld.Y /= len;
-	ld.Z /= len;
+	float len = sqrt(ld.x * ld.x + ld.y * ld.y + ld.z * ld.z);
+	ld.x /= len;
+	ld.y /= len;
+	ld.z /= len;
 
 	Point dir;
-	dir.X = 1.0f / ld.X;
-	dir.Y = 1.0f / ld.Y;
-	dir.Z = 1.0f / ld.Z;
+	dir.x = 1.0f / ld.x;
+	dir.y = 1.0f / ld.y;
+	dir.z = 1.0f / ld.z;
 
 	float distance = 1000000.0f;
 
-	// Not using OcTree for hit testing
 	for (int i = 0; i < _objectCount; i++)
 	{
-		if (_visibilityBuffer.visibility[i].x > 0.0f)	// Object is visible
+		if (_visibilityBuffer.visibility[i].x > 0.0f)
 		{
 			Point teye;
-			teye.X = -_x - _translationBuffer.translation[i].x;
-			teye.Y = -_y - _translationBuffer.translation[i].y;
-			teye.Z = -_z - _translationBuffer.translation[i].z;
+			teye.x = -_x - _translationBuffer.translation[i].x;
+			teye.y = -_y - _translationBuffer.translation[i].y;
+			teye.z = -_z - _translationBuffer.translation[i].z;
 
 			if (Intersect(_ppObjects[i]->BoundingBox, teye, dir))
 			{
 				for (int j = 0; j < _ppObjects[i]->SubObjectCount; j++)
 				{
-					if (_ppObjects[i]->SubObjects[j].Flags != 0 && _visibilityBuffer.visibility[_ppObjects[i]->SubObjects[j].SubObjectIndex].y > 0.0f)	// Sub-object is visible
+					if (_ppObjects[i]->SubObjects[j].Flags != 0 && _visibilityBuffer.visibility[_ppObjects[i]->SubObjects[j].SubObjectIndex].y > 0.0f)
 					{
 						if (Intersect(_ppObjects[i]->SubObjects[j].BoundingBox, teye, dir))
 						{
-							DirectX::XMVECTOR veye;
-							veye.m128_f32[0] = teye.X;
-							veye.m128_f32[1] = teye.Y;
-							veye.m128_f32[2] = teye.Z;
-							veye.m128_f32[3] = 1.0f;
-							DirectX::XMVECTOR vdir;
-							vdir.m128_f32[0] = ld.X;
-							vdir.m128_f32[1] = ld.Y;
-							vdir.m128_f32[2] = ld.Z;
-							vdir.m128_f32[3] = 1.0f;
-
-							DirectX::XMVECTOR v0;
-							v0.m128_f32[3] = 1.0f;
-							DirectX::XMVECTOR v1;
-							v1.m128_f32[3] = 1.0f;
-							DirectX::XMVECTOR v2;
-							v2.m128_f32[3] = 1.0f;
+							Math::vec3 veye = {teye.x, teye.y, teye.z};
+							Math::vec3 vdir = {ld.x, ld.y, ld.z};
+							Math::vec3 v0, v1, v2, v3;
 							float td = 10000.0f;
 
 							if (_ppObjects[i]->SubObjects[j].PointCount == 1)
 							{
-								// Sprite, check bounding box for dimensions
-								// TODO: Get Y and centre X/Z from point
 								float y1 = _ppObjects[i]->SubObjects[j].BoundingBox.Y1;
 								float y2 = _ppObjects[i]->SubObjects[j].BoundingBox.Y2;
 								float cx = (_ppObjects[i]->SubObjects[j].BoundingBox.X1 + _ppObjects[i]->SubObjects[j].BoundingBox.X2) / 2.0f;
@@ -2426,45 +2191,31 @@ int CLocation::GetPickObject(int& objectId, int& subObjectId)
 								float w = _ppObjects[i]->SubObjects[j].BoundingBox.X2 - _ppObjects[i]->SubObjects[j].BoundingBox.X1;
 
 								Point sv;
-								sv.X = teye.X - cx;
-								sv.Z = teye.Z - cz;
-								float len = sqrt(sv.X * sv.X + sv.Z * sv.Z); // Distance from player
+								sv.x = teye.x - cx;
+								sv.z = teye.z - cz;
+								float len = sqrt(sv.x * sv.x + sv.z * sv.z);
 								if (len == 0.0f) len = 1.0f;
-								sv.X /= len;
-								sv.Z /= len;	// Normalized direction vector
+								sv.x /= len;
+								sv.z /= len;
 
 								Point pp;
-								pp.X = sv.Z;
-								pp.Z = -sv.X;
+								pp.x = sv.z;
+								pp.z = -sv.x;
 
-								float ax = pp.X * w / 2;
-								float az = pp.Z * w / 2;
+								float ax = pp.x * w / 2;
+								float az = pp.z * w / 2;
 
 								float x1 = cx - ax;
 								float x2 = cx + ax;
 								float z1 = cz - az;
 								float z2 = cz + az;
 
-								DirectX::XMVECTOR v3;
-								v3.m128_f32[3] = 1.0f;
+								v0 = {x1, y1, z1};
+								v1 = {x2, y1, z2};
+								v2 = {x1, y2, z1};
+								v3 = {x2, y2, z2};
 
-								v0.m128_f32[0] = x1;
-								v0.m128_f32[1] = y1;
-								v0.m128_f32[2] = z1;
-
-								v1.m128_f32[0] = x2;
-								v1.m128_f32[1] = y1;
-								v1.m128_f32[2] = z2;
-
-								v2.m128_f32[0] = x1;
-								v2.m128_f32[1] = y2;
-								v2.m128_f32[2] = z1;
-
-								v3.m128_f32[0] = x2;
-								v3.m128_f32[1] = y2;
-								v3.m128_f32[2] = z2;
-
-								if (DirectX::TriangleTests::Intersects(veye, vdir, v0, v3, v2, td) || DirectX::TriangleTests::Intersects(veye, vdir, v0, v1, v3, td))
+								if (Math::TriangleTests::Intersects(veye, vdir, v0, v3, v2, td) || Math::TriangleTests::Intersects(veye, vdir, v0, v1, v3, td))
 								{
 									if (td <= distance)
 									{
@@ -2479,19 +2230,23 @@ int CLocation::GetPickObject(int& objectId, int& subObjectId)
 								int triCount = _ppObjects[i]->SubObjects[j].PointCount - 2;
 								for (int t = 0; t < triCount; t++)
 								{
-									v0.m128_f32[0] = _ppObjects[i]->SubObjects[j].Triangles[t].P1.Point->X;
-									v0.m128_f32[1] = _ppObjects[i]->SubObjects[j].Triangles[t].P1.Point->Y;
-									v0.m128_f32[2] = _ppObjects[i]->SubObjects[j].Triangles[t].P1.Point->Z;
+									v0 = {
+										_ppObjects[i]->SubObjects[j].Triangles[t].P1.Point->x,
+										_ppObjects[i]->SubObjects[j].Triangles[t].P1.Point->y,
+										_ppObjects[i]->SubObjects[j].Triangles[t].P1.Point->z
+									};
+									v1 = {
+										_ppObjects[i]->SubObjects[j].Triangles[t].P2.Point->x,
+										_ppObjects[i]->SubObjects[j].Triangles[t].P2.Point->y,
+										_ppObjects[i]->SubObjects[j].Triangles[t].P2.Point->z
+									};
+									v2 = {
+										_ppObjects[i]->SubObjects[j].Triangles[t].P3.Point->x,
+										_ppObjects[i]->SubObjects[j].Triangles[t].P3.Point->y,
+										_ppObjects[i]->SubObjects[j].Triangles[t].P3.Point->z
+									};
 
-									v1.m128_f32[0] = _ppObjects[i]->SubObjects[j].Triangles[t].P2.Point->X;
-									v1.m128_f32[1] = _ppObjects[i]->SubObjects[j].Triangles[t].P2.Point->Y;
-									v1.m128_f32[2] = _ppObjects[i]->SubObjects[j].Triangles[t].P2.Point->Z;
-
-									v2.m128_f32[0] = _ppObjects[i]->SubObjects[j].Triangles[t].P3.Point->X;
-									v2.m128_f32[1] = _ppObjects[i]->SubObjects[j].Triangles[t].P3.Point->Y;
-									v2.m128_f32[2] = _ppObjects[i]->SubObjects[j].Triangles[t].P3.Point->Z;
-
-									if (DirectX::TriangleTests::Intersects(veye, vdir, v0, v1, v2, td))
+									if (Math::TriangleTests::Intersects(veye, vdir, v0, v1, v2, td))
 									{
 										if (td <= distance)
 										{
@@ -2536,7 +2291,6 @@ int CLocation::GetPickObject(int& objectId, int& subObjectId)
 
 void CLocation::StartMappedAnimation(int index)
 {
-	// Lookup animation map
 	int mappedIndex = _mapEntry->AnimationMap.at(index);
 	StartIndexedAnimation(mappedIndex);
 }
@@ -2549,13 +2303,8 @@ void CLocation::StartIndexedAnimation(int index)
 		if (Animations[index].Status == AnimationStatus::NotStarted || Animations[index].Status == AnimationStatus::Completed)
 		{
 			Animations[index].ObjectId = GetInt(bd.Data, index * 8 + 4, 4);
-			PBYTE pA = bd.Data + GetInt(bd.Data, index * 8 + 8, 4);
-			PBYTE pAE = (index < (_locationAnimationCount - 1)) ? bd.Data + GetInt(bd.Data, index * 8 + 16, 4) : bd.Data + bd.Length;
-
-			//Trace(L"Starting animation with index ");
-			//Trace(index);
-			//Trace(L", base is 0x");
-			//TraceLine((int)pA, 16);
+			uint8_t* pA = bd.Data + GetInt(bd.Data, index * 8 + 8, 4);
+			uint8_t* pAE = (index < (_locationAnimationCount - 1)) ? bd.Data + GetInt(bd.Data, index * 8 + 16, 4) : bd.Data + bd.Length;
 
 			int id = GetInt(pA, 4, 4);
 			if (id == index)
@@ -2576,7 +2325,7 @@ void CLocation::StartIndexedAnimation(int index)
 				else if (Animations[index].Type == 15)
 				{
 					Animations[index].Parameter = GetInt(pA, 0, 4);
-					Animations[index].FrameDuration = Animations[index].ConstantFrameDuration = (DWORD)(GetInt(pA, 4, 4) * TIMER_SCALE);
+					Animations[index].FrameDuration = Animations[index].ConstantFrameDuration = (uint32_t)(GetInt(pA, 4, 4) * TIMER_SCALE);
 					pA += 8;
 					Animations[index].AnimDataPointerInit = pA;
 				}
@@ -2609,13 +2358,8 @@ void CLocation::StartIdAnimation(int index)
 			if (Animations[index].Status == AnimationStatus::NotStarted || Animations[index].Status == AnimationStatus::Completed)
 			{
 				Animations[index].ObjectId = GetInt(bd.Data, index * 8 + 4, 4);
-				PBYTE pA = bd.Data + GetInt(bd.Data, index * 8 + 8, 4);
-				PBYTE pAE = (index < (_locationAnimationCount - 1)) ? bd.Data + GetInt(bd.Data, index * 8 + 16, 4) : bd.Data + bd.Length;
-
-				//Trace(L"Starting animation with index ");
-				//Trace(index);
-				//Trace(L", base is 0x");
-				//TraceLine((int)pA, 16);
+				uint8_t* pA = bd.Data + GetInt(bd.Data, index * 8 + 8, 4);
+				uint8_t* pAE = (index < (_locationAnimationCount - 1)) ? bd.Data + GetInt(bd.Data, index * 8 + 16, 4) : bd.Data + bd.Length;
 
 				int id = GetInt(pA, 4, 4);
 				if (id == index)
@@ -2636,7 +2380,7 @@ void CLocation::StartIdAnimation(int index)
 					else if (Animations[index].Type == 15)
 					{
 						Animations[index].Parameter = GetInt(pA, 0, 4);
-						Animations[index].FrameDuration = Animations[index].ConstantFrameDuration = (DWORD)(GetInt(pA, 4, 4) * TIMER_SCALE);
+						Animations[index].FrameDuration = Animations[index].ConstantFrameDuration = (uint32_t)(GetInt(pA, 4, 4) * TIMER_SCALE);
 						pA += 8;
 						Animations[index].AnimDataPointerInit = pA;
 					}
@@ -2663,7 +2407,6 @@ void CLocation::StopMappedAnimation(int index)
 {
 	if (index >= 0 && index < _locationAnimationCount && index < MAX_ANIMATIONS)
 	{
-		// Lookup animation map
 		int mappedIndex = _mapEntry->AnimationMap.at(index);
 		StopIndexedAnimation(mappedIndex);
 	}
@@ -2677,14 +2420,13 @@ void CLocation::StopIndexedAnimation(int index)
 	}
 }
 
-BOOL CLocation::IsAnimationFinished(int index)
+bool CLocation::IsAnimationFinished(int index)
 {
-	// Should return the mapped animation status
 	int mappedIndex = _mapEntry->AnimationMap.at(index);
 	return (mappedIndex >= 0 && mappedIndex < _locationAnimationCount && mappedIndex < MAX_ANIMATIONS && Animations[mappedIndex].Status == AnimationStatus::Completed);
 }
 
-BOOL CLocation::IsIndexedAnimationFinished(int index)
+bool CLocation::IsIndexedAnimationFinished(int index)
 {
 	return (index >= 0 && index < _locationAnimationCount && index < MAX_ANIMATIONS && (Animations[index].Status == AnimationStatus::Completed || Animations[index].Status == AnimationStatus::NotStarted));
 }
@@ -2710,46 +2452,41 @@ double CLocation::GetPlayerDistanceFromPoint(double x, double z)
 Point CLocation::GetPlayerPosition()
 {
 	Point p;
-	p.X = -_x;
-	p.Y = _y_elevation + _y_player_adjustment;
-	p.Z = -_z;
+	p.x = -_x;
+	p.y = _y_elevation + _y_player_adjustment;
+	p.z = -_z;
 	return p;
 }
 
 Point CLocation::GetUnadjustedPlayerPosition()
 {
 	Point p;
-	p.X = -_x;
-	p.Y = _y_elevation;
-	p.Z = -_z;
+	p.x = -_x;
+	p.y = _y_elevation;
+	p.z = -_z;
 	return p;
 }
 
 SpritePosInfo CLocation::GetSpriteInfo(int index)
 {
-	// This function should be used to find the location if the eyebot
 	SpritePosInfo info;
-	info.Position = Point{ 0.0,0.0,0.0 };
-	info.Visible = FALSE;
+	info.Position = Point{ 0.0f,0.0f,0.0f };
+	info.Visible = false;
 
 	if (index >= 0 && index < _objectCount)
 	{
-		// Look up from main data
 		BinaryData bd = GetLocationData(4);
 
-		// Find object
-		LPBYTE pObj = bd.Data + GetInt(bd.Data, 0x30 + index * 4, 4) + 0x30;
+		uint8_t* pObj = bd.Data + GetInt(bd.Data, 0x30 + index * 4, 4) + 0x30;
 
 		int subObjects = GetInt(pObj, 12, 4);
 		if (subObjects == 1)
 		{
-			LPBYTE pSub = pObj + 40;
+			uint8_t* pSub = pObj + 40;
 			int flags = GetInt(pSub, 8, 4);
 
-			// Confirm it's a sprite
 			if ((flags & SUBOBJECT_FLAGS_SPRITE) != 0)
 			{
-				// Get point
 				int points = GetInt(pSub, 4, 4);
 				if (points == 1)
 				{
@@ -2759,12 +2496,10 @@ SpritePosInfo CLocation::GetSpriteInfo(int index)
 						int pointIndex = GetInt(pSub, 0x44 + subSprites * 32, 2) >> 4;
 						info.Position = _points[pointIndex + _objectCount];
 
-						// Offset by animation
-						info.Position.X += _translationBuffer.translation[index].x;
-						info.Position.Y += _translationBuffer.translation[index].y;
-						info.Position.Z += _translationBuffer.translation[index].z;
+						info.Position.x += _translationBuffer.translation[index].x;
+						info.Position.y += _translationBuffer.translation[index].y;
+						info.Position.z += _translationBuffer.translation[index].z;
 
-						// Get visibility
 						info.Visible = (_visibilityBuffer.visibility[index].x == 1.0f);
 					}
 				}
@@ -2775,326 +2510,314 @@ SpritePosInfo CLocation::GetSpriteInfo(int index)
 	return info;
 }
 
-void CLocation::ModifyLocationPoints(std::wstring file)
+void CLocation::ModifyLocationPoints(std::string file)
 {
-	// Modify points in global list
-	// UAKM
-	if (file == L"ALLEY.AP")
+	if (file == "ALLEY.AP")
 	{
-		ModifyLocationPoints(238, 241, 0.0f, 0.1f, 0.0f);			// Plank
-		ModifyLocationPoints(270, 273, 0.0f, 0.15f, 0.0f);			// Plank
-		ModifyLocationPoints(1395, 1398, 0.0f, 0.1f, 0.0f);			// Shoeprint
+		ModifyLocationPoints(238, 241, 0.0f, 0.1f, 0.0f);
+		ModifyLocationPoints(270, 273, 0.0f, 0.15f, 0.0f);
+		ModifyLocationPoints(1395, 1398, 0.0f, 0.1f, 0.0f);
 	}
-	else if (file == L"ARBOR.AP")
+	else if (file == "ARBOR.AP")
 	{
-		ModifyLocationPoints(1023, 1028, -0.1f, 0.0f, 0.0f);		// Closet door
+		ModifyLocationPoints(1023, 1028, -0.1f, 0.0f, 0.0f);
 	}
-	else if (file == L"AV.AP")
+	else if (file == "AV.AP")
 	{
-		ModifyLocationPoints(131, 134, 0.0f, 0.0f, 0.01f);			// Cabinet
-		ModifyLocationPoints(203, 210, 0.0f, 0.0f, -0.01f);			// Pictures
+		ModifyLocationPoints(131, 134, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(203, 210, 0.0f, 0.0f, -0.01f);
 	}
-	else if (file == L"BEDROOM.AP")
+	else if (file == "BEDROOM.AP")
 	{
-		ModifyLocationPoints(58, 61, 0.0f, 0.01f, 0.0f);			// Panties
-		ModifyLocationPoints(3652, 3655, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(3837, 3840, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(4025, 4028, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(4210, 4213, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(4402, 4405, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(4591, 4594, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(4781, 4784, 0.0f, 0.0f, 0.01f);		// Drawer lock
-		ModifyLocationPoints(62, 69, 0.0f, 0.0f, -0.01f);			// Air vents
+		ModifyLocationPoints(58, 61, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(3652, 3655, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(3837, 3840, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(4025, 4028, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(4210, 4213, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(4402, 4405, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(4591, 4594, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(4781, 4784, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(62, 69, 0.0f, 0.0f, -0.01f);
 	}
-	else if (file == L"CASTLE.AP")
+	else if (file == "CASTLE.AP")
 	{
-		ModifyLocationPoints(87, 90, -0.01f, 0.0f, 0.0f);			// Bungee cord
+		ModifyLocationPoints(87, 90, -0.01f, 0.0f, 0.0f);
 	}
-	else if (file == L"COLOFF.AP")
+	else if (file == "COLOFF.AP")
 	{
-		ModifyLocationPoints(20, 23, 0.0f, 0.0f, -0.01f);			// Window shades
-		ModifyLocationPoints(28, 31, 0.0f, 0.0f, -0.01f);			// Window shades
-		ModifyLocationPoints(36, 39, 0.0f, 0.0f, -0.01f);			// Window shades
-		ModifyLocationPoints(251, 254, 0.0f, 0.0f, -0.15f);			// Painting
-		ModifyLocationPoints(468, 571, 0.0f, 0.0f, -0.2f);			// Safe
-		ModifyLocationPoints(2921, 2924, 0.01f, 0.0f, 0.0f);		// Computer screen
-		ModifyLocationPoints(2943, 2950, 0.0f, 0.01f, 0.0f);		// Magazines
-		ModifyLocationPoints(2951, 2954, 0.0f, 0.02f, 0.0f);		// Magazines
-		ModifyLocationPoints(2955, 2958, 0.0f, -0.1f, 0.0f);		// Receipt
+		ModifyLocationPoints(20, 23, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(28, 31, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(36, 39, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(251, 254, 0.0f, 0.0f, -0.15f);
+		ModifyLocationPoints(468, 571, 0.0f, 0.0f, -0.2f);
+		ModifyLocationPoints(2921, 2924, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(2943, 2950, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2951, 2954, 0.0f, 0.02f, 0.0f);
+		ModifyLocationPoints(2955, 2958, 0.0f, -0.1f, 0.0f);
 	}
-	else if (file == L"COUNTESS.AP")
+	else if (file == "COUNTESS.AP")
 	{
-		ModifyLocationPoints(50, 53, 0.0f, 0.01f, 0.0f);			// Trash
-		ModifyLocationPoints(58, 65, 0.0f, 0.01f, 0.0f);			// Trash
-		ModifyLocationPoints(70, 73, 0.0f, 0.015f, 0.0f);			// Trash
-		ModifyLocationPoints(82, 85, 0.0f, -0.02f, 0.0f);			// Trash
-		ModifyLocationPoints(86, 89, 0.0f, -0.01f, 0.0f);			// Trash
-		ModifyLocationPoints(591, 598, 0.0f, 0.01f, 0.0f);			// Trash
-		ModifyLocationPoints(599, 667, 0.0f, 0.4f, 0.0f);			// Table
-		ModifyLocationPoints(668, 707, 0.0f, 0.1f, 0.0f);			// Trashcan
+		ModifyLocationPoints(50, 53, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(58, 65, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(70, 73, 0.0f, 0.015f, 0.0f);
+		ModifyLocationPoints(82, 85, 0.0f, -0.02f, 0.0f);
+		ModifyLocationPoints(86, 89, 0.0f, -0.01f, 0.0f);
+		ModifyLocationPoints(591, 598, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(599, 667, 0.0f, 0.4f, 0.0f);
+		ModifyLocationPoints(668, 707, 0.0f, 0.1f, 0.0f);
 	}
-	else if (file == L"DUBOIS.AP")
+	else if (file == "DUBOIS.AP")
 	{
-		ModifyLocationPoints(120, 131, 0.0f, 0.0f, 0.01f);			// Screens
-		ModifyLocationPoints(132, 139, -0.01f, 0.0f, 0.0f);			// Screens
-		ModifyLocationPoints(140, 147, 0.0f, 0.0f, -0.01f);			// Screens
-		ModifyLocationPoints(148, 155, 0.01f, 0.0f, 0.0f);			// Screens
-		ModifyLocationPoints(156, 159, 0.0f, 0.0f, 0.01f);			// Panel
-		ModifyLocationPoints(160, 171, 0.01f, 0.0f, 0.0f);			// Screens
-		ModifyLocationPoints(172, 187, 0.0f, 0.0f, -0.01f);			// Screens
-		ModifyLocationPoints(192, 195, -0.005f, 0.0f, 0.005f);		// Poster
-		ModifyLocationPoints(260, 299, 0.0f, 0.0f, 0.3f);			// Trashcan
-		ModifyLocationPoints(475, 478, 0.0f, 0.01f, 0.0f);			// Note
-		ModifyLocationPoints(517, 520, 0.0f, 0.01f, 0.0f);			// Note
-		ModifyLocationPoints(589, 592, 0.0f, 0.01f, 0.0f);			// Note
+		ModifyLocationPoints(120, 131, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(132, 139, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(140, 147, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(148, 155, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(156, 159, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(160, 171, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(172, 187, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(192, 195, -0.005f, 0.0f, 0.005f);
+		ModifyLocationPoints(260, 299, 0.0f, 0.0f, 0.3f);
+		ModifyLocationPoints(475, 478, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(517, 520, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(589, 592, 0.0f, 0.01f, 0.0f);
 	}
-	else if (file == L"GRSHALL.AP")
+	else if (file == "GRSHALL.AP")
 	{
-		ModifyLocationPoints(613, 616, 0.0f, 0.0f, 0.01f);			// Conference room door sign
-		ModifyLocationPoints(625, 628, 0.0f, 0.0f, 0.01f);			// Marcus Tucker door sign
-		ModifyLocationPoints(637, 640, 0.0f, 0.0f, -0.01f);			// Supervisors door sign
-		ModifyLocationPoints(649, 652, 0.0f, 0.0f, -0.01f);			// R&D door sign
-		ModifyLocationPoints(524, 531, 0.0f, 0.0f, 0.01f);			// Marcus Tucker's door
+		ModifyLocationPoints(613, 616, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(625, 628, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(637, 640, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(649, 652, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(524, 531, 0.0f, 0.0f, 0.01f);
 	}
-	else if (file == L"HALL.AP")
+	else if (file == "HALL.AP")
 	{
-		ModifyLocationPoints(154, 157, -1.0f, 0.0f, 0.0f);			// Jacuzzi door
-		ModifyLocationPoints(158, 161, 1.0f, 0.0f, 0.0f);			// Piano room door
-		ModifyLocationPoints(162, 167, 0.0f, 0.0f, 1.0f);			// Bedroom door
-		ModifyLocationPoints(260, 263, 0.0f, 0.0f, -0.01f);			// Sal's list
-		ModifyLocationPoints(380, 383, 0.0f, 0.01f, 0.0f);			// Gold foil
-		ModifyLocationPoints(1782, 1785, 0.0f, 0.4f, 0.0f);			// Painting
+		ModifyLocationPoints(154, 157, -1.0f, 0.0f, 0.0f);
+		ModifyLocationPoints(158, 161, 1.0f, 0.0f, 0.0f);
+		ModifyLocationPoints(162, 167, 0.0f, 0.0f, 1.0f);
+		ModifyLocationPoints(260, 263, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(380, 383, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(1782, 1785, 0.0f, 0.4f, 0.0f);
 
-		ModifyLocationPoints(174, 175, 0.0f, 0.0f, -0.01f);			// Air vents
-		ModifyLocationPoints(178, 183, 0.0f, 0.0f, -0.01f);			// Air vents
-		ModifyLocationPoints(185, 186, -0.01f, 0.0f, 0.0f);			// Air vents
-		ModifyLocationPoints(189, 190, -0.01f, 0.0f, 0.0f);			// Air vents
-		ModifyLocationPoints(193, 194, -0.01f, 0.0f, 0.0f);			// Air vents
-		ModifyLocationPoints(197, 198, -0.01f, 0.0f, 0.0f);			// Air vents
-		ModifyLocationPoints(202, 203, 0.0f, 0.0f, 0.01f);			// Air vents
-		ModifyLocationPoints(206, 219, 0.0f, 0.0f, 0.01f);			// Air vents
-		ModifyLocationPoints(228, 239, 0.01f, 0.0f, 0.0f);			// Air vents
+		ModifyLocationPoints(174, 175, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(178, 183, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(185, 186, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(189, 190, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(193, 194, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(197, 198, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(202, 203, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(206, 219, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(228, 239, 0.01f, 0.0f, 0.0f);
 	}
-	else if (file == L"JACUZZI.AP")
+	else if (file == "JACUZZI.AP")
 	{
-		ModifyLocationPoints(139, 142, -4.0f, 0.0f, 0.0f);			// Hall door
-		ModifyLocationPoints(101, 104, 0.0f, -0.49f, 0.0f);			// Bikini top
-		ModifyLocationPoints(420, 423, 0.0f, -0.45f, 0.0f);			// Towel on floor
-		ModifyLocationPoints(118, 119, 0.0f, 0.0f, -0.01f);			// Towel on wall
-		ModifyLocationPoints(121, 122, 0.0f, 0.0f, -0.01f);			// Towel on wall
+		ModifyLocationPoints(139, 142, -4.0f, 0.0f, 0.0f);
+		ModifyLocationPoints(101, 104, 0.0f, -0.49f, 0.0f);
+		ModifyLocationPoints(420, 423, 0.0f, -0.45f, 0.0f);
+		ModifyLocationPoints(118, 119, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(121, 122, 0.0f, 0.0f, -0.01f);
 	}
-	else if (file == L"LIBRARY.AP")
+	else if (file == "LIBRARY.AP")
 	{
-		ModifyLocationPoints(2495, 2498, -0.1f, 0.0f, 0.0f);		// Picture
-		ModifyLocationPoints(2499, 2502, -0.1f, 0.0f, 0.0f);		// Picture
-		ModifyLocationPoints(104, 107, 0.0f, 0.0f, -0.1f);			// Panel
+		ModifyLocationPoints(2495, 2498, -0.1f, 0.0f, 0.0f);
+		ModifyLocationPoints(2499, 2502, -0.1f, 0.0f, 0.0f);
+		ModifyLocationPoints(104, 107, 0.0f, 0.0f, -0.1f);
 	}
-	else if (file == L"LIBHALL.AP")
+	else if (file == "LIBHALL.AP")
 	{
 	}
-	else if (file == L"MAINSTRT.AP")
+	else if (file == "MAINSTRT.AP")
 	{
-		ModifyLocationPoints(2933, 2988, 0.0f, 0.6f, 0.0f);			// Trash
-		ModifyLocationPoints(2792, 2847, 0.0f, 0.6f, 0.0f);			// Trash
-		ModifyLocationPoints(3039, 3078, 0.0f, 0.6f, 0.0f);			// Trash
-		ModifyLocationPoints(3124, 3167, 0.0f, 0.6f, 0.0f);			// Trash
-		ModifyLocationPoints(3136, 3139, 0.0f, -0.005f, 0.0f);		// Trash, push a little back down
-		ModifyLocationPoints(3164, 3167, 0.0f, 0.2f, 0.0f);			// Trash, extra lift
-		ModifyLocationPoints(3132, 3135, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(3047, 3050, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(3063, 3066, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(2933, 2936, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(2957, 2960, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(2796, 2799, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(2804, 2811, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(2840, 2843, 0.0f, 0.01f, 0.0f);		// Trash, extra lift
-		ModifyLocationPoints(3192, 3195, 0.0f, -0.01f, 0.0f);		// Ground
-		ModifyLocationPoints(1708, 1717, 0.0f, 0.01f, 0.0f);		// Pavement, electronics shop
-		ModifyLocationPoints(2304, 2305, -0.01f, 0.0f, 0.0f);		// Hotel wall, part 1
-		ModifyLocationPoints(2315, 2315, -0.01f, 0.0f, 0.0f);		// Hotel wall, part 2
-		ModifyLocationPoints(2321, 2321, -0.01f, 0.0f, 0.0f);		// Hotel wall, part 3
-		ModifyLocationPoints(281, 281, 0.0f, 0.01f, 0.0f);			// Pavement, brew & stew, part 1
-		ModifyLocationPoints(318, 318, 0.0f, 0.01f, 0.0f);			// Pavement, brew & stew, part 1
-		ModifyLocationPoints(320, 320, 0.0f, 0.01f, 0.0f);			// Pavement, brew & stew, part 1
-		ModifyLocationPoints(2160, 2162, 0.0f, 0.1f, 0.0f);			// Trashcans by stairs
-		ModifyLocationPoints(2163, 2165, 0.0f, 0.25f, 0.0f);		// Trashcans on pavement
-		ModifyLocationPoints(645, 738, 0.0f, 0.1f, 0.0f);			// Trashcan, brew & stew
-		ModifyLocationPoints(1367, 1370, 0.0f, 0.0f, 0.01f);		// Electronics shop door
-		ModifyLocationPoints(2667, 2670, 0.0f, 0.0f, 1.5f);			// Electronics shop background
+		ModifyLocationPoints(2933, 2988, 0.0f, 0.6f, 0.0f);
+		ModifyLocationPoints(2792, 2847, 0.0f, 0.6f, 0.0f);
+		ModifyLocationPoints(3039, 3078, 0.0f, 0.6f, 0.0f);
+		ModifyLocationPoints(3124, 3167, 0.0f, 0.6f, 0.0f);
+		ModifyLocationPoints(3136, 3139, 0.0f, -0.005f, 0.0f);
+		ModifyLocationPoints(3164, 3167, 0.0f, 0.2f, 0.0f);
+		ModifyLocationPoints(3132, 3135, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(3047, 3050, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(3063, 3066, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2933, 2936, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2957, 2960, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2796, 2799, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2804, 2811, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2840, 2843, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(3192, 3195, 0.0f, -0.01f, 0.0f);
+		ModifyLocationPoints(1708, 1717, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2304, 2305, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(2315, 2315, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(2321, 2321, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(281, 281, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(318, 318, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(320, 320, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(2160, 2162, 0.0f, 0.1f, 0.0f);
+		ModifyLocationPoints(2163, 2165, 0.0f, 0.25f, 0.0f);
+		ModifyLocationPoints(645, 738, 0.0f, 0.1f, 0.0f);
+		ModifyLocationPoints(1367, 1370, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(2667, 2670, 0.0f, 0.0f, 1.5f);
 	}
-	else if (file == L"MOONHALL.AP")
+	else if (file == "MOONHALL.AP")
 	{
-		ModifyLocationPoints(1033, 1036, -0.01f, 0.0f, 0.0f);		// Door sign
-		ModifyLocationPoints(1045, 1048, 0.0f, 0.0f, -0.01f);		// Door sign
-		ModifyLocationPoints(1057, 1060, 0.0f, 0.0f, 0.01f);		// Door sign
-		ModifyLocationPoints(1069, 1072, -0.01f, 0.0f, 0.0f);		// Door sign
-		ModifyLocationPoints(1097, 1100, 0.01f, 0.0f, 0.0f);		// Door sign
+		ModifyLocationPoints(1033, 1036, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(1045, 1048, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(1057, 1060, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(1069, 1072, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(1097, 1100, 0.01f, 0.0f, 0.0f);
 
-		ModifyLocationPoints(655, 655, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(662, 662, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(636, 636, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(675, 675, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(786, 786, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(789, 789, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(301, 301, 0.0f, 0.01f, 0.0f);			// Wall section
-		ModifyLocationPoints(304, 304, 0.0f, 0.01f, 0.0f);			// Wall section
+		ModifyLocationPoints(655, 655, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(662, 662, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(636, 636, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(675, 675, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(786, 786, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(789, 789, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(301, 301, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(304, 304, 0.0f, 0.01f, 0.0f);
 	}
-	else if (file == L"OBSERVE.AP")
+	else if (file == "OBSERVE.AP")
 	{
-		ModifyLocationPoints(106, 113, -0.01f, 0.0f, 0.0f);			// Door
-		ModifyLocationPoints(881, 884, -0.02f, 0.0f, 0.0f);			// Door background
+		ModifyLocationPoints(106, 113, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(881, 884, -0.02f, 0.0f, 0.0f);
 	}
-	else if (file == L"PIANORM.AP")
-	{
-	}
-	else if (file == L"RADIO.AP")
-	{
-		ModifyLocationPoints(741, 746, 0.0f, 0.0f, -0.01f);			// Door
-	}
-	else if (file == L"RUSTY.AP")
-	{
-		ModifyLocationPoints(506, 506, 0.0f, 0.0f, -0.01f);			// Door to back room
-		ModifyLocationPoints(508, 510, 0.0f, 0.0f, -0.01f);			// Door to back room
-	}
-	else if (file == L"SAFEROOM.AP")
-	{
-		ModifyLocationPoints(104, 104, 0.0f, 0.0f, -0.01f);			// Door
-		ModifyLocationPoints(106, 106, 0.0f, 0.0f, -0.01f);			// Door
-		ModifyLocationPoints(109, 109, 0.0f, 0.0f, -0.01f);			// Door
-		ModifyLocationPoints(111, 111, 0.0f, 0.0f, -0.01f);			// Door
-		ModifyLocationPoints(418, 457, 0.0f, 0.1f, 0.0f);			// Trashcan
-		ModifyLocationPoints(476, 476, 0.0f, 0.15f, 0.0f);			// Cup with pencils
-	}
-	else if (file == L"SECRET.AP")
-	{
-		ModifyLocationPoints(81, 84, 0.0f, 0.0f, -0.01f);			// Panel
-	}
-	else if (file == L"STUDY.AP")
-	{
-		ModifyLocationPoints(369, 372, 0.02f, 0.0f, 0.0f);			// Panel
-		ModifyLocationPoints(608, 611, -0.005f, 0.0f, 0.0f);		// Key panel
-		ModifyLocationPoints(506, 509, 0.0f, 0.0f, -0.01f);			// Painting
-		ModifyLocationPoints(61, 64, 0.01f, 0.0f, 0.0f);			// Dressing screen
-		ModifyLocationPoints(157, 160, 0.0f, 0.0f, 0.01f);			// Terrarium door
-		ModifyLocationPoints(1112, 1115, -0.005f, 0.0f, 0.0f);		// Key panel, safe open
-		ModifyLocationPoints(2510, 2510, 0.0f, 0.0f, 0.022f);		// Bathroom door
-		ModifyLocationPoints(2512, 2512, 0.0f, 0.0f, 0.022f);		// Bathroom door
-		ModifyLocationPoints(2545, 2545, 0.0f, 0.0f, 0.022f);		// Bathroom door
-		ModifyLocationPoints(2548, 2548, 0.0f, 0.0f, 0.022f);		// Bathroom door
-	}
-	else if (file == L"TEXOFF.AP")
-	{
-		ModifyLocationPoints(68, 71, 0.0f, 0.0f, 0.01f);			// Light switch
-		ModifyLocationPoints(3410, 3413, 0.0f, 0.0f, 0.01f);		// Dance school sign
-		ModifyLocationPoints(2369, 2464, 0.0f, 0.235f, 0.0f);		// Hutch
-		ModifyLocationPoints(3886, 3889, 0.0f, 0.01f, 0.0f);		// Letters (3882-3885 OR 3886-3889)
-		ModifyLocationPoints(776, 779, 0.0f, -0.33f, 0.0f);			// Pen
-		ModifyLocationPoints(957, 960, 0.0f, -0.33f, 0.0f);			// Pen
-	}
-	else if (file == L"WAREHOUS.AP")
+	else if (file == "PIANORM.AP")
 	{
 	}
-
-	// PD
-	else if (file == L"R01VR.AP")	// Tex's Office
+	else if (file == "RADIO.AP")
 	{
-		ModifyLocationPoints(510, 517, 0.0f, 0.0f, -0.1f);			// Door to bedroom
-		ModifyLocationPoints(1446, 1560, 0.0f, 0.03f, 0.0f);		// Hutch
-		ModifyLocationPoints(4416, 4517, 0.0f, -0.15f, 0.0f);		// Guitar
-		ModifyLocationPoints(82, 82, 0.0f, -0.15f, 0.0f);			// Phonograph
+		ModifyLocationPoints(741, 746, 0.0f, 0.0f, -0.01f);
 	}
-	else if (file == L"R02VR.AP")	// Ritz Lobby
+	else if (file == "RUSTY.AP")
 	{
+		ModifyLocationPoints(506, 506, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(508, 510, 0.0f, 0.0f, -0.01f);
 	}
-	else if (file == L"R03VR.AP")	// Malloy's Room
+	else if (file == "SAFEROOM.AP")
 	{
+		ModifyLocationPoints(104, 104, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(106, 106, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(109, 109, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(111, 111, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(418, 457, 0.0f, 0.1f, 0.0f);
+		ModifyLocationPoints(476, 476, 0.0f, 0.15f, 0.0f);
 	}
-	else if (file == L"R04VR.AP")	// Chandler Avenue
+	else if (file == "SECRET.AP")
 	{
-		ModifyLocationPoints(207, 598, 0.0f, 0.01f, 0.0f);			// Pavement
-		ModifyLocationPoints(846, 851, 0.0f, 0.0f, 0.01f);			// Electronics Shop door
+		ModifyLocationPoints(81, 84, 0.0f, 0.0f, -0.01f);
 	}
-	else if (file == L"R05VR.AP")	// Ritz Stairs
+	else if (file == "STUDY.AP")
 	{
-		ModifyLocationPoints(216, 219, -0.01f, 0.0f, 0.0f);			// Men's room sign
+		ModifyLocationPoints(369, 372, 0.02f, 0.0f, 0.0f);
+		ModifyLocationPoints(608, 611, -0.005f, 0.0f, 0.0f);
+		ModifyLocationPoints(506, 509, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(61, 64, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(157, 160, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(1112, 1115, -0.005f, 0.0f, 0.0f);
+		ModifyLocationPoints(2510, 2510, 0.0f, 0.0f, 0.022f);
+		ModifyLocationPoints(2512, 2512, 0.0f, 0.0f, 0.022f);
+		ModifyLocationPoints(2545, 2545, 0.0f, 0.0f, 0.022f);
+		ModifyLocationPoints(2548, 2548, 0.0f, 0.0f, 0.022f);
 	}
-	else if (file == L"R06VR.AP")	// Rusty's Funhouse
+	else if (file == "TEXOFF.AP")
 	{
+		ModifyLocationPoints(68, 71, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(3410, 3413, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(2369, 2464, 0.0f, 0.235f, 0.0f);
+		ModifyLocationPoints(3886, 3889, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(776, 779, 0.0f, -0.33f, 0.0f);
+		ModifyLocationPoints(957, 960, 0.0f, -0.33f, 0.0f);
 	}
-	else if (file == L"R07VR.AP")	// Roof of Rusty's
-	{
-	}
-	else if (file == L"R08VR.AP")	// Water Tower
-	{
-	}
-	else if (file == L"R09VR.AP")	// Warehouse
-	{
-	}
-	else if (file == L"R11VR.AP")	// Alley
-	{
-		ModifyLocationPoints(62, 63, 0.0f, 0.0f, 0.01f);			// Llama sign
-		ModifyLocationPoints(72, 72, 0.0f, 0.0f, 0.01f);			// Llama sign
-		ModifyLocationPoints(75, 75, 0.0f, 0.0f, 0.01f);			// Llama sign
-	}
-	else if (file == L"R12VR.AP")	// Electronics Shop
-	{
-		ModifyLocationPoints(200, 205, 0.0f, 0.0f, -0.01f);			// Door
-	}
-	else if (file == L"R15VR.AP")	// Cabin
-	{
-		ModifyLocationPoints(99, 111, 0.0f, 0.001f, 0.0f);			// Papers
-		ModifyLocationPoints(161, 164, 0.0f, 0.001f, 0.0f);			// Papers
-		ModifyLocationPoints(165, 168, 0.0f, 0.002f, 0.0f);			// Papers
-
-		ModifyLocationPoints(147, 154, 0.0f, -0.065f, 0.0f);		// Casings
-		ModifyLocationPoints(2855, 2874, 0.0f, 0.01f, 0.0f);		// Tree base
-
-		ModifyLocationPoints(320, 321, -0.03f, 0.0f, 0.0f);			// Outside when door open
-		ModifyLocationPoints(324, 325, -0.03f, 0.0f, 0.0f);			// Outside when door open
-	}
-	else if (file == L"R17VR.AP")	// Easter Egg Room
+	else if (file == "WAREHOUS.AP")
 	{
 	}
-	else if (file == L"R20VR.AP")	// Sandra Collins' place
+	else if (file == "R01VR.AP")
+	{
+		ModifyLocationPoints(510, 517, 0.0f, 0.0f, -0.1f);
+		ModifyLocationPoints(1446, 1560, 0.0f, 0.03f, 0.0f);
+		ModifyLocationPoints(4416, 4517, 0.0f, -0.15f, 0.0f);
+		ModifyLocationPoints(82, 82, 0.0f, -0.15f, 0.0f);
+	}
+	else if (file == "R02VR.AP")
 	{
 	}
-	else if (file == L"R21VR.AP")	// NSA Hallway?
+	else if (file == "R03VR.AP")
 	{
 	}
-	else if (file == L"R17VR.AP")	// NSA Office?
+	else if (file == "R04VR.AP")
+	{
+		ModifyLocationPoints(207, 598, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(846, 851, 0.0f, 0.0f, 0.01f);
+	}
+	else if (file == "R05VR.AP")
+	{
+		ModifyLocationPoints(216, 219, -0.01f, 0.0f, 0.0f);
+	}
+	else if (file == "R06VR.AP")
 	{
 	}
-
-
-	else if (file == L"R67VR.AP")	// Sewers
-	{
-		ModifyLocationPoints(272, 275, 0.01f, 0.0f, 0.0f);			// Sign
-		ModifyLocationPoints(276, 279, -0.01f, 0.0f, 0.0f);			// Numbers
-		ModifyLocationPoints(280, 291, 0.01f, 0.0f, 0.0f);			// Signs
-		ModifyLocationPoints(292, 303, -0.01f, 0.0f, 0.0f);			// Numbers
-		ModifyLocationPoints(637, 644, 0.0f, 0.0f, -0.01f);			// Sign & numbers
-		ModifyLocationPoints(1705, 1720, 0.01f, 0.0f, 0.0f);		// Signs
-		ModifyLocationPoints(1721, 1736, -0.01f, 0.0f, 0.0f);		// Numbers
-		ModifyLocationPoints(2583, 2590, 0.0f, 0.0f, 0.01f);		// Sign & numbers
-		ModifyLocationPoints(2673, 2680, 0.0f, 0.01f, 0.0f);		// Money belt
-	}
-	else if (file == L"R68VR.AP")	// Corridor behind Pizza place
+	else if (file == "R07VR.AP")
 	{
 	}
-	else if (file == L"R69VR.AP")	// Crazy Gary alley
+	else if (file == "R08VR.AP")
 	{
 	}
-	else if (file == L"R70VR.AP")	// Tex' Bedroom
+	else if (file == "R09VR.AP")
 	{
-		ModifyLocationPoints(230, 233, 0.0f, 0.0f, 0.01f);			// Door to Office background
-		ModifyLocationPoints(234, 237, -0.01f, 0.0f, 0.0f);			// Door to Computer Room background
-
-		ModifyLocationPoints(176, 177, 0.0f, 0.01f, 0.0f);			// Floor
-		ModifyLocationPoints(179, 181, 0.0f, 0.01f, 0.0f);			// Floor
 	}
-	else if (file == L"R71VR.AP")	// Tex' Computer Room
+	else if (file == "R11VR.AP")
 	{
-		ModifyLocationPoints(1037, 1195, 0.0f, 0.0f, 0.01f);		// Shelves	
+		ModifyLocationPoints(62, 63, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(72, 72, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(75, 75, 0.0f, 0.0f, 0.01f);
+	}
+	else if (file == "R12VR.AP")
+	{
+		ModifyLocationPoints(200, 205, 0.0f, 0.0f, -0.01f);
+	}
+	else if (file == "R15VR.AP")
+	{
+		ModifyLocationPoints(99, 111, 0.0f, 0.001f, 0.0f);
+		ModifyLocationPoints(161, 164, 0.0f, 0.001f, 0.0f);
+		ModifyLocationPoints(165, 168, 0.0f, 0.002f, 0.0f);
+		ModifyLocationPoints(147, 154, 0.0f, -0.065f, 0.0f);
+		ModifyLocationPoints(2855, 2874, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(320, 321, -0.03f, 0.0f, 0.0f);
+		ModifyLocationPoints(324, 325, -0.03f, 0.0f, 0.0f);
+	}
+	else if (file == "R17VR.AP")
+	{
+	}
+	else if (file == "R20VR.AP")
+	{
+	}
+	else if (file == "R21VR.AP")
+	{
+	}
+	else if (file == "R67VR.AP")
+	{
+		ModifyLocationPoints(272, 275, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(276, 279, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(280, 291, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(292, 303, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(637, 644, 0.0f, 0.0f, -0.01f);
+		ModifyLocationPoints(1705, 1720, 0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(1721, 1736, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(2583, 2590, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(2673, 2680, 0.0f, 0.01f, 0.0f);
+	}
+	else if (file == "R68VR.AP")
+	{
+	}
+	else if (file == "R69VR.AP")
+	{
+	}
+	else if (file == "R70VR.AP")
+	{
+		ModifyLocationPoints(230, 233, 0.0f, 0.0f, 0.01f);
+		ModifyLocationPoints(234, 237, -0.01f, 0.0f, 0.0f);
+		ModifyLocationPoints(176, 177, 0.0f, 0.01f, 0.0f);
+		ModifyLocationPoints(179, 181, 0.0f, 0.01f, 0.0f);
+	}
+	else if (file == "R71VR.AP")
+	{
+		ModifyLocationPoints(1037, 1195, 0.0f, 0.0f, 0.01f);
 	}
 }
 
@@ -3102,14 +2825,14 @@ void CLocation::ModifyLocationPoints(int startix, int endix, float x, float y, f
 {
 	BinaryData bd = GetLocationData(4);
 
-	PBYTE pData = bd.Data;
+	uint8_t* pData = bd.Data;
 	int verticeCount = GetInt(pData, 0, 4);
 	int objectCount = GetInt(pData, 12, 4);
 	int modCount = endix - startix;
 
 	startix += objectCount;
 
-	PBYTE pVertices = pData + 0x30 + objectCount * 4 + startix * 12;
+	uint8_t* pVertices = pData + 0x30 + objectCount * 4 + startix * 12;
 
 	for (int i = 0; i <= modCount; i++)
 	{
@@ -3125,69 +2848,55 @@ void CLocation::ModifyLocationPoints(int startix, int endix, float x, float y, f
 	}
 }
 
-XMFLOAT4 CLocation::GetTransparentColour(std::wstring file, int objectId, int subObjectId)
+float4 CLocation::GetTransparentColour(std::string file, int objectId, int subObjectId)
 {
-	// UAKM
-	if (file == L"ALLEY.AP")
+	if (file == "ALLEY.AP")
 	{
-		// Glass shard
-		return XMFLOAT4(1.0f, 1.0f, 1.0f, 0.4f);
+		return float4(1.0f, 1.0f, 1.0f, 0.4f);
 	}
-	else if (file == L"CASTLE.AP")
+	else if (file == "CASTLE.AP")
 	{
-		// Field
-		return XMFLOAT4(0.0f, 0.0f, 0.6f, 0.4f);
+		return float4(0.0f, 0.0f, 0.6f, 0.4f);
 	}
-	else if (file == L"JACUZZI.AP")
+	else if (file == "JACUZZI.AP")
 	{
-		// Water surface
-		return XMFLOAT4(0.5f, 0.5f, 0.8f, 0.4f);
+		return float4(0.5f, 0.5f, 0.8f, 0.4f);
 	}
-	else if (file == L"LIBRARY.AP")
+	else if (file == "LIBRARY.AP")
 	{
-		// Window
-		return XMFLOAT4(1.0f, 1.0f, 1.0f, 0.1f);
+		return float4(1.0f, 1.0f, 1.0f, 0.1f);
 	}
-	else if (file == L"RADIO.AP")
+	else if (file == "RADIO.AP")
 	{
 		if (objectId == 22 && subObjectId == 16)
 		{
-			// Paper in fax machine
-			return XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+			return float4(1.0f, 1.0f, 1.0f, 1.0f);
 		}
 
-		// Blue light special box field
-		return XMFLOAT4(0.3f, 0.3f, 0.7f, 0.4f);
+		return float4(0.3f, 0.3f, 0.7f, 0.4f);
 	}
-	else if (file == L"SCHANZEE.AP")
+	else if (file == "SCHANZEE.AP")
 	{
-		// Window/door
-		return XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);
+		return float4(0.0f, 0.0f, 0.0f, 0.5f);
 	}
-	else if (file == L"SECRET.AP")
+	else if (file == "SECRET.AP")
 	{
-		// Display
-		return XMFLOAT4(1.0f, 1.0f, 1.0f, 0.1f);
+		return float4(1.0f, 1.0f, 1.0f, 0.1f);
 	}
-	else if (file == L"STUDY.AP")
+	else if (file == "STUDY.AP")
 	{
-		// Unknown
-		return XMFLOAT4(1.0f, 1.0f, 1.0f, 0.08f);
+		return float4(1.0f, 1.0f, 1.0f, 0.08f);
+	}
+	else if (file == "R01VR.AP")
+	{
+		return float4(1.0f, 1.0f, 1.0f, 0.2f);
+	}
+	else if (file == "R15VR.AP")
+	{
+		return float4(0.2f, 0.2f, 0.2f, 0.5f);
 	}
 
-	// PD
-	else if (file == L"R01VR.AP")
-	{
-		// Vestibule windows
-		return XMFLOAT4(1.0f, 1.0f, 1.0f, 0.2f);
-	}
-	else if (file == L"R15VR.AP")
-	{
-		// Broken window
-		return XMFLOAT4(0.2f, 0.2f, 0.2f, 0.5f);
-	}
-
-	return XMFLOAT4(0.3f, 0.3f, 0.7f, 0.4f);
+	return float4(0.3f, 0.3f, 0.7f, 0.4f);
 }
 
 BinaryData CLocation::GetLocationData(int index)
@@ -3213,7 +2922,7 @@ void CLocation::CTextureGroup::AddPoints(int first, int count)
 }
 
 #ifdef DEBUG
-void CLocation::MoveObject(float delta, BOOL X, BOOL Y, BOOL Z)
+void CLocation::MoveObject(float delta, bool X, bool Y, bool Z)
 {
 	if (HitObject != -1)
 	{
@@ -3229,17 +2938,17 @@ void CLocation::MoveObject(float delta, BOOL X, BOOL Y, BOOL Z)
 		{
 			_translationBuffer.translation[HitObject].z += delta;
 		}
-		_translationChanged = TRUE;
+		_translationChanged = true;
 	}
 }
 #endif
 
-void CLocation::SetObjectVisibility(int objectId, BOOL visible)
+void CLocation::SetObjectVisibility(int objectId, bool visible)
 {
 	int id = _objectMap[objectId].id;
 	if (id < 0x800)
 	{
-		ChangeVisibility(id, visible, FALSE, L"Script ");
+		ChangeVisibility(id, visible, false, "Script ");
 	}
 	else
 	{
@@ -3253,9 +2962,9 @@ void CLocation::SetObjectVisibility(int objectId, BOOL visible)
 	}
 }
 
-void CLocation::ChangeVisibility(int id, BOOL visible, BOOL setOnSubObjects, std::wstring header)
+void CLocation::ChangeVisibility(int id, bool visible, bool setOnSubObjects, std::string header)
 {
-	BOOL found = FALSE;
+	bool found = false;
 	if ((id & 0x80000000) != 0)
 	{
 		int objectId = (id >> 16) & 0x7fff;
@@ -3265,7 +2974,7 @@ void CLocation::ChangeVisibility(int id, BOOL visible, BOOL setOnSubObjects, std
 			if (_improvedObjectMap[i].ObjectIndex == objectId && (_improvedObjectMap[i].SubObjectId & 0xffff) == subObjectId)
 			{
 				_visibilityBuffer.visibility[_improvedObjectMap[i].SubObjectIndex].y = visible ? 1.0f : -1.0f;
-				found = TRUE;
+				found = true;
 			}
 		}
 	}
@@ -3276,7 +2985,7 @@ void CLocation::ChangeVisibility(int id, BOOL visible, BOOL setOnSubObjects, std
 			if (((_improvedObjectMap[i].SubObjectId >> 16) & 0xffff) == id)
 			{
 				_visibilityBuffer.visibility[_improvedObjectMap[i].SubObjectIndex].y = visible ? 1.0f : -1.0f;
-				found = TRUE;
+				found = true;
 			}
 		}
 	}
@@ -3284,7 +2993,7 @@ void CLocation::ChangeVisibility(int id, BOOL visible, BOOL setOnSubObjects, std
 	{
 		_visibilityBuffer.visibility[id].x = visible ? 1.0f : -1.0f;
 
-		if (setOnSubObjects && FALSE)
+		if (setOnSubObjects && false)
 		{
 			for (int i = 0; i < _subObjectCount; i++)
 			{
@@ -3295,28 +3004,28 @@ void CLocation::ChangeVisibility(int id, BOOL visible, BOOL setOnSubObjects, std
 			}
 		}
 
-		found = TRUE;
+		found = true;
 	}
 
-	_visibilityChanged = TRUE;
+	_visibilityChanged = true;
 }
 
 void CLocation::Animate()
 {
 	if (!_loading)
 	{
-		ULONGLONG now = GetTickCount64();
+		uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		for (int i = 0; i < _locationAnimationCount && i < MAX_ANIMATIONS; i++)
 		{
 			if (Animations[i].Status == AnimationStatus::Running)
 			{
-				ULONGLONG frameTimeDiff = now - Animations[i].FrameTime;
+				uint64_t frameTimeDiff = now - Animations[i].FrameTime;
 				if (frameTimeDiff >= Animations[i].FrameDuration)
 				{
 					Animations[i].FrameTime = now;
-					PBYTE pA = Animations[i].AnimDataPointer;
+					uint8_t* pA = Animations[i].AnimDataPointer;
 
-					BOOL frameEnd = FALSE;
+					bool frameEnd = false;
 					while (!frameEnd)
 					{
 						int p1 = GetInt(pA, 0, 4);
@@ -3327,12 +3036,10 @@ void CLocation::Animate()
 							{
 								case 1:
 								{
-									// Texture switch
 									int objectId = Animations[i].ObjectId;
 									int subObjectId = Animations[i].Parameter;
 									int newTexture = p1;
 
-									// Take 2, using list of objects and sub-objects to find texture and vertices/indexes
 									CLocationObject* lo = &_pLocObjects[objectId];
 									for (int soi = 0; soi < lo->SubObjectCount; soi++)
 									{
@@ -3356,66 +3063,60 @@ void CLocation::Animate()
 										}
 									}
 
-									Animations[i].FrameDuration = (DWORD)(GetInt(pA, 0, 4) * TIMER_SCALE);
+									Animations[i].FrameDuration = (uint32_t)(GetInt(pA, 0, 4) * TIMER_SCALE);
 									pA += 4;
-									frameEnd = TRUE;
+									frameEnd = true;
 									break;
 								}
 								case 2:
 								{
-									// Object translation
 									float x = ((float)p1) / 65536.0f;
 									float y = ((float)GetInt(pA, 0, 4)) / 65536.0f;
 									float z = ((float)GetInt(pA, 4, 4)) / 65536.0f;
-									Animations[i].FrameDuration = (DWORD)(GetInt(pA, 8, 4) * TIMER_SCALE);
+									Animations[i].FrameDuration = (uint32_t)(GetInt(pA, 8, 4) * TIMER_SCALE);
 									pA += 12;
 									_translationBuffer.translation[Animations[i].ObjectId].x += x;
 									_translationBuffer.translation[Animations[i].ObjectId].y += y;
 									_translationBuffer.translation[Animations[i].ObjectId].z += z;
-									_translationChanged = TRUE;
-									PointingChanged = TRUE;
-									frameEnd = TRUE;
+									_translationChanged = true;
+									PointingChanged = true;
+									frameEnd = true;
 									break;
 								}
 								case 3:
 								{
-									// Object visibility
-									// Get and hide object from parameter (must be set to -1 on initalization)
 									int objectToHide = Animations[i].Parameter;
 									int objectToShow = p1;
 									if (objectToShow >= 0)
 									{
-										Animations[i].FrameDuration = (DWORD)(GetInt(pA, 0, 4) * TIMER_SCALE);
+										Animations[i].FrameDuration = (uint32_t)(GetInt(pA, 0, 4) * TIMER_SCALE);
 										pA += 4;
 
 										if (objectToHide >= 0)
 										{
-											ChangeVisibility(objectToHide, FALSE, FALSE, L"Animation ");
+											ChangeVisibility(objectToHide, false, false, "Animation ");
 										}
-										ChangeVisibility(objectToShow, TRUE, FALSE, L"Animation ");
+										ChangeVisibility(objectToShow, true, false, "Animation ");
 
-										// Store object in parameter
 										Animations[i].Parameter = objectToShow;
-										PointingChanged = TRUE;
+										PointingChanged = true;
 									}
 
-									frameEnd = TRUE;
+									frameEnd = true;
 									break;
 								}
 								case 4:
 								{
-									// All functions
 									switch (p1)
 									{
 										case 1:
 										{
-											// Texture switch
 											int objectId = GetInt(pA, 0, 4);
 											int subObjectId = GetInt(pA, 4, 4);
 											int newTexture = GetInt(pA, 8, 4);
 											pA += 12;
 											BinaryData bd3d2 = GetLocationData(4);
-											PBYTE p3d2 = bd3d2.Data;
+											uint8_t* p3d2 = bd3d2.Data;
 											int objectOffset = GetInt(p3d2, 0x30 + objectId * 4, 4) + 0x30;
 
 											int subObjects = GetInt(p3d2, objectOffset + 12, 4);
@@ -3446,7 +3147,6 @@ void CLocation::Animate()
 										}
 										case 2:
 										{
-											// Object translation
 											int p1 = GetInt(pA, 0, 4);
 											int p2 = GetInt(pA, 4, 4);
 											int p3 = GetInt(pA, 8, 4);
@@ -3458,44 +3158,40 @@ void CLocation::Animate()
 											float y = ((float)p3) / 65536.0f;
 											float z = ((float)p4) / 65536.0f;
 
-											Animations[i].FrameDuration = (DWORD)(p5 * TIMER_SCALE);
+											Animations[i].FrameDuration = (uint32_t)(p5 * TIMER_SCALE);
 											_translationBuffer.translation[p1].x += x;
 											_translationBuffer.translation[p1].y += y;
 											_translationBuffer.translation[p1].z += z;
-											_translationChanged = TRUE;
-											PointingChanged = TRUE;
-											frameEnd = TRUE;
+											_translationChanged = true;
+											PointingChanged = true;
+											frameEnd = true;
 											break;
 										}
 										case 3:
 										{
-											// Object visibility
-											// Get and hide object from parameter (must be set to -1 on initalization)
 											int objectId = GetInt(pA, 0, 4);
 											int visibility = GetInt(pA, 4, 4);
 											pA += 8;
 
-											ChangeVisibility(objectId, visibility, FALSE, L"Animation 4.3 ");
+											ChangeVisibility(objectId, visibility, false, "Animation 4.3 ");
 
-											PointingChanged = TRUE;
+											PointingChanged = true;
 											break;
 										}
 										case 5:
 										{
-											// Object + subobject visibility
 											int objectId = GetInt(pA, 0, 4);
 											int subObjectId = GetInt(pA, 4, 4);
 											int visibility = GetInt(pA, 8, 4);
 											pA += 12;
 
-											ChangeVisibility(0x80000000 | (objectId << 16) | subObjectId, visibility, FALSE, L"Animation type 4.5 ");
+											ChangeVisibility(0x80000000 | (objectId << 16) | subObjectId, visibility, false, "Animation type 4.5 ");
 
-											PointingChanged = TRUE;
+											PointingChanged = true;
 											break;
 										}
 										case 6:
 										{
-											// Start indexed animation
 											int animix = GetInt(pA, 0, 4);
 											pA += 4;
 											StartIndexedAnimation(animix);
@@ -3503,18 +3199,16 @@ void CLocation::Animate()
 										}
 										case 7:
 										{
-											// Start indexed animation and wait for it to complete
 											int animix = GetInt(pA, 0, 4);
 											pA += 4;
 											StartIndexedAnimation(animix);
 											Animations[animix].ParentAnim = i;
 											Animations[i].Status = AnimationStatus::OnHold;
-											frameEnd = TRUE;
+											frameEnd = true;
 											break;
 										}
 										case 8:
 										{
-											// Enable or disable path
 											int pid = GetInt(pA, 0, 4);
 											for (int p = 0; p < _pathCount; p++)
 											{
@@ -3524,7 +3218,6 @@ void CLocation::Animate()
 													break;
 												}
 											}
-											//_paths[pix].allowLeave = false;	TODO: Check if player is currently inside path, if yes, allow leave
 											pA += 8;
 											break;
 										}
@@ -3533,13 +3226,12 @@ void CLocation::Animate()
 								}
 								case 14:
 								{
-									// Animated texture
 									int  animation = p1;
 									int texture = GetInt(pA, 0, 4);
 									int duration = GetInt(pA, 4, 4);
 									if (duration == 0)
 									{
-										duration = 3;// TODO: Find out what the default value should be (0 in 3 or 4 PD locations, no UAKM locations)
+										duration = 3;
 									}
 									pA -= 4;
 									CTextureGroup* pTG = _allTextures.at(animation);
@@ -3548,19 +3240,18 @@ void CLocation::Animate()
 										pTG->AnimatedTextureIndex = 0;
 									}
 									_allTextures.at(texture)->RealTexture = pTG->Textures.at(pTG->AnimatedTextureIndex++);
-									Animations[i].FrameDuration = (DWORD)(duration * TIMER_SCALE);
-									frameEnd = TRUE;
+									Animations[i].FrameDuration = (uint32_t)(duration * TIMER_SCALE);
+									frameEnd = true;
 									break;
 								}
 								case 15:
 								{
-									// Textures
 									int objectId = Animations[i].ObjectId;
 									int subObjectId = Animations[i].Parameter;
 									int newTexture = p1;
 
 									BinaryData bd3d2 = GetLocationData(4);
-									PBYTE p3d2 = bd3d2.Data;
+									uint8_t* p3d2 = bd3d2.Data;
 									int objectOffset = GetInt(p3d2, 0x30 + objectId * 4, 4) + 0x30;
 
 									int subObjects = GetInt(p3d2, objectOffset + 12, 4);
@@ -3586,32 +3277,28 @@ void CLocation::Animate()
 										pA = Animations[i].AnimDataPointerInit;
 									}
 
-									frameEnd = TRUE;
+									frameEnd = true;
 									break;
 								}
 								case 16:
 								{
-									// Elevation, not animated
 									break;
 								}
 							}
 						}
 						else
 						{
-							// Post frame command (could be multiple)
 							int cmd = GetInt(pA, 0, 4);
 							pA += 4;
 							switch (cmd)
 							{
 								case 0:
 								{
-									// Go back, x times
 									int p2 = GetInt(pA, 0, 4);
 									int p3 = GetInt(pA, 4, 4);
 									int p4 = GetInt(pA, 8, 4);
 									if (p3 == -1)
 									{
-										// Initialization
 										p3 = p2;
 									}
 
@@ -3624,7 +3311,6 @@ void CLocation::Animate()
 									}
 									else
 									{
-										// Reset counter
 										SetInt(pA, -8, -1, 4);
 									}
 
@@ -3632,28 +3318,24 @@ void CLocation::Animate()
 								}
 								case 1:
 								{
-									// Go back, always
 									pA -= GetInt(pA, 0, 4);
 									break;
 								}
 								case 2:
 								{
-									// End animation
 									Animations[i].Status = AnimationStatus::Completed;
 									if (Animations[i].ParentAnim >= 0)
 									{
-										// Resume parent animation
 										Animations[Animations[i].ParentAnim].Status = AnimationStatus::Running;
 									}
-									frameEnd = TRUE;
+									frameEnd = true;
 									break;
 								}
 								case 3:
 								{
-									// Set frame duration (and end frame)
-									Animations[i].FrameDuration = (DWORD)(GetInt(pA, 0, 4) * TIMER_SCALE);
+									Animations[i].FrameDuration = (uint32_t)(GetInt(pA, 0, 4) * TIMER_SCALE);
 									pA += 4;
-									frameEnd = TRUE;
+									frameEnd = true;
 									break;
 								}
 							}
@@ -3666,59 +3348,4 @@ void CLocation::Animate()
 			}
 		}
 	}
-}
-
-#ifdef DEBUG
-void CLocation::RenderPoints()
-{
-	UINT stride = sizeof(Point);
-	UINT offset = 0;
-	dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
-	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
-
-	CShaders::SelectBasicShader();
-	dx.Draw(_verticeCount, 0);
-}
-
-void CLocation::RenderLines()
-{
-	UINT stride = sizeof(Point);
-	UINT offset = 0;
-	dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
-	dx.SetIndexBuffer(_indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
-
-	CShaders::SelectBasicShader();
-	dx.DrawIndexed(_indexCount, 0, 0);
-}
-
-void CLocation::RenderPath()
-{
-	UINT stride = sizeof(Point);
-	UINT offset = 0;
-	dx.SetVertexBuffers(0, 1, &_pathVertexBuffer, &stride, &offset);
-	dx.SetIndexBuffer(_pathIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
-
-	CShaders::SelectBasicShader();
-	dx.DrawIndexed(_pathIndexCount, 0, 0);
-}
-#endif
-
-void CLocation::SetMinY(float minY)
-{
-	_y_player_adjustment_min = minY;
-	//if (_y_player_adjustment > minY)
-	//{
-	//	_y_player_adjustment = minY;
-	//}
-}
-
-void CLocation::SetMaxY(float maxY)
-{
-	_y_player_adjustment_max = maxY;
-	//if (_y_player_adjustment < maxY)
-	//{
-	//	_y_player_adjustment = maxY;
-	//}
 }

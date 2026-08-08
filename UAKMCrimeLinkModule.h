@@ -2,7 +2,8 @@
 
 #include "FullScreenModule.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
+#include <utility>
+#include <cstdint>
 #include "Texture.h"
 #include "AreaData.h"
 
@@ -24,8 +25,8 @@ protected:
 	static short PlayerSelections[15];
 	static short Animation[CL_ANIMATION_FRAMES * 4];
 
-	ULONGLONG _animationFrameTime;
-	ULONGLONG _animationFrameDuration;
+	uint64_t _animationFrameTime;
+	uint64_t _animationFrameDuration;
 	int _animationIndex;
 	int _windowX;
 	int _windowY;
@@ -37,12 +38,12 @@ protected:
 	CAreaData _areaData;
 	int _pageAnswerOffset;
 
-	void PartialRender(int entry, int offsetX, int offsetY, BOOL updateTexture);
+	void PartialRender(int entry, int offsetX, int offsetY, bool updateTexture);
 
-	POINT GetMouseOver();
-	POINT _lastMouseOver;
-	void DrawRectangle(int entry, BYTE colour, BOOL isCategory);
-	void ReplaceColour(BOOL isCategory, int entry, BYTE src, BYTE dst);
+	std::pair<int, int> GetMouseOver();
+	std::pair<int, int> _lastMouseOver;
+	void DrawRectangle(int entry, uint8_t colour, bool isCategory);
+	void ReplaceColour(bool isCategory, int entry, uint8_t src, uint8_t dst);
 
 	void ShowPage1();
 	void ShowPage2();
@@ -53,7 +54,7 @@ protected:
 	void ShowPage7();
 	void ShowPage8();
 
-	BOOL CheckSelection();
+	bool CheckSelection();
 	void Click(int entry, int category);
 
 	void UpdateSelection();
@@ -66,6 +67,6 @@ protected:
 	void RenderPlus(int x, int y);
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 };

@@ -2,9 +2,9 @@
 
 #include "ModuleBase.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
 #include "Texture.h"
 #include "DXButton.h"
+#include <cstdint>
 
 class CUAKMEncodedMessageModule : public CModuleBase
 {
@@ -15,10 +15,10 @@ public:
 	virtual void Resize(int width, int height) { }
 	virtual void Dispose();
 	virtual void Render();
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
+	virtual void KeyDown(int key, int lParam);
 
 	CDXButton* _pBtnResume;
-	static void OnResume(LPVOID data);
+	static void OnResume(void* data);
 
 protected:
 	virtual void Initialize();
@@ -38,15 +38,15 @@ protected:
 	float _height;
 
 	void UpdateTexture();
-	LPBYTE _screen;
+	uint8_t* _screen;
 
 	std::unordered_map<char, char> _codeMap;
 
-	void RenderChar(int x, int y, char c, BOOL transparent);
-	void RenderText(char* pText, int yOffset, BOOL transparent);
+	void RenderChar(int x, int y, char c, bool transparent);
+	void RenderText(const char* pText, int yOffset, bool transparent);
 
-	LPBYTE _font;
-	std::unordered_map<char, LPBYTE> _fontMap;
+	uint8_t* _font;
+	std::unordered_map<char, uint8_t*> _fontMap;
 
 	int _col1;
 	int _col2;
@@ -65,7 +65,7 @@ protected:
 	bool CheckCompleted();
 
 	// Input related
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void Cursor(float x, float y, bool relative);
 	virtual void BeginAction();
 	virtual void Back();
 };

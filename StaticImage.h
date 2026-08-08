@@ -1,5 +1,6 @@
 #pragma once
 #include "AnimBase.h"
+#include <cstdint>
 
 class CStaticImage : public CAnimBase
 {
@@ -7,8 +8,8 @@ public:
 	CStaticImage(int factor = 1);
 	virtual ~CStaticImage();
 
-	virtual BOOL Init(LPBYTE pData, int length);
+	virtual bool Init(uint8_t* pData, int length);
 
 protected:
-	virtual BOOL DecodeFrame() { return FALSE; }
+	virtual bool DecodeFrame() { return false; }
 };

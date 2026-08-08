@@ -2,7 +2,7 @@
 
 #include "FullScreenModule.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
+#include <cstdint>
 #include "Texture.h"
 #include "AmbientAudio.h"
 
@@ -23,9 +23,9 @@ protected:
 
 	void Render(int entry, int offset_x, int offset_y);
 
-	BYTE _enteredCode[4];
+	uint8_t _enteredCode[4];
 	void ResetCode();
-	BOOL _dialChanged;
+	bool _dialChanged;
 
 	void TurnDial(int dial);
 	int _dial;

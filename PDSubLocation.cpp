@@ -18,7 +18,8 @@ CPDSubLocation::CPDSubLocation(int parent, int id, int travelIndex, int indicato
 	Unknown = unknown;
 }
 
-BOOL CPDSubLocation::HitTest(int x, int y)
+bool CPDSubLocation::HitTest(int x, int y)
 {
-	return (x >= IconHitBox.left && x < IconHitBox.right && y >= IconHitBox.top && y < IconHitBox.bottom) || (x >= NameHitBox.left && x < NameHitBox.right && y >= NameHitBox.top && y < NameHitBox.bottom);
+	return (x >= IconHitBox.Left && x < IconHitBox.Right && y >= IconHitBox.Top && y < IconHitBox.Bottom) || 
+	       (x >= NameHitBox.Left && x < NameHitBox.Right && y >= NameHitBox.Top && y < NameHitBox.Bottom);
 }

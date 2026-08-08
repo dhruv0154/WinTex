@@ -5,13 +5,13 @@
 class CPDLocationModule : public CLocationModule
 {
 public:
-	CPDLocationModule(int locationId, int startupPosition);
+    CPDLocationModule(int locationId, int startupPosition);
 
-	virtual void Render();
+    void Render() override;
 
 protected:
-	virtual void Inventory();
-	virtual void Travel();
+    void Inventory() override;
+    void Travel() override;
 
-	BOOL _abductorMode;
+    bool _abductorMode{false};
 };

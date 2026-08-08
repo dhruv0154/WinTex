@@ -5,18 +5,19 @@
 #include "DXCheckBox.h"
 #include "DXButton.h"
 #include "DXFrame.h"
+#include <cstdint>
 
 class CPDSelectLevelModule : public CModuleBase
 {
 public:
-	CPDSelectLevelModule(BYTE* pGameData);
+	CPDSelectLevelModule(uint8_t* pGameData);
 	~CPDSelectLevelModule();
 
 	virtual void Resize(int width, int height);
 	virtual void Dispose();
 	virtual void Render();
-	virtual void KeyDown(WPARAM key, LPARAM lParam);
-	virtual void Cursor(float x, float y, BOOL relative);
+	virtual void KeyDown(int key, int lParam);
+	virtual void Cursor(float x, float y, bool relative);
 
 protected:
 	virtual void Initialize();
@@ -25,7 +26,7 @@ protected:
 	virtual void BeginAction();
 	virtual void Back();
 
-	BYTE* _gameData;
+	uint8_t* _gameData;
 	void NewGame();
 
 	CDXMultiColouredText _line1;
@@ -41,6 +42,6 @@ protected:
 	CDXButton* _pBtnOK;
 	CDXButton* _pBtnCancel;
 
-	BOOL _bEntertainment;
-	BOOL _bGamePlayer;
+	bool _bEntertainment;
+	bool _bGamePlayer;
 };

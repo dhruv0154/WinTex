@@ -7,6 +7,11 @@
 #include "VideoModule.h"
 #include "AmbientAudio.h"
 #include "AnimationController.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <algorithm>
+#include <chrono>
+#include <cstring>
 
 CUAKMTravelModule::CUAKMTravelModule()
 {
@@ -52,8 +57,7 @@ void CUAKMTravelModule::Initialize()
 	_cursorPosX = dx.GetWidth() / 2.0f;
 	_cursorPosY = dx.GetHeight() / 2.0f;
 
-	// Load palette(s)
-	BinaryData bdPal = LoadEntry(L"GRAPHICS.AP", 28);
+	BinaryData bdPal = LoadEntry("GRAPHICS.AP", 28);
 	if (bdPal.Data != NULL)
 	{
 		ReadPalette(bdPal.Data);
@@ -61,56 +65,52 @@ void CUAKMTravelModule::Initialize()
 	}
 
 	CFile file;
-	if (file.Open(L"TRAVEL.AP"))
+	if (file.Open("TRAVEL.AP"))
 	{
-		DWORD length = file.Seek(0, CFile::SeekMethod::End);
-		LPBYTE data = new BYTE[length];
+		uint32_t length = file.Seek(0, CFile::SeekMethod::End);
+		uint8_t* data = new uint8_t[length];
 		if (data != NULL)
 		{
 			file.Seek(0);
 			file.Read(data, length);
 			file.Close();
+			
 			int count = GetInt(data, 0, 2) - 1;
 
 			int activePalette[256];
-			CopyMemory(activePalette, _palette, 256 * sizeof(int));
+			memcpy(activePalette, _palette, 256 * sizeof(int));
 
-			// Calculate scaling factor
-			// Need enough room for the location image and 8 sublocation texts/images
-			float requiredWidth = 425 + 182;	// Map width+location image width
-			float requiredHeight = 330 + 4 * 14;// Assuming 14 pixels height for sub-locations
+			float requiredWidth = 425 + 182;  
+			float requiredHeight = 330 + 4 * 14; 
 			float w = (float)dx.GetWidth();
 			float h = (float)dx.GetHeight();
 
 			float sx = w / requiredWidth;
 			float sy = h / requiredHeight;
-			_scale = min(sx, sy);
+			_scale = std::min(sx, sy);
 
 			for (int i = 0; i < count; i++)
 			{
-				// Locate and decompress each entry (each entry is another AP)
 				int offset = GetInt(data, 2 + i * 4, 4);
 				int nextOffset = GetInt(data, 6 + i * 4, 4);
 				int len = nextOffset - offset;
+				
 				BinaryData bd = CLZ::Decompress(data, offset, len);
 				if (bd.Data != NULL)
 				{
-					// This is an AP, extract images and palettes
 					int subCount = GetInt(bd.Data, 0, 2);
 					for (int j = 0; j < (subCount - 1); j++)
 					{
-						// Find palette in AP, patch current palette
-						LPBYTE pPal = NULL;
+						uint8_t* pPal = NULL;
 						int first = 0, last = 256;
+						
 						if (i == 0)
 						{
-							// Palette is first file
 							pPal = bd.Data + GetInt(bd.Data, 2, 4);
 							last = 96;
 						}
 						else
 						{
-							// Palette is last file
 							pPal = bd.Data + GetInt(bd.Data, 2 + (subCount - 2) * 4, 4);
 							first = 96;
 						}
@@ -133,15 +133,13 @@ void CUAKMTravelModule::Initialize()
 
 						if (GetInt(bd.Data, subOffset, 2) == 0x100)
 						{
-							// Image
-							CTravelImage* ti = new	CTravelImage();
+							CTravelImage* ti = new CTravelImage();
 
 							ti->Texture.Init(bd.Data, bd.Length, subOffset, activePalette, 0, "Travel Texture");
 
 							float width = ti->Texture.Width() * _scale, height = -ti->Texture.Height() * _scale;
 							if (i == 0 && j == 1)
 							{
-								// Main map image
 								ti->Left = _left = (w - requiredWidth * _scale) / 2;
 								ti->Right = ti->Left + width;
 								ti->Top = _top = -(h - requiredHeight * _scale) / 2;
@@ -149,7 +147,6 @@ void CUAKMTravelModule::Initialize()
 							}
 							else if (j == 0 && i < 17)
 							{
-								// Location name
 								ti->Left = _left + (_coordinates[i * 2] - _coordinates[0]) * _scale;
 								ti->Right = ti->Left + width;
 								ti->Top = _top - (_coordinates[i * 2 + 1] - _coordinates[1]) * _scale;
@@ -157,7 +154,6 @@ void CUAKMTravelModule::Initialize()
 							}
 							else if (i == 0)
 							{
-								// Buttons
 								ti->Left = 0.0f;
 								ti->Right = width;
 								ti->Top = 0.0f;
@@ -180,7 +176,6 @@ void CUAKMTravelModule::Initialize()
 							}
 							else
 							{
-								// Location images
 								ti->Left = _left + 425 * _scale;
 								ti->Right = ti->Left + width;
 								ti->Top = _top;
@@ -211,23 +206,22 @@ void CUAKMTravelModule::Initialize()
 			float y1 = 0.0f;
 			float y2 = -5.0f;
 
-			pVB[0].position = XMFLOAT4(x2, y1, 0.0f, 0.0f);
-			pVB[0].colour = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-			pVB[1].position = XMFLOAT4(x2, y2, 0.0f, 0.0f);
-			pVB[1].colour = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-			pVB[2].position = XMFLOAT4(x1, y1, 0.0f, 0.0f);
-			pVB[2].colour = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-			pVB[3].position = XMFLOAT4(x1, y2, 0.0f, 0.0f);
-			pVB[3].colour = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-			pVB[4].position = XMFLOAT4(x2, y2, 0.0f, 0.0f);
-			pVB[4].colour = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+			pVB[0].position = float4(x2, y1, 0.0f, 0.0f);
+			pVB[0].colour = float4(1.0f, 1.0f, 0.0f, 1.0f);
+			pVB[1].position = float4(x2, y2, 0.0f, 0.0f);
+			pVB[1].colour = float4(1.0f, 1.0f, 0.0f, 1.0f);
+			pVB[2].position = float4(x1, y1, 0.0f, 0.0f);
+			pVB[2].colour = float4(1.0f, 1.0f, 0.0f, 1.0f);
+			pVB[3].position = float4(x1, y2, 0.0f, 0.0f);
+			pVB[3].colour = float4(1.0f, 1.0f, 0.0f, 1.0f);
+			pVB[4].position = float4(x2, y2, 0.0f, 0.0f);
+			pVB[4].colour = float4(1.0f, 1.0f, 0.0f, 1.0f);
 
 			D3D11_BUFFER_DESC vbDesc;
 			vbDesc.Usage = D3D11_USAGE_DYNAMIC;
 			vbDesc.ByteWidth = sizeof(COLOURED_VERTEX_ORTHO) * 5;
 			vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 			vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			vbDesc.MiscFlags = 0;
 			vbDesc.StructureByteStride = 0;
 
 			D3D11_SUBRESOURCE_DATA vData;
@@ -269,14 +263,16 @@ void CUAKMTravelModule::Render()
 					CTravelImage* loc = _images[100 * i + 1];
 					loc->Render();
 
-					// TODO: Render selection indicator
-					BOOL renderSelection = (((GetTickCount64() / 500) & 1) == 0);
+					uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+					bool renderSelection = (((now / 500) & 1) == 0);
+					
 					if (renderSelection)
 					{
 						CShaders::SelectColourShader();
-						UINT stride = sizeof(COLOURED_VERTEX_ORTHO);
-						UINT offset = 0;
-						XMMATRIX wm = XMMatrixScaling(_scale, _scale, 1.0f) * XMMatrixTranslation(ti->Left + (_hotspots[i * 2 + 0] - 8) * _scale, ti->Top - (_hotspots[i * 2 + 1] - 6) * _scale, -2.0f);
+						unsigned int stride = sizeof(COLOURED_VERTEX_ORTHO);
+						unsigned int offset = 0;
+						
+						float16 wm = Math::Scaling(_scale, _scale, 1.0f) * Math::Translation(ti->Left + (_hotspots[i * 2 + 0] - 8) * _scale, ti->Top - (_hotspots[i * 2 + 1] - 6) * _scale, -2.0f);
 						CConstantBuffers::SetWorld(dx, &wm);
 						dx.SetVertexBuffers(0, 1, &_selectionIndicator, &stride, &offset);
 						dx.Draw(4, 0);
@@ -293,10 +289,8 @@ void CUAKMTravelModule::Render()
 					{
 						if (it->ParentLocation == i && CGameController::GetData(_travelDataOffset + subix) != 0)
 						{
-							// Render sublocation box and name
 							aa->Render(x, y);
 
-							// Center text
 							float ty = ((12.0f * _scale) - it->RealText.Height()) / 2.0f;
 							it->RealText.Render(x + 8 * _scale, -y + ty);
 							if (it->Top == 0.0f)
@@ -308,7 +302,6 @@ void CUAKMTravelModule::Render()
 							}
 							y += aa->Bottom - 2;
 
-							// If 4 rows added, go to next column
 							if (++subCount == 4)
 							{
 								y = ti->Bottom;
@@ -317,6 +310,7 @@ void CUAKMTravelModule::Render()
 
 							dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 							CShaders::SelectOrthoShader();
+							
 							if (subix == _selectedSubLocation)
 							{
 								CTravelImage* sl = _images[subix * 100];
@@ -326,9 +320,10 @@ void CUAKMTravelModule::Render()
 								{
 									dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 									CShaders::SelectColourShader();
-									UINT stride = sizeof(COLOURED_VERTEX_ORTHO);
-									UINT offset = 0;
-									XMMATRIX wm = XMMatrixScaling(_scale, _scale, 1.0f) * XMMatrixTranslation(it->Left + 0.7f + 3 * _scale, -it->Top - 3 * _scale - 0.5f, -2.0f);
+									unsigned int stride = sizeof(COLOURED_VERTEX_ORTHO);
+									unsigned int offset = 0;
+									
+									float16 wm = Math::Scaling(_scale, _scale, 1.0f) * Math::Translation(it->Left + 0.7f + 3 * _scale, -it->Top - 3 * _scale - 0.5f, -2.0f);
 									CConstantBuffers::SetWorld(dx, &wm);
 									dx.SetVertexBuffers(0, 1, &_selectionIndicator, &stride, &offset);
 									dx.Draw(4, 0);

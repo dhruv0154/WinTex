@@ -2,8 +2,8 @@
 
 #include "FullScreenModule.h"
 #include <unordered_map>
-#include "D3D11-NoWarn.h"
 #include "Texture.h"
+#include <cstdint>
 
 class CUAKMColonelsComputerModule : public CFullScreenModule
 {

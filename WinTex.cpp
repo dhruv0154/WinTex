@@ -222,6 +222,9 @@ int main(int argc, char** argv)
                     else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                         CModuleController::LostFocus();
                     }
+                    else if (event.window.event == SDL_WINDOWEVENT_RESIZED || event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                        dx.Resize(event.window.data1, event.window.data2);
+                    }
                 }
                 else if (event.type == SDL_KEYDOWN) {
                     if (event.key.keysym.sym == SDLK_ESCAPE) {
@@ -247,7 +250,7 @@ int main(int argc, char** argv)
                     if (vk != 0) CModuleController::KeyUp(vk, lParam);
                 }
                 else if (event.type == SDL_MOUSEMOTION) {
-                    Point2D pt;
+                    Point pt;
                     if (SDL_GetRelativeMouseMode()) {
                         pt.x = (dx.GetWidth() / 2) + event.motion.xrel;
                         pt.y = (dx.GetHeight() / 2) + event.motion.yrel;
@@ -258,14 +261,14 @@ int main(int argc, char** argv)
                     CModuleController::MouseMove(pt);
                 }
                 else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                    Point2D pt;
+                    Point pt;
                     pt.x = event.button.x;
                     pt.y = event.button.y;
                     int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;
                     CModuleController::MouseDown(pt, btn);
                 }
                 else if (event.type == SDL_MOUSEBUTTONUP) {
-                    Point2D pt;
+                    Point pt;
                     pt.x = event.button.x;
                     pt.y = event.button.y;
                     int btn = (event.button.button == SDL_BUTTON_LEFT) ? -1 : (event.button.button == SDL_BUTTON_MIDDLE) ? 0 : 1;

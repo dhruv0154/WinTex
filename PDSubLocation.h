@@ -1,5 +1,7 @@
 #pragma once
 #include "SubLocation.h"
+#include "Structs.h"
+#include <string>
 
 class CPDSubLocation : public CSubLocation
 {
@@ -20,8 +22,8 @@ public:
 	int LocationId;
 	int Type;
 	int Unknown;
-	RECT IconHitBox;
-	RECT NameHitBox;
+	Rect IconHitBox;
+	Rect NameHitBox;
 
-	BOOL HitTest(int x, int y);
+	bool HitTest(int x, int y);
 };

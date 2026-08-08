@@ -1,73 +1,70 @@
 #include "DXTabItem.h"
 #include "Utilities.h"
-#include "resource.h"
 #include "DXTabControl.h"
+#include "ConstantBuffers.h"
+#include <vector>
 
 CTexture CDXTabItem::_texBackgroundTabItem;
 
-CDXTabItem::CDXTabItem(CDXTabControl* pOwner, LPSTR title, float w, float h)
+CDXTabItem::CDXTabItem(CDXTabControl* pOwner, const char* title, float w, float h) : CDXFrame()
 {
-	_pOwner = pOwner;
+    _pOwner = pOwner;
 
-	_pText = new CDXText();
-	Rect rc;
-	rc.Top = 0.0f;
-	rc.Left = 0.0f;
-	rc.Bottom = -256.0f;
-	rc.Right = 1024.0f;
-	_pText->SetText(title, rc);
+    _pText = new CDXText();
+    Rect rc;
+    rc.Top = 0.0f;
+    rc.Left = 0.0f;
+    rc.Bottom = -256.0f;
+    rc.Right = 1024.0f;
+    _pText->SetText(title, rc);
 
-	_textW = static_cast<int>(_pText->PixelWidth(title));
+    _textW = static_cast<int>(_pText->PixelWidth(title));
 
-	_x = 0.0f;
-	_y = 0.0f;
-	_w = w;
-	_h = h;
+    _x = 0.0f;
+    _y = 0.0f;
+    _w = w;
+    _h = h;
 
-	TEXTURED_VERTEX_ORTHO* pVB = new TEXTURED_VERTEX_ORTHO[54];
-	if (pVB != NULL)
-	{
-		float x1 = 0.0f;
-		float x2 = w;
-		float y1 = 0.0f;
-		float y2 = -_pText->Height() - 6;
+    std::vector<TEXTURED_VERTEX_ORTHO> pVB(12);
 
-		float u1 = 0.0f;
-		float u2 = 0.25f;
-		float u3 = 0.5f;
-		float u4 = 1.0f;
-		float v1 = 0.0f;
-		float v2 = 0.25f;
-		float v3 = 0.5f;
-		float v4 = 1.0f;
+    float x1 = 0.0f;
+    float x2 = w;
+    float y1 = 0.0f;
+    float y2 = -_pText->Height() - 6.0f;
 
-		SetQuadVertex(pVB, 0, x1, x2, y1, y2, u1, u2, v1, v2);
-		SetQuadVertex(pVB, 1, x1, x2, y1, y2, u3, u4, v3, v4);
+    float u1 = 0.0f;
+    float u2 = 0.25f;
+    float u3 = 0.5f;
+    float u4 = 1.0f;
+    float v1 = 0.0f;
+    float v2 = 0.25f;
+    float v3 = 0.5f;
+    float v4 = 1.0f;
 
-		D3D11_BUFFER_DESC vbDesc;
-		vbDesc.Usage = D3D11_USAGE_DYNAMIC;
-		vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 54;
-		vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		vbDesc.MiscFlags = 0;
-		vbDesc.StructureByteStride = 0;
+    SetQuadVertex(pVB.data(), 0, x1, x2, y1, y2, u1, u2, v1, v2);
 
-		D3D11_SUBRESOURCE_DATA vData;
-		vData.pSysMem = pVB;
-		vData.SysMemPitch = 0;
-		vData.SysMemSlicePitch = 0;
+    SetQuadVertex(pVB.data(), 1, x1, x2, y1, y2, u3, u4, v3, v4);
 
-		dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "DXFrame");
+    D3D11_BUFFER_DESC vbDesc = {};
+    vbDesc.Usage = D3D11_USAGE_DYNAMIC;
+    vbDesc.ByteWidth = sizeof(TEXTURED_VERTEX_ORTHO) * 12;
+    vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    vbDesc.StructureByteStride = 0;
 
-		delete[] pVB;
-	}
+    D3D11_SUBRESOURCE_DATA vData = {};
+    vData.pSysMem = pVB.data();
+    vData.SysMemPitch = 0;
+    vData.SysMemSlicePitch = 0;
 
-	_type = ControlType::TabItem;
+    dx.CreateBuffer(&vbDesc, &vData, &_vertexBuffer, "DXTabItem");
 
-	_colour1 = 0;
-	_colour2 = -1;
-	_colour3 = -1;
-	_colour4 = 0;
+    _type = ControlType::TabItem;
+
+    _colour1 = 0;
+    _colour2 = -1;
+    _colour3 = -1;
+    _colour4 = 0;
 }
 
 CDXTabItem::~CDXTabItem()
@@ -81,83 +78,88 @@ CDXTabItem::~CDXTabItem()
 
 void CDXTabItem::Render(float x, float y, float hx, float hy, bool selected)
 {
-	if (_vertexBuffer == NULL) return;
+    if (_vertexBuffer == nullptr) return;
 
-	UINT stride = sizeof(TEXTURED_VERTEX_ORTHO);
-	UINT offset = 0;
-	dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
+    uint32_t stride = sizeof(TEXTURED_VERTEX_ORTHO);
+    uint32_t offset = 0;
+    dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 
-	XMMATRIX wm = XMMatrixTranslation(hx, -hy, 0.0f);
-	CConstantBuffers::SetWorld(dx, &wm);
+    float16 wm = Math::Translation(hx, -hy, 0.0f);
+    CConstantBuffers::SetWorld(dx, &wm);
 
-	ID3D11ShaderResourceView* pRV = _texBackgroundTabItem.GetTextureRV();
-	dx.SetShaderResources(0, 1, &pRV);
-	CShaders::SelectOrthoShader();
-	dx.Draw(6, selected ? 0 : 6);
+    ID3D11ShaderResourceView* pRV = _texBackgroundTabItem.GetTextureRV();
+    dx.SetShaderResources(0, 1, &pRV);
+    CShaders::SelectOrthoShader();
+    
+    dx.Draw(6, selected ? 0 : 6);
 
-	// Draw text
-	int mask = selected ? 0xffffffff : 0xffc0c0c0;
-	_pText->SetColours(_colour1 & mask, _colour2 & mask, _colour3 & mask, _colour4 & mask);
-	_pText->Render(hx + (_w - _pText->Width()) / 2, hy + 3);
+    if (_pText != nullptr)
+    {
+        int mask = selected ? 0xffffffff : 0xffc0c0c0;
+        _pText->SetColours(_colour1 & mask, _colour2 & mask, _colour3 & mask, _colour4 & mask);
+        _pText->Render(hx + (_w - _pText->Width()) / 2.0f, hy + 3.0f);
+    }
 
-	if (selected)
-	{
-		// Render child controls
-		for (auto child : _childElements)
-		{
-			if (child->GetVisible())
-			{
-				child->Render();
-			}
-		}
-	}
+    if (selected)
+    {
+        for (auto* child : _childElements)
+        {
+            if (child != nullptr && child->GetVisible())
+            {
+                child->Render();
+            }
+        }
+    }
 }
 
 void CDXTabItem::Init()
 {
-	DWORD s;
-	PBYTE p = GetResource(IDB_TABHEADER, L"PNG", &s);
-	_texBackgroundTabItem.Init(p, s, "TABITEMHEADER");
+    uint32_t s = 0;
+    uint8_t* p = GetResource(IDB_TABHEADER, "PNG", &s);
+    _texBackgroundTabItem.Init(p, s, "TABITEMHEADER");
 }
 
 void CDXTabItem::Dispose()
 {
-	_texBackgroundTabItem.Dispose();
+    _texBackgroundTabItem.Dispose();
 }
 
 void CDXTabItem::MouseButtonDown()
 {
-	int debug = 0;
+    Select();
 }
 
 CDXControl* CDXTabItem::HitTest(float x, float y)
 {
-	for (auto child : _childElements)
-	{
-		CDXControl* pHit = child->HitTest(x, y);
-		if (pHit != NULL)
-		{
-			return pHit;
-		}
-	}
+    for (auto* child : _childElements)
+    {
+        if (child != nullptr)
+        {
+            CDXControl* pHit = child->HitTest(x, y);
+            if (pHit != nullptr)
+            {
+                return pHit;
+            }
+        }
+    }
 
-	return NULL;
+    return nullptr;
 }
 
 void CDXTabItem::Select()
 {
-	if (_pOwner != NULL)
-	{
-		_pOwner->Select(this);
-	}
+    if (_pOwner != nullptr)
+    {
+        _pOwner->Select(this);
+    }
 }
 
 void CDXTabItem::SetColours(int colour1, int colour2, int colour3, int colour4)
 {
-	CDXFrame::SetColours(colour1, colour2, colour3, colour4);
+    CDXFrame::SetColours(colour1, colour2, colour3, colour4);
 
-	_colour1 = colour1;
-	_colour2 = colour2;
-	_colour3 = colour3;
-	_colour4 = colour4;
+    _colour1 = colour1;
+    _colour2 = colour2;
+    _colour3 = colour3;
+    _colour4 = colour4;
 }

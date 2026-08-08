@@ -36,7 +36,7 @@ bool CDirectX::Init(void* hWnd, int width, int height, bool windowed, bool aniso
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     uint32_t flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
-    if (!windowed) flags |= SDL_WINDOW_FULLSCREEN;
+    if (!windowed) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
     g_Window = SDL_CreateWindow("WinTex SDL", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, flags);
     if (!g_Window) {
@@ -61,6 +61,9 @@ bool CDirectX::Init(void* hWnd, int width, int height, bool windowed, bool aniso
     // Enable blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glDisable(GL_CULL_FACE);                       // 1. Stop deleting "inside-out" walls
+    glDisable(GL_DEPTH_TEST);                      // 2. Stop Z-buffer clipping failures
 
     return true;
 }
@@ -153,26 +156,58 @@ int CDirectX::CreateBuffer(D3D11_BUFFER_DESC* pDesc, D3D11_SUBRESOURCE_DATA* pIn
 }
 
 int CDirectX::Map(ID3D11Resource* pResource, uint32_t subResource, D3D11_MAP mapType, uint32_t mapFlags, D3D11_MAPPED_SUBRESOURCE* pMappedResource) { 
-    ID3D11Buffer* buf = (ID3D11Buffer*)pResource;
+    if (!pResource || !pMappedResource) return -1;
 
-    if (buf && pMappedResource) {
+    pMappedResource->RowPitch = 0;
+    pMappedResource->DepthPitch = 0;
+    pMappedResource->pData = nullptr;
+
+    if (pResource->type == RT_Buffer) {
+        ID3D11Buffer* buf = static_cast<ID3D11Buffer*>(pResource);
+        if (buf->cpuData.size() < buf->byteWidth) buf->cpuData.resize(buf->byteWidth);
         pMappedResource->pData = buf->cpuData.data();
         return 0;
+    } 
+    else if (pResource->type == RT_Texture2D) {
+        ID3D11Texture2D* tex = static_cast<ID3D11Texture2D*>(pResource);
+        if (tex->width == 0 || tex->height == 0) return -1;
+
+        pMappedResource->RowPitch = tex->width * 4;
+        size_t requiredSize = tex->height * pMappedResource->RowPitch;
+        
+        if (tex->cpuData.size() < requiredSize) tex->cpuData.resize(requiredSize);
+        pMappedResource->pData = tex->cpuData.data();
+        return 0;
     }
+
     return -1;
 }
 
 void CDirectX::Unmap(ID3D11Resource* pResource, uint32_t subResource) {
+    if (!pResource || pResource->glId == 0) return;
 
-    ID3D11Buffer* buf = (ID3D11Buffer*)pResource;
-    
-    if (buf && buf->glId != 0) {
+    if (pResource->type == RT_Buffer) {
+        ID3D11Buffer* buf = static_cast<ID3D11Buffer*>(pResource);
+        
         GLenum target = (buf->bindFlags & D3D11_BIND_VERTEX_BUFFER) ? GL_ARRAY_BUFFER : 
                         (buf->bindFlags & D3D11_BIND_INDEX_BUFFER) ? GL_ELEMENT_ARRAY_BUFFER : GL_UNIFORM_BUFFER;
         
         glBindBuffer(target, buf->glId);
         glBufferSubData(target, 0, buf->byteWidth, buf->cpuData.data());
         glBindBuffer(target, 0);
+    } 
+    else if (pResource->type == RT_Texture2D) {
+        ID3D11Texture2D* tex = static_cast<ID3D11Texture2D*>(pResource);
+
+        GLint previousTexture;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+        glBindTexture(GL_TEXTURE_2D, tex->glId);
+        
+        GLenum format = GL_RGBA;
+        if (tex->format == DXGI_FORMAT_B8G8R8A8_UNORM) format = GL_BGRA;
+        
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex->width, tex->height, format, GL_UNSIGNED_BYTE, tex->cpuData.data());
+        glBindTexture(GL_TEXTURE_2D, previousTexture);
     }
 }
 
@@ -214,6 +249,7 @@ void CDirectX::SetVertexBuffers(uint32_t StartSlot, uint32_t NumBuffers, ID3D11B
         glBindBuffer(GL_ARRAY_BUFFER, ppVertexBuffers[0]->glId);
         
         uint32_t stride = pStrides[0];
+        uint32_t offset = pOffsets ? pOffsets[0] : 0;
         
         // Disable all arrays first to be safe (or at least the ones we might use)
         glDisableVertexAttribArray(0);
@@ -261,7 +297,11 @@ void CDirectX::SetVertexBuffers(uint32_t StartSlot, uint32_t NumBuffers, ID3D11B
 }
 
 void CDirectX::SetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, uint32_t Offset) {
-    if (pIndexBuffer) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pIndexBuffer->glId);
+    if (pIndexBuffer) 
+    {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pIndexBuffer->glId);
+        _indexFormat = Format;
+    }
 }
 
 void CDirectX::VSSetConstantBuffers(uint32_t StartSlot, uint32_t NumBuffers, ID3D11Buffer** ppConstantBuffers) {
@@ -337,8 +377,11 @@ void CDirectX::DrawIndexed(uint32_t IndexCount, uint32_t StartIndexLocation, int
     GLenum glTopology = GL_TRIANGLES; 
     if (_currentTopology == 5) glTopology = GL_TRIANGLE_STRIP;
 
-    void* offset = (void*)(uintptr_t)(StartIndexLocation * sizeof(GLuint));
-    glDrawElementsBaseVertex(glTopology, IndexCount, GL_UNSIGNED_INT, offset, BaseVertexLocation);
+    GLenum type = (_indexFormat == DXGI_FORMAT_R32_UINT) ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
+    int bytesPerIndex = (_indexFormat == DXGI_FORMAT_R32_UINT) ? 4 : 2;
+
+    void* offset = (void*)(uintptr_t)(StartIndexLocation * bytesPerIndex);
+    glDrawElementsBaseVertex(glTopology, IndexCount, type, offset, BaseVertexLocation);
 }
 
 void CDirectX::SetShaderResources(uint32_t StartSlot, uint32_t NumViews, ID3D11ShaderResourceView** ppShaderResourceViews) {
@@ -346,6 +389,7 @@ void CDirectX::SetShaderResources(uint32_t StartSlot, uint32_t NumViews, ID3D11S
         glActiveTexture(GL_TEXTURE0 + StartSlot);
 
         glBindTexture(GL_TEXTURE_2D, ppShaderResourceViews[0]->glId);
+        glActiveTexture(GL_TEXTURE0);
     }
 }
 

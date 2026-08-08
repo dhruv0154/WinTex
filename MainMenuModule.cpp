@@ -1,16 +1,27 @@
 #include "MainMenuModule.h"
 #include "DXImageButton.h"
-#include "resource.h"
 #include "Utilities.h"
 #include "GameController.h"
-//#include "UAKMGame.h"
 #include "SaveGameControl.h"
 #include <algorithm>
-#include <codecvt>
 #include "AmbientAudio.h"
 #include "DXControlButton.h"
 #include "Gamepad.h"
 #include "Items.h"
+#include "DXCheckBox.h"
+#include <chrono>
+#include <SDL2/SDL.h>
+
+// Temporary virtual key mappings for engine decoupling
+#define VK_BACK 0x08
+#define VK_TAB 0x09
+#define VK_RETURN 0x0D
+#define VK_LEFT 0x25
+#define VK_UP 0x26
+#define VK_RIGHT 0x27
+#define VK_DOWN 0x28
+#define VK_PRIOR 0x21
+#define VK_NEXT 0x22
 
 CConfiguration CMainMenuModule::cfg{};
 
@@ -59,7 +70,7 @@ CDXText CMainMenuModule::_saveCursor;
 char CMainMenuModule::_commentBuffer[256];
 int CMainMenuModule::_caretPos = 0;
 
-BOOL CMainMenuModule::ConfiguringControl = FALSE;
+bool CMainMenuModule::ConfiguringControl = false;
 InputAction CMainMenuModule::ControlInputAction = InputAction::Cursor;
 CDXButton* CMainMenuModule::_pCancelConfigControlBtn = NULL;
 std::unordered_map<InputAction, InputMap> CMainMenuModule::_controlMapping;
@@ -77,7 +88,7 @@ CMainMenuModule::CMainMenuModule() : CModuleBase(ModuleType::MainMenu)
 
 	MainMenuModule = this;
 
-	_saveCursor.SetText(L"_");
+	_saveCursor.SetText("_");
 	_saveCursor.SetColours(0xff616161, 0xff710000, 0xffae0000, 0xffffffff);
 }
 
@@ -94,7 +105,7 @@ void CMainMenuModule::Initialize()
 	SetupScreen();
 }
 
-void CMainMenuModule::ConfigCancel(LPVOID data)
+void CMainMenuModule::ConfigCancel(void* data)
 {
 	_pScreen->PopModal();
 	// Revert config changes
@@ -107,7 +118,6 @@ void CMainMenuModule::ConfigCancel(LPVOID data)
 	pFontScaleSlider->CalculateSliderPosition();
 	pFontScaleSlider->UpdateValueText();
 
-	// TODO: Reload all previous control configuration
 	_controlMapping = CInputMapping::ControlsMap;
 
 	for (auto control : _mouseKeyControls)
@@ -116,17 +126,15 @@ void CMainMenuModule::ConfigCancel(LPVOID data)
 	}
 }
 
-void CMainMenuModule::ConfigAccept(LPVOID data)
+void CMainMenuModule::ConfigAccept(void* data)
 {
 	_pScreen->PopModal();
 
-	// Set values back on configuration, change resolution if neccessary
-
-	BOOL change_size = (pConfig->Width != cfg.Width) || (pConfig->Height != cfg.Height);
-	BOOL change_fs = (pConfig->FullScreen != cfg.FullScreen);
-	BOOL changeMIDIDevice = (pConfig->PlayMIDI && pConfig->MIDIDeviceId != cfg.MIDIDeviceId);
-	BOOL changeFilter = (pConfig->AnisotropicFilter != cfg.AnisotropicFilter);
-	BOOL changeFontSize = (pConfig->FontScale != cfg.FontScale);
+	bool change_size = (pConfig->Width != cfg.Width) || (pConfig->Height != cfg.Height);
+	bool change_fs = (pConfig->FullScreen != cfg.FullScreen);
+	bool changeMIDIDevice = (pConfig->PlayMIDI && pConfig->MIDIDeviceId != cfg.MIDIDeviceId);
+	bool changeFilter = (pConfig->AnisotropicFilter != cfg.AnisotropicFilter);
+	bool changeFontSize = (pConfig->FontScale != cfg.FontScale);
 
 	*pConfig = cfg;
 	pConfig->Save();
@@ -140,7 +148,6 @@ void CMainMenuModule::ConfigAccept(LPVOID data)
 	{
 		dx.Resize(cfg.Width, cfg.Height);
 
-		// Delete load & save screens
 		if (_pLoad != NULL)
 		{
 			_pScreen->RemoveChild(_pLoad);
@@ -159,9 +166,8 @@ void CMainMenuModule::ConfigAccept(LPVOID data)
 
 		CConstantBuffers::Setup2D(dx);
 
-		_saveCursor.SetText(L"_");
+		_saveCursor.SetText("_");
 
-		// Inventory descriptions need to be resized
 		CItems::ResetText();
 	}
 
@@ -178,13 +184,11 @@ void CMainMenuModule::ConfigAccept(LPVOID data)
 	pMIDI->SetVolume(((float)cfg.MIDIVolume) / 100.0f);
 	CDXSound::SetVolume(((float)cfg.Volume) / 100.0f);
 
-	// Apply and save controls
 	CInputMapping::ControlsMap = _controlMapping;
-
 	CInputMapping::SaveControlsMap();
 }
 
-void CMainMenuModule::ConfigPreviousResolution(LPVOID data)
+void CMainMenuModule::ConfigPreviousResolution(void* data)
 {
 	if (cfg.ScreenMode > pConfig->MinAcceptedMode && pConfig->pAdapter != NULL)
 	{
@@ -196,7 +200,7 @@ void CMainMenuModule::ConfigPreviousResolution(LPVOID data)
 	}
 }
 
-void CMainMenuModule::ConfigNextResolution(LPVOID data)
+void CMainMenuModule::ConfigNextResolution(void* data)
 {
 	if (pConfig->pAdapter != NULL && cfg.ScreenMode < (static_cast<int>(pConfig->pAdapter->_numModes) - 1))
 	{
@@ -214,7 +218,7 @@ void CMainMenuModule::UpdateResolutionLabel()
 	pResolution->SetText(labelText.c_str());
 }
 
-void CMainMenuModule::ConfigPreviousMIDIDevice(LPVOID data)
+void CMainMenuModule::ConfigPreviousMIDIDevice(void* data)
 {
 	if (pConfig->MIDIDevices.size() != 0 && cfg.MIDIDeviceId > 0)
 	{
@@ -223,7 +227,7 @@ void CMainMenuModule::ConfigPreviousMIDIDevice(LPVOID data)
 	}
 }
 
-void CMainMenuModule::ConfigNextMIDIDevice(LPVOID data)
+void CMainMenuModule::ConfigNextMIDIDevice(void* data)
 {
 	if (pConfig->MIDIDevices.size() != 0 && cfg.MIDIDeviceId < (pConfig->NumberOfMIDIOutDevices - 1))
 	{
@@ -243,7 +247,7 @@ void CMainMenuModule::UpdateMIDIDeviceLabel()
 	}
 }
 
-void CMainMenuModule::NewGame(LPVOID data)
+void CMainMenuModule::NewGame(void* data)
 {
 	pMIDI->Stop();
 	CAmbientAudio::StopAll();
@@ -254,11 +258,11 @@ void CMainMenuModule::NewGame(LPVOID data)
 void CMainMenuModule::SetPlayerNameAndEnableButtons()
 {
 	CurrentGameInfo.Player = "TEX";
-	CurrentGameInfo.FileName = L"GAMES\\TEX___00.000";
-	EnableSaveAndResume(TRUE);
+	CurrentGameInfo.FileName = "GAMES\\TEX___00.000";
+	EnableSaveAndResume(true);
 }
 
-void CMainMenuModule::Resume(LPVOID data)
+void CMainMenuModule::Resume(void* data)
 {
 	CModuleController::SendToBack(MainMenuModule);
 }
@@ -276,7 +280,7 @@ bool CompareSaveGames(const SaveGameInfo& first, const SaveGameInfo& second)
 	return (first.DateTime.length() > second.DateTime.length());
 }
 
-void CMainMenuModule::Load(LPVOID data)
+void CMainMenuModule::Load(void* data)
 {
 	if (_pLoad == NULL)
 	{
@@ -286,7 +290,7 @@ void CMainMenuModule::Load(LPVOID data)
 	(MainMenuModule)->SetupLoad();
 }
 
-void CMainMenuModule::Save(LPVOID data)
+void CMainMenuModule::Save(void* data)
 {
 	if (_pSave == NULL)
 	{
@@ -298,7 +302,7 @@ void CMainMenuModule::Save(LPVOID data)
 	_pScreen->ShowModal(_pSave);
 }
 
-void CMainMenuModule::Config(LPVOID data)
+void CMainMenuModule::Config(void* data)
 {
 	cfg = *pConfig;
 	if (_pConfig == NULL)
@@ -312,10 +316,11 @@ void CMainMenuModule::Config(LPVOID data)
 	_pScreen->ShowModal(_pConfig);
 }
 
-void CMainMenuModule::Quit(LPVOID data)
+void CMainMenuModule::Quit(void* data)
 {
-	// TODO: Check if game is in progress, query if yes
-	PostThreadMessage(CModuleController::MainThreadId, WM_CLOSE, 0, 0);
+	SDL_Event event;
+	event.type = SDL_QUIT;
+	SDL_PushEvent(&event);
 }
 
 void CMainMenuModule::Render()
@@ -323,11 +328,12 @@ void CMainMenuModule::Render()
 	CDXFont::SelectBlackFont();
 	_pScreen->Render();
 
-	if (CurrentSaveMode != SaveMode::Load && (GetTickCount64() / 500) % 2)
+	uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+	if (CurrentSaveMode != SaveMode::Load && (now / 500) % 2)
 	{
 		if (CurrentSaveMode == SaveMode::Extension)
 		{
-			// Show cursor at filename extension
 			SaveGameInfo info = _saveControl->GetInfo();
 			char buffer[32];
 			memset(buffer, 0, 32);
@@ -335,38 +341,35 @@ void CMainMenuModule::Render()
 			{
 				buffer[i] = info.FileName.at(i) & 0xFF;
 			}
-			float x = _saveControl->GetColumn2() + ceil(TexFont.PixelWidth(buffer + 6));// Skip GAMES folder
+			float x = _saveControl->GetColumn2() + ceil(TexFont.PixelWidth(buffer + 6));
 			float y = _saveControl->GetY() + 8 * pConfig->FontScale;
 			_saveCursor.Render(x, y);
 		}
 		else if (CurrentSaveMode == SaveMode::Comment)
 		{
-			// Show cursor at comment
 			float y = _saveControl->GetY() + 68 * pConfig->FontScale;
 			_saveCursor.Render(static_cast<float>(_caretPos), y);
 		}
 	}
 
-	// Render cursor
 	CModuleController::Cursors[0].SetPosition(_cursorPosX, _cursorPosY);
 	CModuleController::Cursors[0].Render();
 }
 
 void CMainMenuModule::Resize(int width, int height)
 {
-	// Is it easier to destroy the old screen and recreate???
-	BOOL saveEnabled = _btnMainSave->GetEnabled();
-	BOOL resumeVisible = _btnMainResume->GetVisible();
+	bool saveEnabled = _btnMainSave->GetEnabled();
+	bool resumeVisible = _btnMainResume->GetVisible();
 
 	Clear();
 
 	if (!cfg.FullScreen)
 	{
-		int sw = GetSystemMetrics(SM_CXSCREEN);
-		int sh = GetSystemMetrics(SM_CYSCREEN);
-		RECT wr = { 0, 0, width, height };
-		AdjustWindowRect(&wr, WS_CAPTION, FALSE);
-		MoveWindow(::_hWnd, (sw - width) / 2 + wr.left, (sh - height) / 2 + wr.top, wr.right - wr.left, wr.bottom - wr.top, TRUE);
+		if (::_hWnd != nullptr) 
+		{
+			SDL_SetWindowSize((SDL_Window*)::_hWnd, width, height);
+			SDL_SetWindowPosition((SDL_Window*)::_hWnd, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+		}
 	}
 
 	_pScreen = new CDXScreen();
@@ -385,15 +388,15 @@ void CMainMenuModule::Resize(int width, int height)
 
 void CMainMenuModule::GameOver()
 {
-	EnableSaveAndResume(FALSE);
+	EnableSaveAndResume(false);
 }
 
-void CMainMenuModule::LoadCancel(LPVOID data)
+void CMainMenuModule::LoadCancel(void* data)
 {
 	_pScreen->PopModal();
 }
 
-void CMainMenuModule::LoadLoad(LPVOID info)
+void CMainMenuModule::LoadLoad(void* info)
 {
 	_pScreen->PopModal();
 }
@@ -403,16 +406,17 @@ void CMainMenuModule::LoadGame(SaveGameInfo info)
 	CurrentGameInfo = info;
 
 	_pScreen->PopModal();
-	POINT pt;
-	pt.x = dx.GetWidth() / 2;
-	pt.y = dx.GetHeight() / 2;
-	ClientToScreen(_hWnd, &pt);
-	SetCursorPos(pt.x, pt.y);
+	
+	if (::_hWnd != nullptr) 
+	{
+		SDL_WarpMouseInWindow((SDL_Window*)::_hWnd, dx.GetWidth() / 2, dx.GetHeight() / 2);
+	}
+
 	CAmbientAudio::StopAll();
 	CAmbientAudio::Clear();
 	videoMode = VideoMode::FullScreen;
-	CGameController::LoadGame((LPWSTR)info.FileName.c_str());
-	EnableSaveAndResume(TRUE);
+	CGameController::LoadGame(info.FileName.c_str());
+	EnableSaveAndResume(true);
 }
 
 void CMainMenuModule::LoadSetup()
@@ -433,7 +437,7 @@ void CMainMenuModule::LoadSetup()
 		sgc->SetInfo(sgi);
 		sgc->SetPosition(16.0f, static_cast<float>(y));
 		sgc->SetWidth(w - 80.0f);
-		sgc->SetVisible(TRUE);
+		sgc->SetVisible(true);
 		y += static_cast<int>(sgc->GetHeight() + 8 * pConfig->FontScale);
 		ix++;
 	}
@@ -443,23 +447,23 @@ void CMainMenuModule::LoadSetup()
 	while (ix < _saveGameControls.size())
 	{
 		CSaveGameControl* sgc = _saveGameControls.at(ix++);
-		sgc->SetVisible(FALSE);
+		sgc->SetVisible(false);
 	}
 }
 
 void CMainMenuModule::LoadScroll(int top)
 {
-	_loadTopIndex = min(static_cast<int>(_savedGames.size()) - _loadVisibleSavesCount, max(0, top));
+	_loadTopIndex = std::min(static_cast<int>(_savedGames.size()) - _loadVisibleSavesCount, std::max(0, top));
 	LoadSetup();
 }
 
-void CMainMenuModule::SaveCancel(LPVOID data)
+void CMainMenuModule::SaveCancel(void* data)
 {
 	CurrentSaveMode = SaveMode::Load;
 	_pScreen->PopModal();
 }
 
-void CMainMenuModule::SaveSave(LPVOID data)
+void CMainMenuModule::SaveSave(void* data)
 {
 	if (_saveControl != NULL)
 	{
@@ -471,7 +475,7 @@ void CMainMenuModule::SaveSave(LPVOID data)
 		}
 
 		SaveGameInfo info = _saveControl->GetInfo();
-		CGameController::SaveGame((LPWSTR)info.FileName.c_str());
+		CGameController::SaveGame(info.FileName.c_str());
 		CurrentGameInfo.FileName = info.FileName;
 	}
 
@@ -479,16 +483,15 @@ void CMainMenuModule::SaveSave(LPVOID data)
 	_pScreen->PopModal();
 }
 
-void CMainMenuModule::SaveIncrementSave(LPVOID data)
+void CMainMenuModule::SaveIncrementSave(void* data)
 {
 	if (_saveControl != NULL)
 	{
 		SaveGameInfo info = _saveControl->GetInfo();
-		LPWSTR fn = (LPWSTR)info.FileName.c_str();
-		auto len = wcslen(fn);
+		std::string fn = info.FileName;
+		size_t len = fn.length();
 
-		// Increment extension, fail if already 999
-		int index = _wtoi(fn + len - 3) + 1;
+		int index = std::stoi(fn.substr(len - 3)) + 1;
 		if (index < 1000)
 		{
 			fn[len - 1] = '0' + index % 10;
@@ -497,15 +500,14 @@ void CMainMenuModule::SaveIncrementSave(LPVOID data)
 
 			CurrentGameInfo.FileName = fn;
 
-			// Clear comment
 			int commentOffset = CGameController::GetSaveCommentOffset();
 			int commentLength = CGameController::GetSaveCommentLength();
 			for (int i = 0; i < commentLength; i++)
 			{
-				CGameController::SetData(commentOffset + i, (BYTE)0);
+				CGameController::SetData(commentOffset + i, (uint8_t)0);
 			}
 
-			CGameController::SaveGame(fn);
+			CGameController::SaveGame(fn.c_str());
 
 			CurrentSaveMode = SaveMode::Load;
 			_pScreen->PopModal();
@@ -530,28 +532,27 @@ void CMainMenuModule::Clear()
 
 	if (_pConfig != NULL)
 	{
-		//delete _pConfig;
 		_pConfig = NULL;
 	}
 }
 
 void CMainMenuModule::ConfigureControl(InputAction data)
 {
-	ConfiguringControl = TRUE;
+	ConfiguringControl = true;
 	ControlInputAction = data;
-	_pCancelConfigControlBtn->SetVisible(TRUE);
-	_pConfigCancelBtn->SetVisible(FALSE);
-	_pConfigAcceptBtn->SetVisible(FALSE);
-	_pConfiguredControl->SetIsBeingConfigured(TRUE);
+	_pCancelConfigControlBtn->SetVisible(true);
+	_pConfigCancelBtn->SetVisible(false);
+	_pConfigAcceptBtn->SetVisible(false);
+	_pConfiguredControl->SetIsBeingConfigured(true);
 }
 
 void CMainMenuModule::ConfigControlsCancel(InputAction data)
 {
-	ConfiguringControl = FALSE;
-	_pConfiguredControl->SetIsBeingConfigured(FALSE);
-	_pCancelConfigControlBtn->SetVisible(FALSE);
-	_pConfigCancelBtn->SetVisible(TRUE);
-	_pConfigAcceptBtn->SetVisible(TRUE);
+	ConfiguringControl = false;
+	_pConfiguredControl->SetIsBeingConfigured(false);
+	_pCancelConfigControlBtn->SetVisible(false);
+	_pConfigCancelBtn->SetVisible(true);
+	_pConfigAcceptBtn->SetVisible(true);
 }
 
 void CMainMenuModule::MapControl(CControllerData* pControllerData)
@@ -577,7 +578,6 @@ void CMainMenuModule::MapControl(CControllerData* pControllerData)
 
 			if (ControlInputAction == InputAction::MoveForward || ControlInputAction == InputAction::MoveBack || ControlInputAction == InputAction::MoveLeft || ControlInputAction == InputAction::MoveRight)
 			{
-				// All 4 directions should be mapped to these axes
 				_controlMapping[InputAction::MoveForward].JoystickSource = _controlMapping[InputAction::MoveBack].JoystickSource = _controlMapping[InputAction::MoveLeft].JoystickSource = _controlMapping[InputAction::MoveRight].JoystickSource = pControllerData->Source;
 				_controlMapping[InputAction::MoveForward].JoystickIdentifier = _controlMapping[InputAction::MoveBack].JoystickIdentifier = _controlMapping[InputAction::MoveLeft].JoystickIdentifier = _controlMapping[InputAction::MoveRight].JoystickIdentifier = offset;
 
@@ -596,15 +596,15 @@ void CMainMenuModule::MapControl(CControllerData* pControllerData)
 		}
 
 		_pConfiguredControl->UpdateControlText(pControllerData);
-		_pConfiguredControl->SetIsBeingConfigured(FALSE);
-		_pCancelConfigControlBtn->SetVisible(FALSE);
-		_pConfigCancelBtn->SetVisible(TRUE);
-		_pConfigAcceptBtn->SetVisible(TRUE);
-		ConfiguringControl = FALSE;
+		_pConfiguredControl->SetIsBeingConfigured(false);
+		_pCancelConfigControlBtn->SetVisible(false);
+		_pConfigCancelBtn->SetVisible(true);
+		_pConfigAcceptBtn->SetVisible(true);
+		ConfiguringControl = false;
 	}
 }
 
-void CMainMenuModule::Cursor(float x, float y, BOOL relative)
+void CMainMenuModule::Cursor(float x, float y, bool relative)
 {
 	CModuleBase::Cursor(x, y, relative);
 
@@ -614,7 +614,7 @@ void CMainMenuModule::Cursor(float x, float y, BOOL relative)
 		CDXControl* pHit = _pScreen->HitTest(_cursorPosX, _cursorPosY);
 		if (pPrevMouseOver != NULL && (pHit == NULL || pHit != pPrevMouseOver))
 		{
-			pPrevMouseOver->SetMouseOver(FALSE);
+			pPrevMouseOver->SetMouseOver(false);
 		}
 
 		if (pHit != NULL && pHit->GetEnabled())
@@ -625,7 +625,7 @@ void CMainMenuModule::Cursor(float x, float y, BOOL relative)
 				CDXControl* pBtn = (CDXControl*)pHit;
 				if (pBtn != NULL && !pBtn->GetMouseOver())
 				{
-					pBtn->SetMouseOver(TRUE);
+					pBtn->SetMouseOver(true);
 				}
 			}
 		}
@@ -674,15 +674,12 @@ void CMainMenuModule::BeginAction()
 			{
 				if (CurrentSaveMode == SaveMode::Load)
 				{
-					// Load save game
 					pSGC->Click();
 				}
 				else if (CurrentSaveMode == SaveMode::Extension)
 				{
-					// Check if comment area has been clicked
-
-					float y = _cursorPosY - _saveControl->GetY();
-					if (y >= 68 * pConfig->FontScale && y <= 83 * pConfig->FontScale && SaveTypedChars == 3)
+					float cy = _cursorPosY - _saveControl->GetY();
+					if (cy >= 68 * pConfig->FontScale && cy <= 83 * pConfig->FontScale && SaveTypedChars == 3)
 					{
 						CurrentSaveMode = SaveMode::Comment;
 						SaveGameInfo info = _saveControl->GetInfo();
@@ -692,19 +689,17 @@ void CMainMenuModule::BeginAction()
 				}
 				else if (CurrentSaveMode == SaveMode::Comment)
 				{
-					// Check if extension area has been clicked
-					float y = _cursorPosY - _saveControl->GetY();
-					if (y >= 8 * pConfig->FontScale && y <= 22 * pConfig->FontScale && x < 350 * pConfig->FontScale)
+					float cy = _cursorPosY - _saveControl->GetY();
+					if (cy >= 8 * pConfig->FontScale && cy <= 22 * pConfig->FontScale && x < 350 * pConfig->FontScale)
 					{
 						CurrentSaveMode = SaveMode::Extension;
-						SaveTypedChars = 3;// TODO: Check actual number of extension chars
+						SaveTypedChars = 3;
 					}
 				}
 			}
 		}
 		else if (ct == CDXControl::ControlType::TabItem)
 		{
-			// Ensure tab item is selected
 			((CDXTabItem*)pHit)->Select();
 		}
 		else if (ct == CDXControl::ControlType::Slider)
@@ -749,16 +744,15 @@ void CMainMenuModule::Scroll(int direction)
 	}
 }
 
-BOOL CMainMenuModule::IsValidForControlConfiguration(InputSource source)
+bool CMainMenuModule::IsValidForControlConfiguration(InputSource source)
 {
 	return (ConfiguringControl && (_controlMapping[ControlInputAction].AcceptableSource & source) == source);
 }
 
-void CMainMenuModule::MouseMove(POINT pt)
+void CMainMenuModule::MouseMove(Point pt)
 {
 	if (IsValidForControlConfiguration(InputSource::Mouse) && !_pConfiguredControl->IsJoystickConfigControl())
 	{
-		// Set binding
 		CControllerData cdata;
 		cdata.Source = InputSource::Mouse;
 		cdata.Data = 0;
@@ -766,11 +760,10 @@ void CMainMenuModule::MouseMove(POINT pt)
 	}
 }
 
-void CMainMenuModule::MouseDown(POINT pt, int btn)
+void CMainMenuModule::MouseDown(Point pt, int btn)
 {
 	if (IsValidForControlConfiguration(InputSource::MouseButton) && !_pConfiguredControl->IsJoystickConfigControl())
 	{
-		// Set binding
 		CControllerData cdata;
 		cdata.Source = InputSource::MouseButton;
 		cdata.Data = btn;
@@ -782,7 +775,6 @@ void CMainMenuModule::MouseWheel(int scroll)
 {
 	if (IsValidForControlConfiguration(InputSource::MouseWheel) && !_pConfiguredControl->IsJoystickConfigControl())
 	{
-		// Set binding
 		CControllerData cdata;
 		cdata.Source = InputSource::MouseWheel;
 		cdata.Offset = cdata.Data = scroll;
@@ -790,13 +782,12 @@ void CMainMenuModule::MouseWheel(int scroll)
 	}
 }
 
-void CMainMenuModule::KeyDown(WPARAM key, LPARAM lParam)
+void CMainMenuModule::KeyDown(int key, int lParam)
 {
 	if (ConfiguringControl)
 	{
 		if (IsValidForControlConfiguration(InputSource::Key) && !_pConfiguredControl->IsJoystickConfigControl())
 		{
-			// Set binding
 			CControllerData cdata;
 			cdata.Source = InputSource::Key;
 			cdata.Offset = cdata.Data = lParam & 0x00ff0000;
@@ -805,18 +796,14 @@ void CMainMenuModule::KeyDown(WPARAM key, LPARAM lParam)
 	}
 	else if (_pScreen->GetModal() == _pSave)
 	{
-		// Check selected field (extension or comment)
-		// Return should trigger save
 		if (CurrentSaveMode == SaveMode::Extension)
 		{
-			// Extension
 			if (key == VK_LEFT || key == VK_BACK)
 			{
 				if (SaveTypedChars > 0)
 				{
-					// Remove one character from the extension, update filename in save game control
 					SaveGameInfo info = _saveControl->GetInfo();
-					std::wstring fileName = info.FileName.substr(0, info.FileName.length() - 1);
+					std::string fileName = info.FileName.substr(0, info.FileName.length() - 1);
 					_saveControl->SetFileName(fileName);
 					SaveTypedChars--;
 				}
@@ -826,7 +813,7 @@ void CMainMenuModule::KeyDown(WPARAM key, LPARAM lParam)
 				if (SaveTypedChars < 3)
 				{
 					SaveGameInfo info = _saveControl->GetInfo();
-					info.FileName += (wchar_t)key;
+					info.FileName += (char)key;
 					_saveControl->SetFileName(info.FileName);
 					SaveTypedChars++;
 				}
@@ -841,7 +828,6 @@ void CMainMenuModule::KeyDown(WPARAM key, LPARAM lParam)
 		}
 		else if (CurrentSaveMode == SaveMode::Comment)
 		{
-			// Comment
 			if (key == VK_LEFT || key == VK_BACK)
 			{
 				if (SaveTypedChars > 0)
@@ -853,26 +839,18 @@ void CMainMenuModule::KeyDown(WPARAM key, LPARAM lParam)
 			}
 			else if (key == VK_RETURN)
 			{
-				// Save
 				SaveSave(NULL);
 			}
 			else if (SaveTypedChars < 0x90)
 			{
-				BYTE keyStates[256];
-				GetKeyboardState(keyStates);
-				WORD ascii = 0;
-				if (ToAscii(static_cast<UINT>(key), 0, keyStates, &ascii, 0) == 1)
+				if (key >= 0x20 && key <= 0x7f)
 				{
-					if (ascii >= 0x20 && ascii <= 0x7f)
+					float x = _saveControl->GetColumn2() + ceil(TexFont.PixelWidth(_commentBuffer));
+					if (x < _saveControl->GetWidth() + 32)
 					{
-						// Check if comment is too long to be display at current resolution
-						float x = _saveControl->GetColumn2() + ceil(TexFont.PixelWidth(_commentBuffer));
-						if (x < _saveControl->GetWidth() + 32)
-						{
-							_commentBuffer[SaveTypedChars++] = (char)ascii;
-							_saveControl->SetComment(_commentBuffer);
-							_caretPos = static_cast<int>(_saveControl->GetColumn2() + ceil(TexFont.PixelWidth(_commentBuffer)));
-						}
+						_commentBuffer[SaveTypedChars++] = (char)(key & 0xFF);
+						_saveControl->SetComment(_commentBuffer);
+						_caretPos = static_cast<int>(_saveControl->GetColumn2() + ceil(TexFont.PixelWidth(_commentBuffer)));
 					}
 				}
 			}
@@ -903,7 +881,6 @@ void CMainMenuModule::GamepadInput(InputSource source, int offset, int data)
 {
 	if (IsValidForControlConfiguration(source) && _pConfiguredControl->IsJoystickConfigControl())
 	{
-		// Set binding
 		CControllerData cdata;
 		cdata.Source = source;
 		cdata.Offset = offset;
@@ -920,23 +897,19 @@ void CMainMenuModule::SetupConfigFrame()
 	_pConfig = new CDXFrame("Configuration", w - 64.0f, h - 64.0f);
 	_pScreen->AddChild(_pConfig, 32.0f, 32.0f);
 
-	// Add tabs for video, audio, control, misc
 	_pConfigTab = new CDXTabControl(w - 80.0f, h - 80.0f);
-
 	_pConfig->AddChild(_pConfigTab, 8.0f, 8.0f);
 
 	float fontHeight = TexFont.Height() * pConfig->FontScale;
 	float buttonHeight = fontHeight + 24.0f;
 	float checkBoxWidth = 250.0f + 72 * pConfig->FontScale;
 
-	// Video config
 	float tw = (w - 80.0f) / 3 - 2.0f;
 	_pConfigVideo = new CDXTabItem(_pConfigTab, "Video", tw, h - 80.0f);
 	_pConfigTab->AddChild(_pConfigVideo, 0.0f, 0.0f);
 
 	float y = 46.0f + fontHeight;
 
-	// Resolution and full screen
 	CDXImageButton* pLBtn = new CDXImageButton(0, ConfigPreviousResolution);
 	_pConfigVideo->AddChild(pLBtn, checkBoxWidth - 50.0f, y);
 
@@ -965,7 +938,6 @@ void CMainMenuModule::SetupConfigFrame()
 
 	_pConfigVideo->AddChild(pFontScaleSlider = new CDXSlider("Font scale", 1.0f, 3.0f, 0.25f, &cfg.FontScale, 2, checkBoxWidth - 10), 22.0f, y);
 
-	// Audio config
 	_pConfigAudio = new CDXTabItem(_pConfigTab, "Audio", tw, h - 80.0f);
 	_pConfigTab->AddChild(_pConfigAudio, 0.0f, 0.0f);
 
@@ -974,7 +946,6 @@ void CMainMenuModule::SetupConfigFrame()
 	_pConfigAudio->AddChild(pVolumeSlider = new CDXSlider("Volume", 0.0f, 100.0f, 1.0f, &cfg.Volume, 0, checkBoxWidth - 10), 22.0f, y);
 	y += buttonHeight * 1.5f;
 
-	// MIDI
 	_pConfigAudio->AddChild(new CDXCheckBox("MIDI", &cfg.PlayMIDI, checkBoxWidth), 22.0f, y);
 	y += buttonHeight;
 
@@ -994,7 +965,6 @@ void CMainMenuModule::SetupConfigFrame()
 
 	_pConfigAudio->AddChild(pMIDIVolumeSlider = new CDXSlider("MIDI volume", 0.0f, 100.0f, 1.0f, &cfg.MIDIVolume, 0, checkBoxWidth - 10), 22.0f, y);
 
-	// Control config
 	_pConfigControl = new CDXTabItem(_pConfigTab, "Controls", tw, h - 80.0f);
 	_pConfigTab->AddChild(_pConfigControl, 0.0f, 0.0f);
 
@@ -1010,54 +980,51 @@ void CMainMenuModule::SetupConfigFrame()
 	_pConfigControlTab->AddChild(_pConfigControlJoystick, 0.0f, 10.0f);
 
 	_pConfigControl->AddChild(new CDXCheckBox("Invert Y", &cfg.InvertY, checkBoxWidth), 22.0f, y);
-	//y += buttonHeight;
 
-	// Make a copy of the current controls
 	_controlMapping = CInputMapping::ControlsMap;
 
-	// TODO: Change ConfigControlsCancel to take no params?
-	_pCancelConfigControlBtn = new CDXButton("Cancel", 64.0f * pConfig->FontScale, 32.0f * ::pConfig->FontScale, [](LPVOID) {
+	_pCancelConfigControlBtn = new CDXButton("Cancel", 64.0f * pConfig->FontScale, 32.0f * ::pConfig->FontScale, [](void*) {
 		ConfigControlsCancel(InputAction::Cursor);
 	});
-	_pCancelConfigControlBtn->SetVisible(FALSE);
+	_pCancelConfigControlBtn->SetVisible(false);
 	_pConfigControl->AddChild(_pCancelConfigControlBtn, 24.0f, h - 72.0f - 54.0f * ::pConfig->FontScale);
 
 	float x = 22.0f;
 
 	_mouseKeyControls.clear();
-	_mouseKeyControls[InputAction::Cursor] = new CDXControlButton("Cursor", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cursor);
-	_mouseKeyControls[InputAction::Action] = new CDXControlButton("Action", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Action);
-	_mouseKeyControls[InputAction::Cycle] = new CDXControlButton("Cycle", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cycle);
-	_mouseKeyControls[InputAction::Back] = new CDXControlButton("Back", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Back);
-	_mouseKeyControls[InputAction::Travel] = new CDXControlButton("Travel", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Travel);
-	_mouseKeyControls[InputAction::Inventory] = new CDXControlButton("Inventory", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Inventory);
-	_mouseKeyControls[InputAction::Run] = new CDXControlButton("Run", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Run);
-	_mouseKeyControls[InputAction::Next] = new CDXControlButton("Next", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Next);
-	_mouseKeyControls[InputAction::Prev] = new CDXControlButton("Previous", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Prev);
-	_mouseKeyControls[InputAction::MoveForward] = new CDXControlButton("Move forward", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveForward);
-	_mouseKeyControls[InputAction::MoveBack] = new CDXControlButton("Move back", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveBack);
-	_mouseKeyControls[InputAction::MoveLeft] = new CDXControlButton("Move left", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveLeft);
-	_mouseKeyControls[InputAction::MoveRight] = new CDXControlButton("Move right", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveRight);
-	_mouseKeyControls[InputAction::MoveUp] = new CDXControlButton("Move up", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveUp);
-	_mouseKeyControls[InputAction::MoveDown] = new CDXControlButton("Move down", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveDown);
-	_mouseKeyControls[InputAction::Hints] = new CDXControlButton("Hints", &_controlMapping, FALSE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Hints);
+	_mouseKeyControls[InputAction::Cursor] = new CDXControlButton("Cursor", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cursor);
+	_mouseKeyControls[InputAction::Action] = new CDXControlButton("Action", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Action);
+	_mouseKeyControls[InputAction::Cycle] = new CDXControlButton("Cycle", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cycle);
+	_mouseKeyControls[InputAction::Back] = new CDXControlButton("Back", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Back);
+	_mouseKeyControls[InputAction::Travel] = new CDXControlButton("Travel", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Travel);
+	_mouseKeyControls[InputAction::Inventory] = new CDXControlButton("Inventory", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Inventory);
+	_mouseKeyControls[InputAction::Run] = new CDXControlButton("Run", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Run);
+	_mouseKeyControls[InputAction::Next] = new CDXControlButton("Next", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Next);
+	_mouseKeyControls[InputAction::Prev] = new CDXControlButton("Previous", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Prev);
+	_mouseKeyControls[InputAction::MoveForward] = new CDXControlButton("Move forward", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveForward);
+	_mouseKeyControls[InputAction::MoveBack] = new CDXControlButton("Move back", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveBack);
+	_mouseKeyControls[InputAction::MoveLeft] = new CDXControlButton("Move left", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveLeft);
+	_mouseKeyControls[InputAction::MoveRight] = new CDXControlButton("Move right", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveRight);
+	_mouseKeyControls[InputAction::MoveUp] = new CDXControlButton("Move up", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveUp);
+	_mouseKeyControls[InputAction::MoveDown] = new CDXControlButton("Move down", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveDown);
+	_mouseKeyControls[InputAction::Hints] = new CDXControlButton("Hints", &_controlMapping, false, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Hints);
 
-	_mouseKeyControls[InputAction::Cursor]->SetEnabled(FALSE);	// Should not be possible to reconfigure this one
+	_mouseKeyControls[InputAction::Cursor]->SetEnabled(false);
 
 	_joystickControls.clear();
-	_joystickControls[InputAction::Cursor] = new CDXControlButton("Cursor", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cursor);
-	_joystickControls[InputAction::Action] = new CDXControlButton("Action", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Action);
-	_joystickControls[InputAction::Cycle] = new CDXControlButton("Cycle", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cycle);
-	_joystickControls[InputAction::Back] = new CDXControlButton("Back", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Back);
-	_joystickControls[InputAction::Travel] = new CDXControlButton("Travel", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Travel);
-	_joystickControls[InputAction::Inventory] = new CDXControlButton("Inventory", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Inventory);
-	_joystickControls[InputAction::Run] = new CDXControlButton("Run", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Run);
-	_joystickControls[InputAction::Next] = new CDXControlButton("Next", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Next);
-	_joystickControls[InputAction::Prev] = new CDXControlButton("Previous", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Prev);
-	_joystickControls[InputAction::MoveForward] = new CDXControlButton("Movement", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveForward);
-	_joystickControls[InputAction::MoveUp] = new CDXControlButton("Move up", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveUp);
-	_joystickControls[InputAction::MoveDown] = new CDXControlButton("Move down", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveDown);
-	_joystickControls[InputAction::Hints] = new CDXControlButton("Hints", &_controlMapping, TRUE, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Hints);
+	_joystickControls[InputAction::Cursor] = new CDXControlButton("Cursor", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cursor);
+	_joystickControls[InputAction::Action] = new CDXControlButton("Action", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Action);
+	_joystickControls[InputAction::Cycle] = new CDXControlButton("Cycle", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Cycle);
+	_joystickControls[InputAction::Back] = new CDXControlButton("Back", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Back);
+	_joystickControls[InputAction::Travel] = new CDXControlButton("Travel", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Travel);
+	_joystickControls[InputAction::Inventory] = new CDXControlButton("Inventory", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Inventory);
+	_joystickControls[InputAction::Run] = new CDXControlButton("Run", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Run);
+	_joystickControls[InputAction::Next] = new CDXControlButton("Next", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Next);
+	_joystickControls[InputAction::Prev] = new CDXControlButton("Previous", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Prev);
+	_joystickControls[InputAction::MoveForward] = new CDXControlButton("Movement", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveForward);
+	_joystickControls[InputAction::MoveUp] = new CDXControlButton("Move up", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveUp);
+	_joystickControls[InputAction::MoveDown] = new CDXControlButton("Move down", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::MoveDown);
+	_joystickControls[InputAction::Hints] = new CDXControlButton("Hints", &_controlMapping, true, 0.0f, 0.0f, checkBoxWidth - x, ConfigureControl, InputAction::Hints);
 
 	_pConfigControlKeyMouse->AddChild(_mouseKeyControls[InputAction::Cursor], x, y);
 	_pConfigControlJoystick->AddChild(_joystickControls[InputAction::Cursor], x, y);
@@ -1081,7 +1048,6 @@ void CMainMenuModule::SetupConfigFrame()
 	_pConfigControlJoystick->AddChild(_joystickControls[InputAction::MoveForward], x, y);
 	y += fontHeight;
 	_pConfigControlKeyMouse->AddChild(_mouseKeyControls[InputAction::MoveBack], x, y);
-	//_pConfigControlJoystick->AddChild(_joystickControls[InputAction::MoveBack], x, y);
 	_pConfigControlJoystick->AddChild(_joystickControls[InputAction::MoveUp], x, y);
 	y += fontHeight;
 	_pConfigControlKeyMouse->AddChild(_mouseKeyControls[InputAction::MoveLeft], x, y);
@@ -1107,14 +1073,6 @@ void CMainMenuModule::SetupConfigFrame()
 	_pConfigControlKeyMouse->AddChild(new CDXSlider("Mouse sensitivity", 0.25f, 2.0f, 0.05f, &cfg.MouselookScaling, 2, checkBoxWidth - 10), x, y);
 	y += fontHeight * 2.0f;
 
-	/*
-	Extra configurations for joysticks;
-	Gain (1-20?)
-	Dead zone (0-200?)
-	Sensitivity (1-3?) (used as 'a' in gain function)
-	*/
-
-	// Accept/cancel buttons
 	_pConfigCancelBtn = new CDXButton("Cancel", 64.0f * pConfig->FontScale, 32.0f * pConfig->FontScale, ConfigCancel);
 	_pConfig->AddChild(_pConfigCancelBtn, 32.0f, h - 64.0f - 54.0f * pConfig->FontScale);
 
@@ -1132,7 +1090,6 @@ void CMainMenuModule::SetupLoadFrame()
 
 	_pLoad->AddChild(new CDXButton("Cancel", 64.0f * pConfig->FontScale, 32.0f * pConfig->FontScale, LoadCancel), 12.0f, h - 64.0f * pConfig->FontScale);
 
-	// Create a number of placeholder controls
 	for (int i = 0; i < 10; i++)
 	{
 		CSaveGameControl* sgc = new CSaveGameControl(LoadGame);
@@ -1149,22 +1106,18 @@ void CMainMenuModule::SetupSaveFrame()
 	_pSave = new CDXFrame("Save Game", w - 8.0f, h - 8.0f);
 	_pScreen->AddChild(_pSave, 4.0f, 4.0f);
 
-	// When saving, should use default profile name TEX on file (only required for new game)
-
 	_pSave->AddChild(new CDXButton("Cancel", 64.0f * pConfig->FontScale, 32.0f * pConfig->FontScale, SaveCancel), 12.0f, h - 64.0f * pConfig->FontScale);
 	_saveControl = new CSaveGameControl(NULL, true);
 	_pSave->AddChild(_saveControl, 12, (h - _saveControl->GetHeight()) / 2);
 
-	// Save button
 	CDXButton* pSaveBtn = new CDXButton("Save", 64.0f * pConfig->FontScale, 32.0f * pConfig->FontScale, SaveSave);
 	_pSave->AddChild(pSaveBtn, w - 128.0f * pConfig->FontScale, h - 64.0f * pConfig->FontScale);
 
-	// Increment and Save button
 	CDXButton* pIncrementAndSaveBtn = new CDXButton("Increment", 64.0f * pConfig->FontScale, 32.0f * pConfig->FontScale, SaveIncrementSave);
 	_pSave->AddChild(pIncrementAndSaveBtn, w / 2 - 32.0f, h - 64.0f * pConfig->FontScale);
 }
 
-void CMainMenuModule::EnableSaveAndResume(BOOL enable)
+void CMainMenuModule::EnableSaveAndResume(bool enable)
 {
 	_btnMainResume->SetVisible(enable);
 	_btnMainSave->SetEnabled(enable);
@@ -1172,8 +1125,6 @@ void CMainMenuModule::EnableSaveAndResume(BOOL enable)
 
 void CMainMenuModule::UpdateSaveGameData()
 {
-	// TODO: Copy player name from savegame
-	// TODO: Find last save index for player
 	CurrentGameInfo.Player = "TEX";
-	CurrentGameInfo.FileName = L"GAMES\\TEX___00.000";
+	CurrentGameInfo.FileName = "GAMES\\TEX___00.000";
 }

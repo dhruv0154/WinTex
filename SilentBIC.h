@@ -1,19 +1,14 @@
 #pragma once
-#include "AnimBase.h"
-#include "Platform.h"
-#ifdef PLATFORM_WINDOWS
-#include <Windows.h>
-#else
-#include "Win32Compat.h"
-#endif
+
 #include "BIC.h"
+#include <cstdint>
 
 class CSilentBIC : public CBIC
 {
 public:
-	CSilentBIC(int factor = 1) : CBIC(factor) { }
-	virtual BOOL Init(LPBYTE pData, int length);
+    CSilentBIC(int factor = 1) : CBIC(factor) { }
+    virtual bool Init(uint8_t* pData, int length) override;
 
 protected:
-	virtual BOOL DecodeFrame();
+    virtual bool DecodeFrame() override;
 };

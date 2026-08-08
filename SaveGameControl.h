@@ -4,6 +4,7 @@
 #include "DXText.h"
 #include "Texture.h"
 #include "SaveGameInfo.h"
+#include <string>
 
 class CSaveGameControl : public CDXControl
 {
@@ -25,11 +26,11 @@ public:
 	virtual void GotFocus();
 	virtual void LostFocus();
 
-	void SetMouseOver(BOOL mouseOver);
+	void SetMouseOver(bool mouseOver);
 
 	void SetInfo(SaveGameInfo info);
 	SaveGameInfo GetInfo();
-	void SetFileName(std::wstring fileName);
+	void SetFileName(std::string fileName);
 	void SetComment(std::string comment);
 
 	virtual void Click();

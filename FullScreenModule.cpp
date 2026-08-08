@@ -1,6 +1,11 @@
 #include "FullScreenModule.h"
 #include "Utilities.h"
 #include "GameController.h"
+#include "ConstantBuffers.h"
+#include "Shaders.h"
+#include <algorithm>
+#include <cstring>
+#include <chrono>
 
 CFullScreenModule::CFullScreenModule(ModuleType type) : CModuleBase(type)
 {
@@ -10,7 +15,7 @@ CFullScreenModule::CFullScreenModule(ModuleType type) : CModuleBase(type)
 	float h = (float)dx.GetHeight();
 	float sx = w / 640.0f;
 	float sy = h / 480.0f;
-	_scale = min(sx, sy);
+	_scale = std::min(sx, sy);
 	float sw = 640.0f * _scale;
 	float sh = 480.0f * _scale;
 
@@ -29,7 +34,7 @@ CFullScreenModule::CFullScreenModule(ModuleType type) : CModuleBase(type)
 
 	_data = NULL;
 
-	_inputEnabled = TRUE;
+	_inputEnabled = true;
 
 	_currentPage = -1;
 	_currentFrame = 0;
@@ -81,12 +86,12 @@ void CFullScreenModule::Render()
 	{
 		dx.DisableZBuffer();
 
-		UINT stride = sizeof(TEXTURED_VERTEX);
-		UINT offset = 0;
+		uint32_t stride = sizeof(TEXTURED_VERTEX);
+		uint32_t offset = 0;
 		dx.SetVertexBuffers(0, 1, &_vertexBuffer, &stride, &offset);
 		dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		CShaders::SelectOrthoShader();
-		XMMATRIX wm = XMMatrixIdentity();
+		float16 wm = Math::Identity();
 		CConstantBuffers::SetWorld(dx, &wm);
 		ID3D11ShaderResourceView* pRV = _texture.GetTextureRV();
 		dx.SetShaderResources(0, 1, &pRV);
@@ -96,7 +101,7 @@ void CFullScreenModule::Render()
 		{
 			dx.SetVertexBuffers(0, 1, &_iconVertexBuffer, &stride, &offset);
 			dx.SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-			wm = XMMatrixTranslation(_cursorPosX, -_cursorPosY, -0.5f);
+			wm = Math::Translation(_cursorPosX, -_cursorPosY, -0.5f);
 			CConstantBuffers::SetWorld(dx, &wm);
 			pRV = _iconTexture.GetTextureRV();
 			dx.SetShaderResources(0, 1, &pRV);
@@ -120,7 +125,7 @@ void CFullScreenModule::UpdateTexture()
 	if (pTex != NULL)
 	{
 		D3D11_MAPPED_SUBRESOURCE subRes;
-		if (SUCCEEDED(dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes)))
+		if (dx.Map(pTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes) == 0)
 		{
 			int* pScr = (int*)subRes.pData;
 			for (int y = 0; y < 480; y++)
@@ -150,7 +155,7 @@ void CFullScreenModule::RenderItem(int entry, int offset_x, int offset_y, int x1
 	RenderItem(_files[entry], offset_x, offset_y, x1, x2, y1, y2, transparent);
 }
 
-RECT CFullScreenModule::RenderItem(LPBYTE data, int offset_x, int offset_y, int x1, int x2, int y1, int y2, int transparent)
+Rect CFullScreenModule::RenderItem(uint8_t* data, int offset_x, int offset_y, int x1, int x2, int y1, int y2, int transparent)
 {
 	if (x1 < 0)
 	{
@@ -173,7 +178,11 @@ RECT CFullScreenModule::RenderItem(LPBYTE data, int offset_x, int offset_y, int 
 	int h = GetInt(data, 4, 2);
 	int inPtr = 16;
 
-	RECT box{ offset_x, offset_y, offset_x + w, offset_y + h };
+	Rect box;
+	box.Left = offset_x;
+	box.Top = offset_y;
+	box.Right = offset_x + w;
+	box.Bottom = offset_y + h;
 
 	for (int y = 0; y < h; y++)
 	{
@@ -203,7 +212,7 @@ RECT CFullScreenModule::RenderItem(LPBYTE data, int offset_x, int offset_y, int 
 	return box;
 }
 
-void CFullScreenModule::RenderItemOffset(LPBYTE data, int srcOffsetX, int srcOffsetY, int dstOffsetX, int dstOffsetY, int w, int h)
+void CFullScreenModule::RenderItemOffset(uint8_t* data, int srcOffsetX, int srcOffsetY, int dstOffsetX, int dstOffsetY, int w, int h)
 {
 	int imgW = GetInt(data, 2, 2);
 	int imgH = GetInt(data, 4, 2);
@@ -242,17 +251,17 @@ void CFullScreenModule::RenderItemOffset(LPBYTE data, int srcOffsetX, int srcOff
 
 void CFullScreenModule::RenderRaw(int entry, int offset_x, int offset_y, int width, int height)
 {
-	LPBYTE pImg = _files[entry];
+	uint8_t* pImg = _files[entry];
 	int l = GetInt(_data, 6 + entry * 4, 4) - GetInt(_data, 2 + entry * 4, 4);
 	BinaryData bd = CLZ::Decompress(pImg, l);
-	LPBYTE pRaw = bd.Data;
+	uint8_t* pRaw = bd.Data;
 
 	RenderRaw(bd.Data, offset_x, offset_y, width, height);
 
-	delete pRaw;
+	delete[] pRaw;
 }
 
-void CFullScreenModule::RenderRaw(LPBYTE data, int offset_x, int offset_y, int width, int height)
+void CFullScreenModule::RenderRaw(uint8_t* data, int offset_x, int offset_y, int width, int height)
 {
 	for (int y = 0; y < height; y++)
 	{
@@ -263,7 +272,7 @@ void CFullScreenModule::RenderRaw(LPBYTE data, int offset_x, int offset_y, int w
 	}
 }
 
-void CFullScreenModule::DrawRectangle(int x1, int y1, int x2, int y2, BYTE colour)
+void CFullScreenModule::DrawRectangle(int x1, int y1, int x2, int y2, uint8_t colour)
 {
 	if (x1 >= 0 && x2 < 640 && y1 >= 0 && y2 < 480)
 	{
@@ -281,7 +290,7 @@ void CFullScreenModule::DrawRectangle(int x1, int y1, int x2, int y2, BYTE colou
 	}
 }
 
-void CFullScreenModule::Fill(int x1, int y1, int x2, int y2, BYTE colour)
+void CFullScreenModule::Fill(int x1, int y1, int x2, int y2, uint8_t colour)
 {
 	if (x1 >= 0 && x2 < 640 && y1 >= 0 && y2 < 480)
 	{
@@ -295,7 +304,7 @@ void CFullScreenModule::Fill(int x1, int y1, int x2, int y2, BYTE colour)
 	}
 }
 
-void CFullScreenModule::ReplaceColour(int x1, int y1, int x2, int y2, BYTE src, BYTE dst)
+void CFullScreenModule::ReplaceColour(int x1, int y1, int x2, int y2, uint8_t src, uint8_t dst)
 {
 	for (int y = y1; y < y2; y++)
 	{
@@ -311,7 +320,6 @@ void CFullScreenModule::ReplaceColour(int x1, int y1, int x2, int y2, BYTE src, 
 
 void CFullScreenModule::FadeOut(int from, int to, int lowFrame, int highFrame)
 {
-	// Fade out
 	int span = highFrame - lowFrame;
 	for (int i = from; i < to; i++)
 	{
@@ -322,14 +330,13 @@ void CFullScreenModule::FadeOut(int from, int to, int lowFrame, int highFrame)
 		_palette[i] = 0xff000000 | (r << 16) | (g << 8) | b;
 	}
 
-	_frameTime = GetTickCount64();
+	_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	UpdateTexture();
 	_currentFrame++;
 }
 
 void CFullScreenModule::FadeIn(int from, int to, int lowFrame, int highFrame)
 {
-	// Fade in
 	int span = highFrame - lowFrame;
 	for (int i = from; i < to; i++)
 	{
@@ -340,7 +347,7 @@ void CFullScreenModule::FadeIn(int from, int to, int lowFrame, int highFrame)
 		_palette[i] = 0xff000000 | (r << 16) | (g << 8) | b;
 	}
 
-	_frameTime = GetTickCount64();
+	_frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	UpdateTexture();
 	_currentFrame++;
 }
@@ -373,16 +380,16 @@ void CFullScreenModule::Back()
 	}
 }
 
-void CFullScreenModule::ReadPalette(LPBYTE pPalette, int startColour, int colourCount)
+void CFullScreenModule::ReadPalette(uint8_t* pPalette, int startColour, int colourCount)
 {
 	for (int c = 0; c < colourCount; c++)
 	{
 		double r = pPalette[(startColour + c) * 3 + 0];
 		double g = pPalette[(startColour + c) * 3 + 1];
 		double b = pPalette[(startColour + c) * 3 + 2];
-		int ri = (byte)((r * 255.0) / 63.0);
-		int gi = (byte)((g * 255.0) / 63.0);
-		int bi = (byte)((b * 255.0) / 63.0);
+		int ri = (uint8_t)((r * 255.0) / 63.0);
+		int gi = (uint8_t)((g * 255.0) / 63.0);
+		int bi = (uint8_t)((b * 255.0) / 63.0);
 		int col = 0xff000000 | bi | (gi << 8) | (ri << 16);
 		_palette[startColour + c] = col;
 		_originalPalette[startColour + c] = col;
